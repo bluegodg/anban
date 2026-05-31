@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>安伴子女端</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar" aria-label="连接">
+        <div>
+          <p class="eyebrow">AnBan V0.1</p>
+          <h1>子女端控制台</h1>
+        </div>
+        <form id="connectForm" class="connect">
+          <label>
+            <span>访问码</span>
+            <input id="accessCode" name="accessCode" autocomplete="current-password">
+          </label>
+          <label>
+            <span>设备 ID</span>
+            <input id="deviceId" name="deviceId" autocomplete="off">
+          </label>
+          <label>
+            <span>后端地址</span>
+            <input id="apiBaseURL" name="apiBaseURL" placeholder="同源留空">
+          </label>
+          <button type="submit">连接</button>
+        </form>
+      </section>
+
+      <section class="dashboard" aria-label="今日状态">
+        <div id="statusPanel" class="status-panel">
+          <div class="device-mark" aria-hidden="true">
+            <span></span>
+          </div>
+          <div>
+            <p>设备状态</p>
+            <h2 id="statusText">未连接</h2>
+            <small id="lastInteraction">等待访问码</small>
+          </div>
+        </div>
+
+        <section class="panel message-panel" aria-label="留言">
+          <header>
+            <p>留言</p>
+            <span>最多 100 字</span>
+          </header>
+          <form id="messageForm">
+            <label>
+              <span>发送人</span>
+              <input id="fromName" name="fromName" value="小明">
+            </label>
+            <label>
+              <span>留言内容</span>
+              <textarea id="messageText" name="messageText" maxlength="100" rows="4">妈，我下班路过老张家了，他说让你有空过去喝茶。</textarea>
+            </label>
+            <button type="submit">发送留言</button>
+          </form>
+          <ul id="messageList" class="message-list"></ul>
+        </section>
+
+        <section class="panel actions-panel" aria-label="主动陪伴">
+          <header>
+            <p>主动陪伴</p>
+            <span>骨架</span>
+          </header>
+          <button id="greetingButton" type="button">触发问候</button>
+          <form id="reminderForm">
+            <label>
+              <span>提醒时间</span>
+              <input id="reminderTime" name="reminderTime" type="datetime-local">
+            </label>
+            <label>
+              <span>提醒内容</span>
+              <input id="reminderContent" name="reminderContent" value="该测血压啦">
+            </label>
+            <button type="submit">保存提醒草稿</button>
+          </form>
+        </section>
+
+        <section class="panel profile-panel" aria-label="家庭画像">
+          <header>
+            <p>家庭画像</p>
+            <span id="profileSummary">王阿姨 · 喜欢豫剧</span>
+          </header>
+          <form id="profileForm">
+            <label>
+              <span>老人称呼</span>
+              <input name="elderName" value="王阿姨">
+            </label>
+            <label>
+              <span>喜好</span>
+              <input name="hobby" value="豫剧">
+            </label>
+            <button type="submit">更新画像草稿</button>
+          </form>
+        </section>
+      </section>
+
+      <output id="notice" class="notice" aria-live="polite"></output>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
