@@ -99,3 +99,17 @@
 - 目的：补齐 message 包中此前未覆盖的 HTTP handler 行为，避免只测 service 导致接口层薄弱。
 - 功能影响：无生产功能变化。
 - 验证：已运行 `go test -count=1 -cover ./internal/domains/message`，通过，message 包覆盖率 92.1%。
+
+### 00:05 总体验证与本地 web 服务
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成后端全量测试、构建、vet、message 覆盖率检查和 web smoke test。
+- 目的：确认新增 message 域、childapi 路由注入、web 骨架没有破坏原有地基与 xiaozhi 适配器测试。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/message` 通过，message 覆盖率 92.1%。
+  - `npm test --prefix web` 通过。
+  - 已启动静态 web 服务：`http://127.0.0.1:5173/`，本地 HTTP 检查返回 200。
