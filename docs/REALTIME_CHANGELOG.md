@@ -55,3 +55,15 @@
 - 目的：把 message 域接进现有地基，同时不改冻结的 xiaozhi 上游。
 - 功能：服务启动后 `/api/messages` 真可用，其它域仍保持占位。
 - 验证：已运行 `go test -count=1 ./internal/domains/message ./internal/childapi`，通过。
+
+### 23:50 子女端 web 骨架 RED 测试
+
+- 文件：`web/package.json`
+- 内容：新增子女端静态骨架的 Node 测试脚本入口。
+- 目的：不引入前端构建依赖，先用 Node 自带测试保证最小页面和 API 封装存在。
+- 功能影响：暂无运行时页面；这是 TDD RED 阶段。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 smoke test，验证页面包含访问码、设备 ID、状态、留言、问候、提醒、画像核心控件，并验证 API client 会带 `X-Access-Code` 调用 `POST /api/messages`。
+- 目的：对齐三周计划任务 0.4 的“子女端 Web 骨架（连假数据）”和 PRD #3/#4 的最小控件需求。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期因 `web/index.html` 和 `web/api/client.js` 未实现而失败。
+- 验证：已运行 `npm test --prefix web`，按预期失败。失败原因是 `web/index.html` 不存在，以及 `web/api/client.js` 模块不存在。
