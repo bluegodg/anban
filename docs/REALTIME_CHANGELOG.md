@@ -175,3 +175,17 @@
 - 目的：让子女端从真实 `/api/greetings/trigger` 响应中获得可见反馈，证明按钮不再只是占位交互。
 - 功能：点击“触发问候”后，页面会展示设备实际要播报的问候文本。
 - 验证：已运行 `npm test --prefix web`，通过。
+
+### 00:32 greeting 切片总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成新增 greeting 手动触发切片后的全量后端测试、构建、vet、greeting 覆盖率检查、web smoke test 和静态页面访问检查。
+- 目的：确认新增主动问候 API 与 web 反馈没有破坏 message 域、childapi、xiaozhiclient 原有适配器和现有地基。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/greeting` 通过，greeting 包覆盖率 92.7%。
+  - `npm test --prefix web` 通过。
+  - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
