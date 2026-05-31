@@ -1,0 +1,27 @@
+services:
+  # xiaozhi：core+manager。镜像/构建方式按 xiaozhi 仓库的 doc/docker.md 填。
+  # 这里占位为 image；首次本地联调也可直接在宿主机跑 xiaozhi，不进 compose。
+  xiaozhi:
+    image: xiaozhi-esp32-server-golang:local
+    ports:
+      - "8080:8080"   # manager REST/WS
+      - "8000:8000"   # core ws（端口以 xiaozhi 配置为准）
+    # build / volumes / env 按 xiaozhi 仓库 doc 填
+
+  anban:
+    build:
+      context: ./server
+    depends_on:
+      - xiaozhi
+    ports:
+      - "8090:8090"
+    environment:
+      ANBAN_MANAGER_BASE_URL: "http://xiaozhi:8080"
+      ANBAN_MANAGER_API_TOKEN: "${ANBAN_MANAGER_API_TOKEN}"
+      ANBAN_ACCESS_CODE: "${ANBAN_ACCESS_CODE:-demo}"
+      ANBAN_DB_DSN: "/data/anban.db"
+    volumes:
+      - anban_data:/data
+
+volumes:
+  anban_data:
