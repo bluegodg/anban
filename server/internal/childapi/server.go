@@ -9,7 +9,12 @@ import (
 // Deps 是 childapi 装配所需的依赖（各域 handler 之后注入这里）。
 // 地基期为空骨架；域 follow-on 计划往这里加自己的 handler 字段并注册路由。
 type Deps struct {
-	AccessCode string
+	AccessCode    string
+	MessageRoutes RouteRegistrar
+}
+
+type RouteRegistrar interface {
+	RegisterRoutes(r gin.IRoutes)
 }
 
 func NewRouter(d Deps) *gin.Engine {
@@ -29,8 +34,12 @@ func NewRouter(d Deps) *gin.Engine {
 	notImpl := func(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "未实现（地基占位）"})
 	}
-	api.POST("/messages", notImpl)          // message 域
-	api.GET("/messages", notImpl)           // message 域
+	if d.MessageRoutes != nil {
+		d.MessageRoutes.RegisterRoutes(api)
+	} else {
+		api.POST("/messages", notImpl) // message 域
+		api.GET("/messages", notImpl)  // message 域
+	}
 	api.POST("/reminders", notImpl)         // reminder 域
 	api.GET("/reminders", notImpl)          // reminder 域
 	api.POST("/greetings/trigger", notImpl) // greeting 域

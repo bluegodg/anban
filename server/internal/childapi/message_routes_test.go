@@ -1,7 +1,6 @@
 package childapi
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,7 +48,6 @@ type messageRoutesStub struct{}
 
 func (messageRoutesStub) RegisterRoutes(r gin.IRoutes) {
 	r.POST("/messages", func(c *gin.Context) {
-		_ = c.Request.Context().Value(context.Background())
 		c.JSON(http.StatusCreated, gin.H{"messageId": "stub-message"})
 	})
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/bluegodg/anban/server/internal/childapi"
 	"github.com/bluegodg/anban/server/internal/config"
+	"github.com/bluegodg/anban/server/internal/domains/message"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -20,16 +21,24 @@ func main() {
 	if err != nil {
 		log.Fatalf("数据库打开失败: %v", err)
 	}
-	_ = st // 地基期各域尚未注册模型；域接入时在此 st.AutoMigrate(...)
 
 	xc := xiaozhiclient.NewHTTPClient(cfg.ManagerBaseURL, cfg.ManagerAPIToken)
-	_ = xc // 地基期各域尚未接入；域接入时把 xc 注入各域 service
+
+	messageStore := message.NewStore(st.DB)
+	if err := messageStore.AutoMigrate(); err != nil {
+		log.Fatalf("message 表迁移失败: %v", err)
+	}
+	messageService := message.NewService(messageStore, xc)
+	messageHandler := message.NewHandler(messageService)
 
 	sch := scheduler.New()
 	sch.Start()
 	defer sch.Stop()
 
-	r := childapi.NewRouter(childapi.Deps{AccessCode: cfg.AccessCode})
+	r := childapi.NewRouter(childapi.Deps{
+		AccessCode:    cfg.AccessCode,
+		MessageRoutes: messageHandler,
+	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)
 	if err := r.Run(cfg.ListenAddr); err != nil {
