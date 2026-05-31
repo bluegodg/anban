@@ -113,3 +113,21 @@
   - `go test -count=1 -cover ./internal/domains/message` 通过，message 覆盖率 92.1%。
   - `npm test --prefix web` 通过。
   - 已启动静态 web 服务：`http://127.0.0.1:5173/`，本地 HTTP 检查返回 200。
+
+## 2026-06-01
+
+### 00:12 greeting 手动触发 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增 greeting 服务层测试，覆盖手动触发问候后调用 `InjectSpeak`、持久化 played 状态、默认 tonePreset、输入校验、注入失败记录 failed。
+- 目的：按 PRD #2 “子女端按钮立即触发主动问候”的最小闭环先写测试，只做手动触发，不展开定时配置。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
+- 文件：`server/internal/domains/greeting/handler_test.go`
+- 内容：新增 HTTP handler 测试，覆盖 `POST /api/greetings/trigger` 的成功、坏请求、xiaozhi 注入失败返回 502。
+- 目的：确保子女端问候按钮对应的后端入口行为明确。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
+- 文件：`server/internal/childapi/greeting_routes_test.go`
+- 内容：新增 childapi 路由装配测试，验证注入 greeting 路由后 `/api/greetings/trigger` 可替换 501 占位，同时未注入时保持占位。
+- 目的：继续沿用北向边界注入模式，保持 childapi 不直接碰 xiaozhi/store。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
+- 验证：已运行 `go test ./internal/domains/greeting ./internal/childapi`，按预期失败。失败原因是 `Service` / `NewStore` / `NewService` / `TriggerRequest` / `NewHandler` / `Greeting` / `StatusPlayed` 未实现，以及 `childapi.Deps.GreetingRoutes` 字段尚不存在。
