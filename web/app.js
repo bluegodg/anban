@@ -80,8 +80,9 @@ els.messageForm.addEventListener('submit', async (event) => {
 
 els.greetingButton.addEventListener('click', async () => {
   try {
-    await client().triggerGreeting({ deviceId: state.deviceId, tonePreset: 'warm' });
-    showNotice('问候已触发');
+    const greeting = await client().triggerGreeting({ deviceId: state.deviceId, tonePreset: 'warm' });
+    renderStatus('在线', '刚刚触发一次主动问候');
+    showNotice(`问候已触发：${greeting.text}`);
   } catch (error) {
     handleApiError(error, '问候接口暂未接入');
   }
