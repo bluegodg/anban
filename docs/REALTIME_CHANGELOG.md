@@ -131,3 +131,31 @@
 - 目的：继续沿用北向边界注入模式，保持 childapi 不直接碰 xiaozhi/store。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
 - 验证：已运行 `go test ./internal/domains/greeting ./internal/childapi`，按预期失败。失败原因是 `Service` / `NewStore` / `NewService` / `TriggerRequest` / `NewHandler` / `Greeting` / `StatusPlayed` 未实现，以及 `childapi.Deps.GreetingRoutes` 字段尚不存在。
+
+### 00:18 greeting 手动触发 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/types.go`
+- 内容：新增问候记录、触发请求、tonePreset、状态和查询过滤类型。
+- 目的：承接 PRD #2 `POST /api/greetings/trigger` 的最小数据契约。
+- 功能：记录每次问候触发的设备、口吻、文本、状态、触发时间和播报结果。
+- 文件：`server/internal/domains/greeting/store.go`
+- 内容：新增 greeting 域数据访问层，负责问候表迁移、创建、更新、按 deviceId/status 查询。
+- 目的：保持域内 store 只管理本域表，沿用 message 域已验证的边界模式。
+- 功能：问候触发记录可持久化，后续可给状态页或审计使用。
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：新增手动触发问候业务逻辑，校验 deviceId、规范 tonePreset、生成演示问候文本、通过 `xiaozhiclient.InjectSpeak` 播报并更新 played/failed。
+- 目的：实现 PRD #2 的子女端按钮立即触发问候，不展开定时问候。
+- 功能：子女端点击问候按钮后，设备可经 manager OpenAPI 主动开口。
+- 文件：`server/internal/domains/greeting/handler.go`
+- 内容：新增 Gin handler，注册 `POST /api/greetings/trigger`。
+- 目的：把 childapi 的 greeting 占位替换为真业务入口。
+- 功能：前端可调用问候触发接口，失败时返回 502 和 failed 记录。
+- 文件：`server/internal/childapi/server.go`
+- 内容：新增 `Deps.GreetingRoutes`，有 greeting 依赖时注册真路由，缺省时保留 501 占位。
+- 目的：继续保持 childapi 只接入 domain handler，不直接触碰 xiaozhi 或数据库。
+- 功能：问候路由可按域独立接入，未接入的提醒/画像/状态仍保持占位。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时装配 greeting store/service/handler，并执行 greeting 表迁移。
+- 目的：把 greeting 域接进现有地基，同时不改冻结的 xiaozhi 上游。
+- 功能：服务启动后 `/api/greetings/trigger` 真可用。
+- 验证：已运行 `go test -count=1 ./internal/domains/greeting ./internal/childapi`，通过。

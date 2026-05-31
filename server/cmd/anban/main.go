@@ -5,6 +5,7 @@ import (
 
 	"github.com/bluegodg/anban/server/internal/childapi"
 	"github.com/bluegodg/anban/server/internal/config"
+	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/message"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
@@ -31,13 +32,21 @@ func main() {
 	messageService := message.NewService(messageStore, xc)
 	messageHandler := message.NewHandler(messageService)
 
+	greetingStore := greeting.NewStore(st.DB)
+	if err := greetingStore.AutoMigrate(); err != nil {
+		log.Fatalf("greeting 表迁移失败: %v", err)
+	}
+	greetingService := greeting.NewService(greetingStore, xc)
+	greetingHandler := greeting.NewHandler(greetingService)
+
 	sch := scheduler.New()
 	sch.Start()
 	defer sch.Stop()
 
 	r := childapi.NewRouter(childapi.Deps{
-		AccessCode:    cfg.AccessCode,
-		MessageRoutes: messageHandler,
+		AccessCode:     cfg.AccessCode,
+		MessageRoutes:  messageHandler,
+		GreetingRoutes: greetingHandler,
 	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)
