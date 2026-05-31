@@ -1,0 +1,15 @@
+# Go
+/server/anban
+*.exe
+*.test
+*.out
+# 本地数据/密钥
+*.db
+*.sqlite
+.env
+.env.local
+# IDE
+.idea/
+.vscode/
+# codegraph 等本地工具
+.codegraph/
