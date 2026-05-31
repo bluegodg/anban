@@ -49,3 +49,9 @@ test('API client sends child access code and message payload', async () => {
   });
   assert.equal(result.messageId, 7);
 });
+
+test('child web shows greeting text returned by backend', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /问候已触发：\$\{greeting\.text\}/);
+});

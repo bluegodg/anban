@@ -159,3 +159,11 @@
 - 目的：把 greeting 域接进现有地基，同时不改冻结的 xiaozhi 上游。
 - 功能：服务启动后 `/api/greetings/trigger` 真可用。
 - 验证：已运行 `go test -count=1 ./internal/domains/greeting ./internal/childapi`，通过。
+
+### 00:24 web 问候响应消费 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 smoke test，要求前端在触发问候成功后展示后端返回的 `greeting.text`。
+- 目的：让子女端按钮真正消费 `/api/greetings/trigger` 的业务响应，而不是只显示固定成功文案。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `web/app.js` 未展示响应文本而失败。
+- 验证：已运行 `npm test --prefix web`，按预期失败。失败原因是 `web/app.js` 仍只显示固定的“问候已触发”，未使用 `greeting.text`。
