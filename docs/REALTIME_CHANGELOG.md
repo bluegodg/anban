@@ -91,3 +91,11 @@
 - 目的：团队成员能快速打开子女端骨架。
 - 功能影响：无运行时影响。
 - 验证：已运行 `npm test --prefix web`，通过。
+
+### 23:58 message handler 覆盖率补强
+
+- 文件：`server/internal/domains/message/handler_test.go`
+- 内容：新增 handler 测试，覆盖创建留言、查询留言、非法 JSON、缺少必填字段、xiaozhi 注入失败返回 502。
+- 目的：补齐 message 包中此前未覆盖的 HTTP handler 行为，避免只测 service 导致接口层薄弱。
+- 功能影响：无生产功能变化。
+- 验证：已运行 `go test -count=1 -cover ./internal/domains/message`，通过，message 包覆盖率 92.1%。
