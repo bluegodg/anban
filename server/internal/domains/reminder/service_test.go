@@ -148,6 +148,65 @@ func TestServiceCreateMarksFailedWhenInjectFailsOnFire(t *testing.T) {
 	}
 }
 
+func TestServiceRestoreScheduledRehydratesPendingReminders(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, fakeXC, fakeSch)
+	ctx := context.Background()
+
+	futureAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
+	pending := Reminder{
+		DeviceID:    "dev-001",
+		ScheduledAt: futureAt,
+		Content:     "测血压",
+		Category:    CategoryMed,
+		Text:        reminderText("测血压", CategoryMed),
+		Status:      StatusScheduled,
+		JobID:       "stale-job",
+	}
+	if err := svc.store.Create(ctx, &pending); err != nil {
+		t.Fatalf("create pending: %v", err)
+	}
+	played := Reminder{
+		DeviceID:    "dev-001",
+		ScheduledAt: futureAt,
+		Content:     "已播过",
+		Category:    CategoryCustom,
+		Text:        reminderText("已播过", CategoryCustom),
+		Status:      StatusPlayed,
+	}
+	if err := svc.store.Create(ctx, &played); err != nil {
+		t.Fatalf("create played: %v", err)
+	}
+
+	count, err := svc.RestoreScheduled(ctx)
+	if err != nil {
+		t.Fatalf("RestoreScheduled: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("restored count = %d, want 1", count)
+	}
+	if len(fakeSch.jobs) != 1 {
+		t.Fatalf("scheduled jobs = %d, want 1", len(fakeSch.jobs))
+	}
+	if !fakeSch.jobs[0].at.Equal(futureAt) {
+		t.Fatalf("scheduled at = %s, want %s", fakeSch.jobs[0].at, futureAt)
+	}
+
+	list, err := svc.List(ctx, ListFilter{Status: StatusScheduled})
+	if err != nil {
+		t.Fatalf("List scheduled: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != pending.ID || list[0].JobID != "job-1" {
+		t.Fatalf("scheduled list = %+v, want restored job ID on pending reminder", list)
+	}
+
+	fakeSch.fire(0)
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want restored reminder to fire once", len(fakeXC.InjectCalls))
+	}
+}
+
 type fakeScheduler struct {
 	jobs []fakeJob
 }

@@ -521,3 +521,10 @@
   - `go test -count=1 -cover ./internal/domains/profile ./internal/xiaozhiclient` 通过，profile 包覆盖率 85.4%，xiaozhiclient 包覆盖率 86.1%。
   - `npm test --prefix web` 通过。
   - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
+
+### 14:08 reminder 重启恢复 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 reminder 服务测试，模拟 DB 中已有 `scheduled` 提醒但进程重启后内存定时器为空，要求 `RestoreScheduled` 只恢复 pending 提醒、跳过已 played 提醒、刷新 jobId，并能重新触发播报。
+- 目的：对齐 PRD #6 “后端重启后已排入提醒不丢”的验收缺口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 reminder 服务尚无 `RestoreScheduled` 而失败。
