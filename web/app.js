@@ -88,7 +88,7 @@ els.greetingButton.addEventListener('click', async () => {
   }
 });
 
-els.reminderForm.addEventListener('submit', (event) => {
+els.reminderForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const content = els.reminderContent.value.trim();
   const at = els.reminderTime.value;
@@ -96,7 +96,18 @@ els.reminderForm.addEventListener('submit', (event) => {
     showNotice('提醒内容和时间都要填写');
     return;
   }
-  showNotice(`提醒草稿已记录：${content}`);
+  try {
+    const reminder = await client().createReminder({
+      deviceId: state.deviceId,
+      scheduledAt: new Date(at).toISOString(),
+      content,
+      category: 'med',
+    });
+    renderStatus('在线', `已排入提醒：${formatTime(reminder.scheduledAt)}`);
+    showNotice(`提醒已创建：${reminder.content}`);
+  } catch (error) {
+    handleApiError(error, '提醒创建失败');
+  }
 });
 
 els.profileForm.addEventListener('submit', (event) => {

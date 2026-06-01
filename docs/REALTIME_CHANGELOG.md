@@ -241,3 +241,19 @@
 - 目的：把子女端提醒表单从“草稿”推进到真实后端接口调用。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `web/api/client.js` 和 `web/app.js` 未实现提醒接入而失败。
 - 验证：已运行 `npm test --prefix web`，按预期失败。失败原因是 `client.createReminder` 不存在，以及 `web/app.js` 仍只显示“提醒草稿已记录”。
+
+### 01:00 web 提醒接口接入 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：新增 `createReminder` 和 `listReminders`，分别封装 `POST /api/reminders` 与 `GET /api/reminders`。
+- 目的：建立子女端提醒功能的前后端 API 对接缝。
+- 功能：前端可带访问码创建提醒并查询提醒列表。
+- 文件：`web/app.js`
+- 内容：提醒表单改为调用 `client.createReminder`，把 `datetime-local` 转成 ISO 时间，成功后展示“提醒已创建：<内容>”并更新状态面板。
+- 目的：让提醒从本地草稿变成真实后端调度任务。
+- 功能：子女端提交提醒后，后端会落库并注册一次性定时播报。
+- 文件：`web/index.html`
+- 内容：提醒按钮文案从“保存提醒草稿”改为“创建提醒”。
+- 目的：让界面文案与真实后端功能一致。
+- 功能影响：仅文案变化。
+- 验证：已运行 `npm test --prefix web`，通过。
