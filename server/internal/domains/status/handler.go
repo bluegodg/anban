@@ -17,6 +17,7 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.GET("/status", h.get)
+	r.GET("/device/status", h.get)
 }
 
 func (h *Handler) get(c *gin.Context) {

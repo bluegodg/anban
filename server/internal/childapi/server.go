@@ -59,7 +59,8 @@ func NewRouter(d Deps) *gin.Engine {
 	if d.StatusRoutes != nil {
 		d.StatusRoutes.RegisterRoutes(api)
 	} else {
-		api.GET("/status", notImpl) // status 域
+		api.GET("/status", notImpl)        // status 域
+		api.GET("/device/status", notImpl) // status 域（PRD 路径）
 	}
 
 	return r

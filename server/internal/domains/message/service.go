@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
 type Service struct {
@@ -65,6 +66,32 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
 
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]Message, error) {
 	return s.store.List(ctx, filter)
+}
+
+func (s *Service) ListMessageStatusSummaries(ctx context.Context, deviceID string, limit int) ([]sharedtypes.MessageStatusSummary, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	messages, err := s.store.List(ctx, ListFilter{DeviceID: deviceID})
+	if err != nil {
+		return nil, err
+	}
+	if limit > 0 && len(messages) > limit {
+		messages = messages[:limit]
+	}
+
+	summaries := make([]sharedtypes.MessageStatusSummary, 0, len(messages))
+	for _, msg := range messages {
+		summaries = append(summaries, sharedtypes.MessageStatusSummary{
+			MessageID: msg.ID,
+			Status:    string(msg.Status),
+			QueuedAt:  msg.QueuedAt,
+			PlayedAt:  msg.PlayedAt,
+		})
+	}
+	return summaries, nil
 }
 
 func trimAndLimit(text string, maxRunes int) string {

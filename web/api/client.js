@@ -49,7 +49,7 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
       const params = new URLSearchParams();
       if (deviceId) params.set('deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/status${suffix}`);
+      return request(`/api/device/status${suffix}`);
     },
   };
 }

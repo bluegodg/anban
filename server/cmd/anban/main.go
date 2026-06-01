@@ -52,7 +52,7 @@ func main() {
 	reminderService := reminder.NewService(reminderStore, xc, sch)
 	reminderHandler := reminder.NewHandler(reminderService)
 
-	statusService := status.NewService(xc)
+	statusService := status.NewService(xc, messageService)
 	statusHandler := status.NewHandler(statusService)
 
 	r := childapi.NewRouter(childapi.Deps{

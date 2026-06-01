@@ -365,3 +365,53 @@
 - 目的：让子女端逐步贴近 PRD 接口轮廓。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web client 仍调用 `/api/status` 而失败。
 - 验证：已运行 `go test ./internal/domains/status ./internal/domains/message` 和 `npm test --prefix web`，按预期失败。失败原因是 `MessageStatusSummary`、`Snapshot.Messages`、status 的 message reader 注入、message 服务 `ListMessageStatusSummaries` 尚未实现，以及 web client 仍调用旧 `/api/status` 路径。
+
+### 09:13 status 聚合留言状态 GREEN 实现
+
+- 文件：`server/pkg/types/types.go`
+- 内容：新增 `MessageStatusSummary` 和 `MessageStatusReader`。
+- 目的：给 status 与 message 之间提供一个共享小接口，避免 status 域直接 import message 域。
+- 功能：status 可读取留言状态摘要，同时继续遵守域间依赖纪律。
+- 文件：`server/internal/domains/message/service.go`
+- 内容：新增 `ListMessageStatusSummaries`，按 deviceId 查询留言、按已有列表顺序返回最近状态摘要，并支持 limit。
+- 目的：让 message 域向 status 暴露最小必要的播放状态视图。
+- 功能：输出 `{messageId,status,queuedAt,playedAt?}`。
+- 文件：`server/internal/domains/status/types.go`
+- 内容：`Snapshot` 新增 `messages` 字段。
+- 目的：对齐 PRD #4 的 status 响应轮廓。
+- 功能：状态接口可携带最近留言播放状态。
+- 文件：`server/internal/domains/status/service.go`
+- 内容：`NewService` 支持注入 `MessageStatusReader`，`Get` 默认读取 10 条最近留言状态并放入 `Snapshot.Messages`。
+- 目的：实现“设备在线/最近互动/留言状态”的最小聚合。
+- 功能：status 响应同时包含 xiaozhi 在线态和安伴本地留言状态。
+- 文件：`server/internal/domains/status/handler.go`
+- 内容：新增注册 `/api/device/status`，保留 `/api/status`。
+- 目的：兼容完整 PRD 接口路径，同时不打断已有 web 骨架调用历史。
+- 功能：两个路径均可读取同一 status 快照。
+- 文件：`server/internal/childapi/server.go`
+- 内容：缺省占位时也为 `/api/device/status` 返回 501。
+- 目的：让未注入 status 域时的 PRD 路径也保持清晰占位语义。
+- 功能：childapi 骨架路径更完整。
+- 文件：`server/cmd/anban/main.go`
+- 内容：装配 status 服务时注入 `messageService`。
+- 目的：由启动层编排跨域协作，避免业务域互相 import。
+- 功能：运行态 `/api/device/status` 会返回最近留言状态。
+- 文件：`web/api/client.js`
+- 内容：`getStatus` 改为调用 `/api/device/status`。
+- 目的：子女端 API client 向完整 PRD 路径靠拢。
+- 功能：前端状态刷新使用 PRD 路径。
+- 验证：已运行 `go test ./internal/domains/status ./internal/domains/message` 和 `npm test --prefix web`，通过。
+
+### 09:24 status 聚合留言状态总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成 status 聚合留言状态与 PRD 路径切片后的全量后端测试、构建、vet、相关包覆盖率检查、web smoke test 和静态页面访问检查。
+- 目的：确认新增共享接口、status 聚合、message 状态摘要和 web PRD 路径切换没有破坏既有 message/greeting/reminder/xiaozhiclient 能力。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/status ./internal/domains/message` 通过，status 包覆盖率 85.3%，message 包覆盖率 90.7%。
+  - `npm test --prefix web` 通过。
+  - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
