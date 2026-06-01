@@ -257,3 +257,17 @@
 - 目的：让界面文案与真实后端功能一致。
 - 功能影响：仅文案变化。
 - 验证：已运行 `npm test --prefix web`，通过。
+
+### 01:06 reminder 切片总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成新增 reminder 创建/调度切片后的全量后端测试、构建、vet、reminder 覆盖率检查、web smoke test 和静态页面访问检查。
+- 目的：确认新增主动提醒 API、一次性调度、web 提醒提交没有破坏 message/greeting、childapi、xiaozhiclient 原有适配器和现有地基。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 83.5%。
+  - `npm test --prefix web` 通过。
+  - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
