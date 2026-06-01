@@ -14,6 +14,7 @@ type Deps struct {
 	GreetingRoutes RouteRegistrar
 	ReminderRoutes RouteRegistrar
 	StatusRoutes   RouteRegistrar
+	ProfileRoutes  RouteRegistrar
 }
 
 type RouteRegistrar interface {
@@ -54,8 +55,13 @@ func NewRouter(d Deps) *gin.Engine {
 	} else {
 		api.POST("/greetings/trigger", notImpl) // greeting 域
 	}
-	api.GET("/profile", notImpl) // profile 域
-	api.PUT("/profile", notImpl) // profile 域
+	if d.ProfileRoutes != nil {
+		d.ProfileRoutes.RegisterRoutes(api)
+	} else {
+		api.GET("/profile", notImpl)  // profile 域
+		api.PUT("/profile", notImpl)  // profile 域
+		api.POST("/profile", notImpl) // profile 域
+	}
 	if d.StatusRoutes != nil {
 		d.StatusRoutes.RegisterRoutes(api)
 	} else {

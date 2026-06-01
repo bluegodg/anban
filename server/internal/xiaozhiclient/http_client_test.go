@@ -95,6 +95,40 @@ func TestGetDeviceStatusReadsManagerDeviceEndpoint(t *testing.T) {
 	}
 }
 
+func TestGetDeviceStatusParsesDirectActivePayload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id": "dev-002",
+			"status": "active",
+			"last_seen_at": "2026-06-01T08:31:00Z"
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	status, err := c.GetDeviceStatus(context.Background(), "dev-002")
+	if err != nil {
+		t.Fatalf("GetDeviceStatus: %v", err)
+	}
+	if status.DeviceID != "dev-002" || !status.Online {
+		t.Fatalf("status = %+v, want active dev-002", status)
+	}
+}
+
+func TestGetDeviceStatusRejectsInvalidTime(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"device_id":"dev-001","last_active_at":"not-a-time"}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if _, err := c.GetDeviceStatus(context.Background(), "dev-001"); err == nil {
+		t.Fatal("expected invalid time error, got nil")
+	}
+}
+
 func TestSetRolePromptSendsManagerRequest(t *testing.T) {
 	var gotPath, gotMethod, gotToken string
 	var gotBody map[string]any
@@ -126,5 +160,29 @@ func TestSetRolePromptSendsManagerRequest(t *testing.T) {
 	}
 	if gotBody["prompt"] != "请记住王阿姨喜欢豫剧" {
 		t.Fatalf("body = %v, want prompt", gotBody)
+	}
+}
+
+func TestSetRolePromptErrorsOnNon2xx(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"device not found"}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if err := c.SetRolePrompt(context.Background(), "missing", "prompt"); err == nil {
+		t.Fatal("expected error on non-2xx, got nil")
+	}
+}
+
+func TestUnimplementedMethodsReturnErrNotImplemented(t *testing.T) {
+	c := NewHTTPClient("http://manager.local", "tok_abc")
+
+	if _, err := c.GetHistory(context.Background(), "dev-001", 5); err == nil {
+		t.Fatal("GetHistory err = nil, want not implemented")
+	}
+	if _, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "camera.capture", nil); err == nil {
+		t.Fatal("CallDeviceMCPTool err = nil, want not implemented")
 	}
 }

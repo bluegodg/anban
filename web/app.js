@@ -110,13 +110,30 @@ els.reminderForm.addEventListener('submit', async (event) => {
   }
 });
 
-els.profileForm.addEventListener('submit', (event) => {
+els.profileForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = new FormData(els.profileForm);
-  const name = form.get('elderName') || '王阿姨';
-  const hobby = form.get('hobby') || '豫剧';
-  els.profileSummary.textContent = `${name} · 喜欢${hobby}`;
-  showNotice('画像草稿已更新');
+  const fields = {
+    name: readText(form, 'elderName'),
+    nickname: readText(form, 'nickname'),
+    children: readList(form, 'children'),
+    grandchildren: readList(form, 'grandchildren'),
+    hobbies: readList(form, 'hobby'),
+    schedule: readText(form, 'schedule'),
+    health: readText(form, 'health'),
+    taboos: readList(form, 'taboos'),
+  };
+
+  try {
+    const profile = await client().updateProfile({
+      deviceId: state.deviceId,
+      fields,
+    });
+    renderProfile(profile);
+    showNotice('画像已同步');
+  } catch (error) {
+    handleApiError(error, '画像同步失败');
+  }
 });
 
 async function refreshMessages() {
@@ -149,6 +166,13 @@ function renderStatus(label, detail) {
   els.statusPanel.dataset.state = label;
   els.statusText.textContent = label;
   els.lastInteraction.textContent = detail;
+}
+
+function renderProfile(profile) {
+  const fields = profile.fields || {};
+  const name = fields.nickname || fields.name || '未命名';
+  const hobbies = Array.isArray(fields.hobbies) ? fields.hobbies.join('、') : fields.hobbies || '暂无喜好';
+  els.profileSummary.textContent = `${name} · 喜欢${hobbies}`;
 }
 
 function renderMessages() {
@@ -188,6 +212,17 @@ function formatDateTime(value) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function readText(form, name) {
+  return String(form.get(name) || '').trim();
+}
+
+function readList(form, name) {
+  return readText(form, name)
+    .split(/[,，、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function escapeHtml(value) {

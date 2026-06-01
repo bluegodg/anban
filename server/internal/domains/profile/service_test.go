@@ -76,16 +76,55 @@ func TestServiceUpdateRejectsMissingDeviceID(t *testing.T) {
 	}
 }
 
+func TestServiceGetRejectsMissingDeviceID(t *testing.T) {
+	svc := newTestService(t, &profileClient{})
+
+	_, err := svc.Get(context.Background(), " ")
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestServiceUpdateReturnsSyncErrorAfterPersisting(t *testing.T) {
+	xc := &profileClient{err: errors.New("manager unavailable")}
+	svc := newTestService(t, xc)
+	ctx := context.Background()
+
+	got, err := svc.Update(ctx, UpdateRequest{
+		DeviceID: "dev-001",
+		Fields: Fields{
+			Name:     "王秀英",
+			Nickname: "妈",
+			Hobbies:  []string{"豫剧"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected sync error, got nil")
+	}
+	if got.DeviceID != "dev-001" || got.ID == 0 {
+		t.Fatalf("profile = %+v, want persisted profile returned with error", got)
+	}
+
+	saved, getErr := svc.Get(ctx, "dev-001")
+	if getErr != nil {
+		t.Fatalf("Get after sync error: %v", getErr)
+	}
+	if saved.Prompt == "" {
+		t.Fatal("saved prompt is empty")
+	}
+}
+
 type profileClient struct {
 	xiaozhiclient.FakeClient
 	gotDeviceID string
 	gotPrompt   string
+	err         error
 }
 
 func (c *profileClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
 	c.gotDeviceID = deviceID
 	c.gotPrompt = prompt
-	return nil
+	return c.err
 }
 
 func (c *profileClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {

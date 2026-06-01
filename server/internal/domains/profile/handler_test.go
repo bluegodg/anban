@@ -2,6 +2,7 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,5 +53,37 @@ func TestHandlerUpdateRejectsBadRequests(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("PUT /api/profile status = %d, want 400; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandlerGetReturnsNotFoundWhenProfileMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &profileClient{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/profile?deviceId=dev-404", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GET /api/profile status = %d, want 404; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandlerUpdateReturnsBadGatewayWhenPromptSyncFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &profileClient{err: errors.New("manager unavailable")})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/profile", strings.NewReader(`{"deviceId":"dev-001","fields":{"name":"王秀英"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("PUT /api/profile status = %d, want 502; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"deviceId":"dev-001"`) {
+		t.Fatalf("body = %s, want persisted profile payload", w.Body.String())
 	}
 }

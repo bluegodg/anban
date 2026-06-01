@@ -7,6 +7,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/config"
 	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/message"
+	"github.com/bluegodg/anban/server/internal/domains/profile"
 	"github.com/bluegodg/anban/server/internal/domains/reminder"
 	"github.com/bluegodg/anban/server/internal/domains/status"
 	"github.com/bluegodg/anban/server/internal/scheduler"
@@ -55,12 +56,20 @@ func main() {
 	statusService := status.NewService(xc, messageService)
 	statusHandler := status.NewHandler(statusService)
 
+	profileStore := profile.NewStore(st.DB)
+	if err := profileStore.AutoMigrate(); err != nil {
+		log.Fatalf("profile 表迁移失败: %v", err)
+	}
+	profileService := profile.NewService(profileStore, xc)
+	profileHandler := profile.NewHandler(profileService)
+
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
 		MessageRoutes:  messageHandler,
 		GreetingRoutes: greetingHandler,
 		ReminderRoutes: reminderHandler,
 		StatusRoutes:   statusHandler,
+		ProfileRoutes:  profileHandler,
 	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)

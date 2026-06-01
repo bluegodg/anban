@@ -39,6 +39,10 @@ type injectReq struct {
 	AutoListen *bool  `json:"auto_listen,omitempty"`
 }
 
+type rolePromptReq struct {
+	Prompt string `json:"prompt"`
+}
+
 func (c *HTTPClient) InjectSpeak(ctx context.Context, deviceID, text string, opts InjectOptions) error {
 	body, err := json.Marshal(injectReq{
 		DeviceID:   deviceID,
@@ -67,6 +71,15 @@ func (c *HTTPClient) GetDeviceStatus(ctx context.Context, deviceID string) (Devi
 		status.DeviceID = deviceID
 	}
 	return status, nil
+}
+
+func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
+	body, err := json.Marshal(rolePromptReq{Prompt: prompt})
+	if err != nil {
+		return err
+	}
+	_, err = c.do(ctx, http.MethodPut, "/api/open/v1/devices/"+url.PathEscape(deviceID)+"/role-prompt", body)
+	return err
 }
 
 // do 发一个带 X-API-Token 的请求；2xx 返回响应体，否则返回错误（含状态码与响应片段）。
@@ -163,14 +176,10 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// 以下 3 个方法在地基期返回 ErrNotImplemented，由各自的域 follow-on 计划据真实端点补齐
-// （GetHistory→status/深度；SetRolePrompt→profile；CallDeviceMCPTool→vision）。
+// 以下 2 个方法在地基期返回 ErrNotImplemented，由各自的域 follow-on 计划据真实端点补齐
+// （GetHistory→status/深度；CallDeviceMCPTool→vision）。
 func (c *HTTPClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error) {
 	return nil, types.ErrNotImplemented
-}
-
-func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
-	return types.ErrNotImplemented
 }
 
 func (c *HTTPClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {

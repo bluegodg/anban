@@ -439,3 +439,85 @@
 - 目的：把子女端家庭画像从本地草稿推进到后端持久化与 prompt 同步。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `updateProfile` 与真实提交逻辑尚未实现而失败。
 - 验证：已运行 `go test ./internal/xiaozhiclient ./internal/domains/profile ./internal/childapi` 和 `npm test --prefix web`，按预期失败。失败原因是 `SetRolePrompt` 仍返回 `anban: not implemented`、profile 域服务/存储/handler 尚不存在、`Deps.ProfileRoutes` 尚未实现，以及 web `client.updateProfile` 与真实提交逻辑尚不存在。
+
+### 09:38 profile 家庭画像 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：实现 `SetRolePrompt`，调用 manager `PUT /api/open/v1/devices/{deviceId}/role-prompt`，请求体为 `{prompt}`。
+- 目的：补齐 profile 域把家庭画像同步为 xiaozhi 人设 prompt 的南向入口。
+- 功能：画像更新后可通过 manager OpenAPI 写入设备人设。
+- 文件：`server/internal/xiaozhiclient/fake.go`
+- 内容：`FakeClient` 新增 `RolePromptCalls` 记录。
+- 目的：让 profile 域能对着 fake client 并行开发和单测。
+- 功能：测试可断言 prompt 同步内容。
+- 文件：`server/internal/domains/profile/types.go`
+- 内容：新增 `Profile`、`Fields`、`UpdateRequest`、错误类型，覆盖 name/nickname/children/grandchildren/hobbies/schedule/health/taboos 8 个字段。
+- 目的：承接 PRD #5 家庭画像字段定义。
+- 功能：画像数据具备持久化模型和 JSON 响应契约。
+- 文件：`server/internal/domains/profile/store.go`
+- 内容：新增 profile 域数据访问层，负责画像表迁移、按 deviceId upsert 和读取。
+- 目的：保持画像编辑源在安伴自有 DB。
+- 功能：后端重启后家庭画像不丢。
+- 文件：`server/internal/domains/profile/service.go`
+- 内容：新增画像更新/读取业务逻辑、字段清洗和 prompt 生成，更新时调用 `SetRolePrompt`。
+- 目的：实现子女编辑画像 → 安伴存储 → xiaozhi 人设同步的最小闭环。
+- 功能：生成包含老人姓名、称呼、亲属、喜好、作息、健康背景、忌口的 system prompt。
+- 文件：`server/internal/domains/profile/handler.go`
+- 内容：新增 Gin handler，注册 `GET /api/profile`、`PUT /api/profile`、`POST /api/profile`。
+- 目的：把 childapi 的 profile 占位替换为真业务入口。
+- 功能：子女端可保存和读取家庭画像。
+- 文件：`server/internal/childapi/server.go`
+- 内容：新增 `Deps.ProfileRoutes`，有 profile 依赖时注册真路由，缺省时保留 501 占位。
+- 目的：继续保持 childapi 只接入 domain handler。
+- 功能：profile 路由可按域独立接入。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时迁移并装配 profile store/service/handler，注入 childapi。
+- 目的：让服务启动后 `/api/profile` 真可用。
+- 功能：画像更新可落库并同步 prompt。
+- 文件：`web/api/client.js`
+- 内容：新增 `getProfile` 和 `updateProfile`。
+- 目的：建立子女端画像表单与后端 profile API 的接缝。
+- 功能：前端可带访问码读取/更新画像。
+- 文件：`web/index.html`
+- 内容：家庭画像表单扩展为 8 个 PRD 字段，并把按钮文案改为“同步画像”。
+- 目的：让子女端骨架覆盖 PRD #5 的必填演示字段。
+- 功能：页面可编辑姓名、称呼、子女、孙辈、喜好、作息、健康背景、忌口。
+- 文件：`web/app.js`
+- 内容：画像表单提交改为调用 `client().updateProfile`，新增 profile 渲染与列表字段解析。
+- 目的：把本地画像草稿推进到真实后端持久化与 prompt 同步。
+- 功能：提交成功后显示“画像已同步”并刷新摘要。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：补充 `SetRolePrompt` 非 2xx 错误测试，以及尚未实现的 `GetHistory`/`CallDeviceMCPTool` 返回错误测试。
+- 目的：覆盖新增 xiaozhi client 分支，明确后续 status 深度/vision 仍未实现。
+- 功能影响：无生产功能变化。
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：补充 profile 读取缺少 deviceId、prompt 同步失败但画像已持久化的测试。
+- 目的：提高 profile 域错误分支覆盖率，并锁定同步失败时不丢画像草稿的行为。
+- 功能影响：无生产功能变化。
+- 文件：`server/internal/domains/profile/handler_test.go`
+- 内容：补充画像不存在返回 404、prompt 同步失败返回 502 且带画像 payload 的测试。
+- 目的：提高 profile HTTP 分支覆盖率，让前端能区分未建档与同步失败。
+- 功能影响：无生产功能变化。
+- 文件：`server/internal/xiaozhiclient/fake_test.go`
+- 内容：新增 `FakeClient` 调用记录与默认返回测试，覆盖 `InjectSpeak`、`SetRolePrompt`、`GetDeviceStatus`、`GetHistory`、`CallDeviceMCPTool`。
+- 目的：提高 xiaozhi 适配器测试覆盖率，并锁定各域并行开发依赖的 fake 行为。
+- 功能影响：无生产功能变化。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：补充 `GetDeviceStatus` 直接响应体解析、`status:"active"` 推断在线、非法时间返回错误的测试。
+- 目的：覆盖 manager 设备状态响应的兼容解析分支。
+- 功能影响：无生产功能变化。
+- 验证：已运行 `go test ./internal/xiaozhiclient ./internal/domains/profile ./internal/childapi` 和 `npm test --prefix web`，通过。
+
+### 09:54 profile 家庭画像总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成 profile 家庭画像与 prompt 同步切片后的全量后端测试、构建、vet、相关包覆盖率检查、web smoke test 和静态页面访问检查。
+- 目的：确认新增 profile 域、`SetRolePrompt`、childapi 路由注入、子女端画像提交没有破坏 message/greeting/reminder/status/xiaozhi 适配器既有能力。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/profile ./internal/xiaozhiclient` 通过，profile 包覆盖率 85.4%，xiaozhiclient 包覆盖率 86.1%。
+  - `npm test --prefix web` 通过。
+  - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
