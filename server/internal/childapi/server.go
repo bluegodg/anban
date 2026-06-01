@@ -12,6 +12,7 @@ type Deps struct {
 	AccessCode     string
 	MessageRoutes  RouteRegistrar
 	GreetingRoutes RouteRegistrar
+	ReminderRoutes RouteRegistrar
 }
 
 type RouteRegistrar interface {
@@ -41,8 +42,12 @@ func NewRouter(d Deps) *gin.Engine {
 		api.POST("/messages", notImpl) // message 域
 		api.GET("/messages", notImpl)  // message 域
 	}
-	api.POST("/reminders", notImpl) // reminder 域
-	api.GET("/reminders", notImpl)  // reminder 域
+	if d.ReminderRoutes != nil {
+		d.ReminderRoutes.RegisterRoutes(api)
+	} else {
+		api.POST("/reminders", notImpl) // reminder 域
+		api.GET("/reminders", notImpl)  // reminder 域
+	}
 	if d.GreetingRoutes != nil {
 		d.GreetingRoutes.RegisterRoutes(api)
 	} else {

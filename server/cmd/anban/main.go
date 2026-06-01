@@ -7,6 +7,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/config"
 	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/message"
+	"github.com/bluegodg/anban/server/internal/domains/reminder"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -43,10 +44,18 @@ func main() {
 	sch.Start()
 	defer sch.Stop()
 
+	reminderStore := reminder.NewStore(st.DB)
+	if err := reminderStore.AutoMigrate(); err != nil {
+		log.Fatalf("reminder 表迁移失败: %v", err)
+	}
+	reminderService := reminder.NewService(reminderStore, xc, sch)
+	reminderHandler := reminder.NewHandler(reminderService)
+
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
 		MessageRoutes:  messageHandler,
 		GreetingRoutes: greetingHandler,
+		ReminderRoutes: reminderHandler,
 	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)

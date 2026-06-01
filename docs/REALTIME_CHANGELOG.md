@@ -205,3 +205,31 @@
 - 目的：继续沿用北向边界注入模式，保持 childapi 不直接碰 xiaozhi/store/scheduler。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
 - 验证：已运行 `go test ./internal/domains/reminder ./internal/childapi`，按预期失败。失败原因是 `Service` / `NewStore` / `NewService` / `CreateRequest` / `NewHandler` / `Reminder` / `StatusScheduled` 未实现，以及 `childapi.Deps.ReminderRoutes` 字段尚不存在。
+
+### 00:50 reminder 创建与调度 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/types.go`
+- 内容：新增提醒记录、创建请求、分类、状态和列表过滤类型。
+- 目的：承接 PRD #6 `POST /api/reminders` / `GET /api/reminders` 的最小数据契约。
+- 功能：记录提醒设备、计划时间、内容、分类、调度任务 ID、播报状态和播报时间。
+- 文件：`server/internal/domains/reminder/store.go`
+- 内容：新增 reminder 域数据访问层，负责提醒表迁移、创建、更新、按 deviceId/status 查询。
+- 目的：保持域内 store 只管理本域表。
+- 功能：提醒记录可持久化，后端重启后记录不丢。
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：新增提醒创建业务逻辑和一次性调度回调，到点通过 `xiaozhiclient.InjectSpeak` 播报并更新 played/failed。
+- 目的：实现 PRD #6 的最小链路：子女端创建提醒 → 本地调度 → 到点主动播报。
+- 功能：当前进程内提醒会到点播报；语音确认和 30 分钟无应答留给后续切片。
+- 文件：`server/internal/domains/reminder/handler.go`
+- 内容：新增 Gin handler，注册 `POST /api/reminders` 和 `GET /api/reminders`。
+- 目的：把 childapi 的 reminder 占位替换为真业务入口。
+- 功能：子女端可创建提醒、查询提醒列表。
+- 文件：`server/internal/childapi/server.go`
+- 内容：新增 `Deps.ReminderRoutes`，有 reminder 依赖时注册真路由，缺省时保留 501 占位。
+- 目的：继续保持 childapi 只接入 domain handler，不直接触碰 xiaozhi/store/scheduler。
+- 功能：提醒路由可按域独立接入，画像/状态仍保持占位。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时装配 reminder store/service/handler，并执行 reminder 表迁移，把已有 scheduler 注入 reminder 服务。
+- 目的：把 reminder 域接进现有地基，同时不改冻结的 xiaozhi 上游。
+- 功能：服务启动后 `/api/reminders` 真可用。
+- 验证：已运行 `go test -count=1 ./internal/domains/reminder ./internal/childapi`，通过。
