@@ -207,8 +207,47 @@ func TestServiceRestoreScheduledRehydratesPendingReminders(t *testing.T) {
 	}
 }
 
+func TestServiceCancelScheduledReminder(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 10, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	canceled, err := svc.Cancel(ctx, got.ID)
+	if err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	if canceled.Status != StatusCanceled {
+		t.Fatalf("Status = %q, want %q", canceled.Status, StatusCanceled)
+	}
+	if canceled.JobID != "" {
+		t.Fatalf("JobID = %q, want cleared job id", canceled.JobID)
+	}
+	if len(fakeSch.canceled) != 1 || fakeSch.canceled[0] != "job-1" {
+		t.Fatalf("canceled jobs = %+v, want job-1", fakeSch.canceled)
+	}
+
+	list, err := svc.List(ctx, ListFilter{Status: StatusCanceled})
+	if err != nil {
+		t.Fatalf("List canceled: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != got.ID {
+		t.Fatalf("canceled reminders = %+v, want canceled reminder", list)
+	}
+}
+
 type fakeScheduler struct {
-	jobs []fakeJob
+	jobs     []fakeJob
+	canceled []scheduler.JobID
 }
 
 type fakeJob struct {
@@ -219,6 +258,10 @@ type fakeJob struct {
 func (f *fakeScheduler) ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error) {
 	f.jobs = append(f.jobs, fakeJob{at: t, fn: fn})
 	return scheduler.JobID("job-" + string(rune('0'+len(f.jobs)))), nil
+}
+
+func (f *fakeScheduler) Cancel(id scheduler.JobID) {
+	f.canceled = append(f.canceled, id)
 }
 
 func (f *fakeScheduler) fire(i int) {

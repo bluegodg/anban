@@ -96,6 +96,35 @@ test('child web shows reminder creation result returned by backend', async () =>
   assert.match(app, /提醒已创建：\$\{reminder\.content\}/);
 });
 
+test('API client cancels reminders with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ reminderId: 9, status: 'canceled' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.deleteReminder(9);
+
+  assert.equal(request.url, 'http://anban.local/api/reminders/9');
+  assert.equal(request.options.method, 'DELETE');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(result.status, 'canceled');
+});
+
+test('child web exposes reminder cancel client capability', async () => {
+  const client = await readFile(new URL('./api/client.js', import.meta.url), 'utf8');
+
+  assert.match(client, /deleteReminder/);
+});
+
 test('API client fetches device status with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;

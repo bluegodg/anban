@@ -555,3 +555,19 @@
   - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 80.4%。
   - `npm test --prefix web` 通过。
   - 临时 Python 静态服务访问 `http://127.0.0.1:5176/` 返回 200，随后已停止该临时 job。
+
+### 14:16 reminder 撤销 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 reminder 服务测试，要求 `Cancel` 能取消 scheduled 提醒、调用 scheduler cancel、清空 jobId，并把状态持久化为 `canceled`。
+- 目的：对齐 PRD #6 `DELETE /api/reminders/:id` 撤销接口，避免已撤销提醒仍然播报。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 reminder 服务尚无取消能力而失败。
+- 文件：`server/internal/domains/reminder/handler_test.go`
+- 内容：扩展 HTTP handler 测试，要求 `DELETE /api/reminders/:id` 返回 canceled 提醒，并校验非法 id 返回 400。
+- 目的：锁定子女端撤销提醒的北向接口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 handler 尚未注册 DELETE 路由而失败。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 web smoke test，要求 API client 提供 `deleteReminder` 并带访问码调用 `DELETE /api/reminders/:id`。
+- 目的：为子女端接入提醒撤销能力建立 API 缝。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web client 尚未实现 `deleteReminder` 而失败。
+- 验证：已运行 `go test ./internal/domains/reminder` 和 `npm test --prefix web`，按预期失败。失败原因是 `StatusCanceled`、`Service.Cancel` 和 web `client.deleteReminder` 尚未实现。

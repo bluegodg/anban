@@ -48,6 +48,20 @@ func TestHandlerCreateAndListReminders(t *testing.T) {
 	if len(payload.Reminders) != 1 || payload.Reminders[0].ID != created.ID {
 		t.Fatalf("reminders = %+v, want created reminder", payload.Reminders)
 	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/reminders/1", nil)
+	deleteW := httptest.NewRecorder()
+	r.ServeHTTP(deleteW, deleteReq)
+	if deleteW.Code != http.StatusOK {
+		t.Fatalf("DELETE status = %d, want 200; body=%s", deleteW.Code, deleteW.Body.String())
+	}
+	var canceled Reminder
+	if err := json.Unmarshal(deleteW.Body.Bytes(), &canceled); err != nil {
+		t.Fatalf("unmarshal canceled: %v", err)
+	}
+	if canceled.Status != StatusCanceled {
+		t.Fatalf("canceled status = %q, want %q", canceled.Status, StatusCanceled)
+	}
 }
 
 func TestHandlerCreateRejectsBadRequests(t *testing.T) {
@@ -72,5 +86,19 @@ func TestHandlerCreateRejectsBadRequests(t *testing.T) {
 				t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestHandlerCancelRejectsBadID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, &fakeScheduler{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/reminders/not-a-number", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("DELETE status = %d, want 400; body=%s", w.Code, w.Body.String())
 	}
 }
