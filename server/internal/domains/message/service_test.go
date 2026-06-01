@@ -118,6 +118,44 @@ func TestServiceMarksMessageFailedWhenInjectFails(t *testing.T) {
 	}
 }
 
+func TestServiceListMessageStatusSummaries(t *testing.T) {
+	svc := newTestService(t, &xiaozhiclient.FakeClient{})
+	ctx := context.Background()
+	olderQueued := time.Date(2026, 6, 1, 8, 10, 0, 0, time.UTC)
+	newerQueued := time.Date(2026, 6, 1, 8, 20, 0, 0, time.UTC)
+	played := newerQueued.Add(5 * time.Second)
+
+	older := Message{DeviceID: "dev-001", Text: "早一点的留言", Status: StatusPlayed, QueuedAt: olderQueued, PlayedAt: &olderQueued}
+	if err := svc.store.Create(ctx, &older); err != nil {
+		t.Fatalf("create older: %v", err)
+	}
+	newer := Message{DeviceID: "dev-001", Text: "新留言", Status: StatusPlayed, QueuedAt: newerQueued, PlayedAt: &played}
+	if err := svc.store.Create(ctx, &newer); err != nil {
+		t.Fatalf("create newer: %v", err)
+	}
+	otherDevice := Message{DeviceID: "dev-002", Text: "别的设备", Status: StatusPlayed, QueuedAt: newerQueued}
+	if err := svc.store.Create(ctx, &otherDevice); err != nil {
+		t.Fatalf("create other device: %v", err)
+	}
+
+	got, err := svc.ListMessageStatusSummaries(ctx, "dev-001", 1)
+	if err != nil {
+		t.Fatalf("ListMessageStatusSummaries: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("summaries = %+v, want one newest summary", got)
+	}
+	if got[0].MessageID != newer.ID || got[0].Status != string(StatusPlayed) {
+		t.Fatalf("summary = %+v, want newest played message", got[0])
+	}
+	if !got[0].QueuedAt.Equal(newerQueued) {
+		t.Fatalf("queuedAt = %s, want %s", got[0].QueuedAt, newerQueued)
+	}
+	if got[0].PlayedAt == nil || !got[0].PlayedAt.Equal(played) {
+		t.Fatalf("playedAt = %v, want %s", got[0].PlayedAt, played)
+	}
+}
+
 type failingClient struct {
 	err error
 }

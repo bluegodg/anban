@@ -44,6 +44,25 @@ func TestHandlerGetStatus(t *testing.T) {
 	}
 }
 
+func TestHandlerSupportsPRDDeviceStatusRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := NewService(&statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID: "dev-001",
+			Online:   true,
+		},
+	})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/device/status?deviceId=dev-001", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/device/status status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandlerGetStatusRejectsMissingDeviceID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := NewService(&statusClient{})

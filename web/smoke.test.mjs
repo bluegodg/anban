@@ -113,7 +113,7 @@ test('API client fetches device status with access code', async () => {
 
   const result = await client.getStatus({ deviceId: 'dev-001' });
 
-  assert.equal(request.url, 'http://anban.local/api/status?deviceId=dev-001');
+  assert.equal(request.url, 'http://anban.local/api/device/status?deviceId=dev-001');
   assert.equal(request.options.method, 'GET');
   assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
   assert.equal(result.online, true);

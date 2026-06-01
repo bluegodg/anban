@@ -345,3 +345,23 @@
   - `go test -count=1 -cover ./internal/domains/status` 通过，status 包覆盖率 80.0%。
   - `npm test --prefix web` 通过。
   - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
+
+### 09:13 status 聚合留言状态 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 status 服务测试，要求 `Snapshot` 包含最近留言状态摘要，并通过注入的 message reader 读取 `deviceId` 对应的 10 条状态。
+- 目的：对齐 PRD #4 中 `messages: [{ messageId, status, queuedAt, playedAt? }]` 的状态聚合要求，同时保持 status 域不直接 import message 域。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期共享类型、message reader 注入和 `Snapshot.Messages` 尚不存在而失败。
+- 文件：`server/internal/domains/status/handler_test.go`
+- 内容：新增 handler 测试，要求同时支持完整 PRD 中的 `GET /api/device/status?deviceId=` 路由。
+- 目的：兼容完整文档里的接口轮廓，同时保留已有 `/api/status` 骨架路由。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `/api/device/status` 尚未注册而失败。
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：新增 message 服务测试，要求输出最近留言状态摘要，按 deviceId 过滤并支持 limit。
+- 目的：让 status 通过共享接口读取 message 状态，而不是跨域 import message。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `ListMessageStatusSummaries` 尚未实现而失败。
+- 文件：`web/smoke.test.mjs`
+- 内容：将 status API client 的 smoke 期望路径改为 `/api/device/status?deviceId=`。
+- 目的：让子女端逐步贴近 PRD 接口轮廓。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web client 仍调用 `/api/status` 而失败。
+- 验证：已运行 `go test ./internal/domains/status ./internal/domains/message` 和 `npm test --prefix web`，按预期失败。失败原因是 `MessageStatusSummary`、`Snapshot.Messages`、status 的 message reader 注入、message 服务 `ListMessageStatusSummaries` 尚未实现，以及 web client 仍调用旧 `/api/status` 路径。
