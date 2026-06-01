@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/bluegodg/anban/server/internal/childapi"
@@ -51,6 +52,11 @@ func main() {
 		log.Fatalf("reminder 表迁移失败: %v", err)
 	}
 	reminderService := reminder.NewService(reminderStore, xc, sch)
+	if restored, err := reminderService.RestoreScheduled(context.Background()); err != nil {
+		log.Fatalf("reminder 恢复调度失败: %v", err)
+	} else if restored > 0 {
+		log.Printf("reminder 恢复调度 %d 条", restored)
+	}
 	reminderHandler := reminder.NewHandler(reminderService)
 
 	statusService := status.NewService(xc, messageService)

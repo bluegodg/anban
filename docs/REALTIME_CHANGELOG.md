@@ -528,3 +528,30 @@
 - 内容：新增 reminder 服务测试，模拟 DB 中已有 `scheduled` 提醒但进程重启后内存定时器为空，要求 `RestoreScheduled` 只恢复 pending 提醒、跳过已 played 提醒、刷新 jobId，并能重新触发播报。
 - 目的：对齐 PRD #6 “后端重启后已排入提醒不丢”的验收缺口。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 reminder 服务尚无 `RestoreScheduled` 而失败。
+- 验证：已运行 `go test ./internal/domains/reminder`，按预期失败。失败原因是 `svc.RestoreScheduled` 尚未实现。
+
+### 14:14 reminder 重启恢复 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：新增 `RestoreScheduled`，从 DB 读取 `scheduled` 提醒，逐条重新注册 `ScheduleAt`，刷新 `jobId`；调度注册失败时把提醒标记为 `failed`。
+- 目的：让后端进程重启后重新恢复内存中的一次性提醒定时器。
+- 功能：已排入但未播报的提醒在启动恢复后仍会到点播报；过期的 scheduled 提醒会由 scheduler 立即补触发。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动装配 reminder 后调用 `RestoreScheduled(context.Background())`，恢复成功时记录恢复数量，失败时终止启动。
+- 目的：把 reminder 恢复逻辑接入真实服务启动流程。
+- 功能：服务重启后会自动恢复 DB 中的 scheduled 提醒。
+- 验证：已运行 `go test ./internal/domains/reminder`，通过。
+
+### 14:14 reminder 重启恢复总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成 reminder 重启恢复切片后的全量后端测试、构建、vet、reminder 覆盖率检查、web smoke test 和临时静态页面访问检查。
+- 目的：确认 `RestoreScheduled` 和启动恢复装配没有破坏 message/greeting/profile/status/xiaozhiclient 既有能力。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 80.4%。
+  - `npm test --prefix web` 通过。
+  - 临时 Python 静态服务访问 `http://127.0.0.1:5176/` 返回 200，随后已停止该临时 job。

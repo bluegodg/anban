@@ -69,6 +69,33 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Reminder, erro
 	return s.store.List(ctx, filter)
 }
 
+func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
+	reminders, err := s.store.List(ctx, ListFilter{Status: StatusScheduled})
+	if err != nil {
+		return 0, err
+	}
+
+	restored := 0
+	for i := range reminders {
+		rem := reminders[i]
+		jobID, err := s.sch.ScheduleAt(rem.ScheduledAt, func() {
+			s.fire(rem.ID)
+		})
+		if err != nil {
+			rem.Status = StatusFailed
+			rem.ErrorMessage = err.Error()
+			_ = s.store.Update(ctx, &rem)
+			return restored, err
+		}
+		rem.JobID = string(jobID)
+		if err := s.store.Update(ctx, &rem); err != nil {
+			return restored, err
+		}
+		restored++
+	}
+	return restored, nil
+}
+
 func (s *Service) fire(id uint) {
 	ctx := context.Background()
 	list, err := s.store.List(ctx, ListFilter{})
