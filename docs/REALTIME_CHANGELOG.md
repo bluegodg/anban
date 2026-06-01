@@ -233,3 +233,11 @@
 - 目的：把 reminder 域接进现有地基，同时不改冻结的 xiaozhi 上游。
 - 功能：服务启动后 `/api/reminders` 真可用。
 - 验证：已运行 `go test -count=1 ./internal/domains/reminder ./internal/childapi`，通过。
+
+### 00:56 web 提醒接口接入 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 smoke test，要求 API client 提供 `createReminder` 并带访问码调用 `POST /api/reminders`；要求前端提交提醒后展示后端返回的 `reminder.content`。
+- 目的：把子女端提醒表单从“草稿”推进到真实后端接口调用。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `web/api/client.js` 和 `web/app.js` 未实现提醒接入而失败。
+- 验证：已运行 `npm test --prefix web`，按预期失败。失败原因是 `client.createReminder` 不存在，以及 `web/app.js` 仍只显示“提醒草稿已记录”。

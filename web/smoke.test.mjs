@@ -55,3 +55,43 @@ test('child web shows greeting text returned by backend', async () => {
 
   assert.match(app, /问候已触发：\$\{greeting\.text\}/);
 });
+
+test('API client sends scheduled reminder payload', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ reminderId: 9, status: 'scheduled' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.createReminder({
+    deviceId: 'dev-001',
+    scheduledAt: '2026-06-01T09:01:30.000Z',
+    content: '测血压',
+    category: 'med',
+  });
+
+  assert.equal(request.url, 'http://anban.local/api/reminders');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    deviceId: 'dev-001',
+    scheduledAt: '2026-06-01T09:01:30.000Z',
+    content: '测血压',
+    category: 'med',
+  });
+  assert.equal(result.reminderId, 9);
+});
+
+test('child web shows reminder creation result returned by backend', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /提醒已创建：\$\{reminder\.content\}/);
+});
