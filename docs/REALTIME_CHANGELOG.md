@@ -271,3 +271,26 @@
   - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 83.5%。
   - `npm test --prefix web` 通过。
   - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
+
+### 09:00 status 设备状态 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `GetDeviceStatus` HTTP client 测试，要求读取 manager `GET /api/open/v1/devices/{deviceId}`，携带 `X-API-Token`，并解析 `online` 与 `last_active_at`。
+- 目的：先锁住 status 域依赖的唯一 xiaozhi 读取入口，保持只有 `xiaozhiclient` 懂 manager API。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `GetDeviceStatus` 仍返回未实现。
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 status 服务测试，覆盖 deviceId 清洗、设备在线状态、最近可见时间和最近互动时间映射，以及缺少 deviceId 的输入校验。
+- 目的：按 PRD #4 先实现“设备在线 + 最近互动”的最小状态快照，同时不跨域读取 message。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 status 域尚未实现而失败。
+- 文件：`server/internal/domains/status/handler_test.go`
+- 内容：新增 `GET /api/status?deviceId=` handler 测试，覆盖成功返回状态快照和缺少 deviceId 返回 400。
+- 目的：替换 childapi 中 status 占位路由的最小北向接口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 handler 尚未实现而失败。
+- 文件：`server/internal/childapi/status_routes_test.go`
+- 内容：新增 childapi 路由装配测试，验证注入 status 路由后 `/api/status` 可替换 501 占位，同时未注入时仍保持占位。
+- 目的：延续域 handler 注入模式，保持 childapi 只做北向边界。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `Deps.StatusRoutes` 尚不存在而失败。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 web smoke test，要求 API client 提供 `getStatus` 并带访问码调用 `/api/status?deviceId=`，要求前端刷新后端状态再读取留言。
+- 目的：让子女端顶部状态从本地文案接入真实后端状态 API。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `getStatus` 与状态渲染函数尚未实现而失败。

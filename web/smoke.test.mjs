@@ -95,3 +95,33 @@ test('child web shows reminder creation result returned by backend', async () =>
 
   assert.match(app, /提醒已创建：\$\{reminder\.content\}/);
 });
+
+test('API client fetches device status with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ deviceId: 'dev-001', online: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.getStatus({ deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/status?deviceId=dev-001');
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(result.online, true);
+});
+
+test('child web refreshes backend status before listing messages', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /client\(\)\.getStatus/);
+  assert.match(app, /renderBackendStatus/);
+});
