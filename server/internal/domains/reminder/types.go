@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-var ErrInvalidInput = errors.New("reminder: invalid input")
+var (
+	ErrInvalidInput = errors.New("reminder: invalid input")
+	ErrNotFound     = errors.New("reminder: not found")
+)
 
 type Category string
 
@@ -22,6 +25,7 @@ const (
 	StatusScheduled Status = "scheduled"
 	StatusPlayed    Status = "played"
 	StatusFailed    Status = "failed"
+	StatusCanceled  Status = "canceled"
 )
 
 type Reminder struct {

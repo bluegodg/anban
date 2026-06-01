@@ -11,6 +11,7 @@ import (
 
 type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
+	Cancel(id scheduler.JobID)
 }
 
 type Service struct {
@@ -69,6 +70,28 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Reminder, erro
 	return s.store.List(ctx, filter)
 }
 
+func (s *Service) Cancel(ctx context.Context, id uint) (Reminder, error) {
+	if id == 0 {
+		return Reminder{}, ErrInvalidInput
+	}
+	rem, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Reminder{}, err
+	}
+	if rem.Status != StatusScheduled {
+		return rem, nil
+	}
+	if rem.JobID != "" {
+		s.sch.Cancel(scheduler.JobID(rem.JobID))
+	}
+	rem.Status = StatusCanceled
+	rem.JobID = ""
+	if err := s.store.Update(ctx, &rem); err != nil {
+		return Reminder{}, err
+	}
+	return rem, nil
+}
+
 func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 	reminders, err := s.store.List(ctx, ListFilter{Status: StatusScheduled})
 	if err != nil {
@@ -98,17 +121,14 @@ func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 
 func (s *Service) fire(id uint) {
 	ctx := context.Background()
-	list, err := s.store.List(ctx, ListFilter{})
+	rem, err := s.store.Get(ctx, id)
 	if err != nil {
 		return
 	}
-	for _, rem := range list {
-		if rem.ID != id {
-			continue
-		}
-		s.play(ctx, &rem)
+	if rem.Status != StatusScheduled {
 		return
 	}
+	s.play(ctx, &rem)
 }
 
 func (s *Service) play(ctx context.Context, rem *Reminder) {

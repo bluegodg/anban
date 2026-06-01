@@ -2,6 +2,7 @@ package reminder
 
 import (
 	"context"
+	"errors"
 
 	"gorm.io/gorm"
 )
@@ -24,6 +25,18 @@ func (s *Store) Create(ctx context.Context, reminder *Reminder) error {
 
 func (s *Store) Update(ctx context.Context, reminder *Reminder) error {
 	return s.db.WithContext(ctx).Save(reminder).Error
+}
+
+func (s *Store) Get(ctx context.Context, id uint) (Reminder, error) {
+	var reminder Reminder
+	err := s.db.WithContext(ctx).First(&reminder, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Reminder{}, ErrNotFound
+	}
+	if err != nil {
+		return Reminder{}, err
+	}
+	return reminder, nil
 }
 
 func (s *Store) List(ctx context.Context, filter ListFilter) ([]Reminder, error) {

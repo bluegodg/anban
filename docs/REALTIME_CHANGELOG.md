@@ -571,3 +571,41 @@
 - 目的：为子女端接入提醒撤销能力建立 API 缝。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web client 尚未实现 `deleteReminder` 而失败。
 - 验证：已运行 `go test ./internal/domains/reminder` 和 `npm test --prefix web`，按预期失败。失败原因是 `StatusCanceled`、`Service.Cancel` 和 web `client.deleteReminder` 尚未实现。
+
+### 14:24 reminder 撤销 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/types.go`
+- 内容：新增 `StatusCanceled` 和 `ErrNotFound`。
+- 目的：用持久状态表达“已撤销”，避免直接删除记录导致子女端看不到历史。
+- 功能：提醒可进入 `canceled` 状态并支持列表筛选。
+- 文件：`server/internal/domains/reminder/store.go`
+- 内容：新增 `Get(ctx,id)`，按主键读取提醒，找不到返回 `ErrNotFound`。
+- 目的：支持撤销单条提醒。
+- 功能：service 可按 ID 获取待撤销提醒。
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：`OneShotScheduler` 增加 `Cancel`，新增 `Cancel(ctx,id)`；仅 scheduled 提醒会取消内存 job、清空 jobId 并标记 canceled，其他终态保持幂等返回；定时回调播报前会重新读取状态，已撤销提醒不会误播。
+- 目的：实现 PRD #6 的撤销语义，防止已撤销提醒到点播报。
+- 功能：撤销后 DB 和内存定时器同步更新。
+- 文件：`server/internal/domains/reminder/handler.go`
+- 内容：新增 `DELETE /api/reminders/:id`，非法 id 返回 400，找不到返回 404。
+- 目的：提供子女端撤销提醒的北向接口。
+- 功能：HTTP API 可撤销提醒。
+- 文件：`web/api/client.js`
+- 内容：新增 `deleteReminder(reminderId)`。
+- 目的：为子女端后续 UI 接入撤销提醒提供 API client 能力。
+- 功能：前端可带访问码调用 `DELETE /api/reminders/:id`。
+
+### 14:26 reminder 撤销总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成 reminder 撤销切片后的局部测试、全量后端测试、构建、vet、reminder 覆盖率检查、web smoke test 和临时静态页面访问检查。
+- 目的：确认 `DELETE /api/reminders/:id`、scheduler cancel、canceled 状态持久化和 web API client 不破坏 message/greeting/profile/status/xiaozhiclient 既有能力。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test ./internal/domains/reminder` 通过。
+  - `npm test --prefix web` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 76.5%。
+  - 临时 Node 静态服务访问 `http://127.0.0.1:5177/` 返回 200，随后已停止该临时进程；检查时使用 `-NoProxy` 避免本机代理影响 localhost。

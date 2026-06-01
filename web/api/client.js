@@ -45,6 +45,9 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/reminders${suffix}`);
     },
+    deleteReminder(reminderId) {
+      return request(`/api/reminders/${encodeURIComponent(reminderId)}`, { method: 'DELETE' });
+    },
     getStatus({ deviceId } = {}) {
       const params = new URLSearchParams();
       if (deviceId) params.set('deviceId', deviceId);
