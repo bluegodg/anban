@@ -189,3 +189,19 @@
   - `go test -count=1 -cover ./internal/domains/greeting` 通过，greeting 包覆盖率 92.7%。
   - `npm test --prefix web` 通过。
   - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
+
+### 00:42 reminder 创建与调度 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 reminder 服务层测试，覆盖创建提醒后注册一次性调度、到点调用 `InjectSpeak`、更新 played 状态、输入校验、category 归一化、播报失败记录 failed。
+- 目的：按 PRD #6 “子女端创建提醒 → 设备落到本地调度 → 到点主动播报”的最小闭环先写测试。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
+- 文件：`server/internal/domains/reminder/handler_test.go`
+- 内容：新增 HTTP handler 测试，覆盖 `POST /api/reminders` 创建提醒、`GET /api/reminders` 查询列表、非法 JSON/缺少字段返回 400。
+- 目的：锁定子女端提醒表单要调用的后端接口行为。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
+- 文件：`server/internal/childapi/reminder_routes_test.go`
+- 内容：新增 childapi 路由装配测试，验证注入 reminder 路由后 `/api/reminders` 可替换 501 占位，同时未注入时保持占位。
+- 目的：继续沿用北向边界注入模式，保持 childapi 不直接碰 xiaozhi/store/scheduler。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期测试失败。
+- 验证：已运行 `go test ./internal/domains/reminder ./internal/childapi`，按预期失败。失败原因是 `Service` / `NewStore` / `NewService` / `CreateRequest` / `NewHandler` / `Reminder` / `StatusScheduled` 未实现，以及 `childapi.Deps.ReminderRoutes` 字段尚不存在。
