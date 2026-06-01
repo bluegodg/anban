@@ -294,3 +294,54 @@
 - 内容：新增 web smoke test，要求 API client 提供 `getStatus` 并带访问码调用 `/api/status?deviceId=`，要求前端刷新后端状态再读取留言。
 - 目的：让子女端顶部状态从本地文案接入真实后端状态 API。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `getStatus` 与状态渲染函数尚未实现而失败。
+- 验证：已运行 `go test ./internal/xiaozhiclient ./internal/domains/status ./internal/childapi` 和 `npm test --prefix web`，按预期失败。失败原因是 `GetDeviceStatus` 返回 `anban: not implemented`、status 域和 `Deps.StatusRoutes` 尚未实现、web `client.getStatus` 和 `renderBackendStatus` 尚不存在。
+
+### 09:04 status 设备状态 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：实现 `GetDeviceStatus`，调用 manager `GET /api/open/v1/devices/{deviceId}`，解析直接响应或 `{data: ...}` 包裹响应中的 `device_id`、`online`、`last_active_at` 等字段；当 manager 不显式返回 online 时，按 `status` 字段或 30 秒内 `last_active_at` 做轻量推断。
+- 目的：补齐 status 域读取 xiaozhi 设备在线/最近活跃的唯一南向入口。
+- 功能：安伴可通过冻结的 manager OpenAPI 读取设备在线态和最近活跃时间。
+- 文件：`server/internal/domains/status/types.go`
+- 内容：新增 `GetRequest`、`Snapshot` 和 `ErrInvalidInput`。
+- 目的：定义 status 域最小北向响应契约。
+- 功能：返回 `deviceId`、`online`、`lastSeenAt`、`lastInteractionAt`。
+- 文件：`server/internal/domains/status/service.go`
+- 内容：新增 status 服务，清洗 deviceId，调用 `xiaozhiclient.GetDeviceStatus`，把 `last_active_at` 映射成最近可见和最近互动时间。
+- 目的：先完成 PRD #4 中“设备在线 + 最近互动”的独立快照，不跨域 import message。
+- 功能：可在不读取安伴其他业务域的前提下得到设备状态。
+- 文件：`server/internal/domains/status/handler.go`
+- 内容：新增 Gin handler，注册 `GET /api/status?deviceId=`，缺少 deviceId 返回 400，xiaozhi 读取失败返回 502。
+- 目的：把 childapi status 占位替换为真业务入口。
+- 功能：子女端可查询设备在线状态。
+- 文件：`server/internal/childapi/server.go`
+- 内容：新增 `Deps.StatusRoutes`，有 status 依赖时注册真路由，缺省时保留 501 占位。
+- 目的：沿用业务域 handler 注入模式，保持 childapi 不直接碰 xiaozhi。
+- 功能：status 路由可按域独立接入。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时装配 status service/handler，并注入 childapi。
+- 目的：让服务启动后 `/api/status` 可用。
+- 功能：子女端状态面板具备后端数据来源。
+- 文件：`web/api/client.js`
+- 内容：新增 `getStatus({deviceId})`，封装 `GET /api/status?deviceId=` 并携带访问码。
+- 目的：建立子女端状态面板到后端 status API 的接缝。
+- 功能：前端可读取设备状态。
+- 文件：`web/app.js`
+- 内容：连接后先调用 `client().getStatus`，再读取留言列表；新增 `renderBackendStatus` 和日期时间格式化。
+- 目的：让顶部状态面板从静态/本地文案变成真实后端状态展示。
+- 功能：展示在线/离线与最近互动时间；留言状态仍通过已有 `/api/messages` 列表显示。
+- 验证：已运行 `go test ./internal/xiaozhiclient ./internal/domains/status ./internal/childapi` 和 `npm test --prefix web`，通过。
+
+### 09:04 status 切片总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成新增 status 设备状态切片后的全量后端测试、构建、vet、status 覆盖率检查、web smoke test 和静态页面访问检查。
+- 目的：确认 `xiaozhiclient.GetDeviceStatus`、status 域、childapi 路由注入和子女端状态面板接入没有破坏 message/greeting/reminder 等既有能力。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/status` 通过，status 包覆盖率 80.0%。
+  - `npm test --prefix web` 通过。
+  - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。

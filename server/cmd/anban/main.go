@@ -8,6 +8,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/message"
 	"github.com/bluegodg/anban/server/internal/domains/reminder"
+	"github.com/bluegodg/anban/server/internal/domains/status"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -51,11 +52,15 @@ func main() {
 	reminderService := reminder.NewService(reminderStore, xc, sch)
 	reminderHandler := reminder.NewHandler(reminderService)
 
+	statusService := status.NewService(xc)
+	statusHandler := status.NewHandler(statusService)
+
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
 		MessageRoutes:  messageHandler,
 		GreetingRoutes: greetingHandler,
 		ReminderRoutes: reminderHandler,
+		StatusRoutes:   statusHandler,
 	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)

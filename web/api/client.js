@@ -45,6 +45,12 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/reminders${suffix}`);
     },
+    getStatus({ deviceId } = {}) {
+      const params = new URLSearchParams();
+      if (deviceId) params.set('deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/status${suffix}`);
+    },
   };
 }
 

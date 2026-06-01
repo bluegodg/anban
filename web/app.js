@@ -121,10 +121,12 @@ els.profileForm.addEventListener('submit', (event) => {
 
 async function refreshMessages() {
   try {
+    const snapshot = await client().getStatus({ deviceId: state.deviceId });
+    renderBackendStatus(snapshot);
+
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
     renderMessages();
-    renderStatus('在线', state.messages.length ? '已有留言记录' : '暂无留言记录');
     showNotice('已连接后端');
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
@@ -134,6 +136,13 @@ async function refreshMessages() {
     }
     handleApiError(error, '暂时无法连接后端');
   }
+}
+
+function renderBackendStatus(snapshot) {
+  const label = snapshot.online ? '在线' : '离线';
+  const at = snapshot.lastInteractionAt || snapshot.lastSeenAt;
+  const detail = at ? `最近互动：${formatDateTime(at)}` : '暂无最近互动';
+  renderStatus(label, detail);
 }
 
 function renderStatus(label, detail) {
@@ -166,6 +175,16 @@ function statusLabel(status) {
 function formatTime(value) {
   if (!value) return '--';
   return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatDateTime(value) {
+  if (!value) return '--';
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
