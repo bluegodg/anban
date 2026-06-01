@@ -415,3 +415,27 @@
   - `go test -count=1 -cover ./internal/domains/status ./internal/domains/message` 通过，status 包覆盖率 85.3%，message 包覆盖率 90.7%。
   - `npm test --prefix web` 通过。
   - `http://127.0.0.1:5173/` 本地 HTTP 检查返回 200。
+
+### 09:27 profile 家庭画像 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `SetRolePrompt` HTTP client 测试，要求通过 manager OpenAPI 写入设备人设 prompt，并携带 `X-API-Token`。
+- 目的：先锁住 profile 域同步 xiaozhi 的唯一南向入口，保持不直接改 xiaozhi。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `SetRolePrompt` 仍返回未实现。
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：新增 profile 服务测试，要求保存 8 个家庭画像字段，生成包含姓名/孙辈/喜好/健康背景的 prompt，并调用 `SetRolePrompt`。
+- 目的：对齐 PRD #5 “家庭画像 ≥ 8 字段 + 注入 LLM 系统提示词”的最小闭环。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 profile 域尚未实现而失败。
+- 文件：`server/internal/domains/profile/handler_test.go`
+- 内容：新增 `PUT /api/profile` 与 `GET /api/profile?deviceId=` 测试。
+- 目的：锁定子女端画像编辑需要的北向接口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 profile handler 尚未实现而失败。
+- 文件：`server/internal/childapi/profile_routes_test.go`
+- 内容：新增 childapi 路由装配测试，验证注入 profile 路由后可替换 501 占位。
+- 目的：沿用业务域 handler 注入模式，保持 childapi 不直接碰 xiaozhi/store。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `Deps.ProfileRoutes` 尚不存在而失败。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 web smoke test，要求 API client 提供 `updateProfile` 并带访问码调用 `PUT /api/profile`，要求前端提交画像时调用真实后端。
+- 目的：把子女端家庭画像从本地草稿推进到后端持久化与 prompt 同步。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `updateProfile` 与真实提交逻辑尚未实现而失败。
+- 验证：已运行 `go test ./internal/xiaozhiclient ./internal/domains/profile ./internal/childapi` 和 `npm test --prefix web`，按预期失败。失败原因是 `SetRolePrompt` 仍返回 `anban: not implemented`、profile 域服务/存储/handler 尚不存在、`Deps.ProfileRoutes` 尚未实现，以及 web `client.updateProfile` 与真实提交逻辑尚不存在。

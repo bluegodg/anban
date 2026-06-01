@@ -125,3 +125,46 @@ test('child web refreshes backend status before listing messages', async () => {
   assert.match(app, /client\(\)\.getStatus/);
   assert.match(app, /renderBackendStatus/);
 });
+
+test('API client updates family profile with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ deviceId: 'dev-001', fields: { nickname: '妈' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.updateProfile({
+    deviceId: 'dev-001',
+    fields: {
+      name: '王秀英',
+      nickname: '妈',
+      children: ['小明'],
+      grandchildren: ['小宝'],
+      hobbies: ['豫剧'],
+      schedule: '早睡早起',
+      health: '高血压',
+      taboos: ['甜食'],
+    },
+  });
+
+  assert.equal(request.url, 'http://anban.local/api/profile');
+  assert.equal(request.options.method, 'PUT');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(JSON.parse(request.options.body).fields.nickname, '妈');
+  assert.equal(result.fields.nickname, '妈');
+});
+
+test('child web submits profile to backend instead of local draft only', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /client\(\)\.updateProfile/);
+  assert.match(app, /画像已同步/);
+});

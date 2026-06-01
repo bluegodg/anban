@@ -94,3 +94,37 @@ func TestGetDeviceStatusReadsManagerDeviceEndpoint(t *testing.T) {
 		t.Fatalf("lastActiveAt = %s, want %s", status.LastActiveAt, lastActive)
 	}
 }
+
+func TestSetRolePromptSendsManagerRequest(t *testing.T) {
+	var gotPath, gotMethod, gotToken string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		gotToken = r.Header.Get("X-API-Token")
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	err := c.SetRolePrompt(context.Background(), "dev-001", "请记住王阿姨喜欢豫剧")
+	if err != nil {
+		t.Fatalf("SetRolePrompt: %v", err)
+	}
+	if gotMethod != http.MethodPut {
+		t.Fatalf("method = %q, want PUT", gotMethod)
+	}
+	if gotPath != "/api/open/v1/devices/dev-001/role-prompt" {
+		t.Fatalf("path = %q, want role prompt endpoint", gotPath)
+	}
+	if gotToken != "tok_abc" {
+		t.Fatalf("X-API-Token = %q", gotToken)
+	}
+	if gotBody["prompt"] != "请记住王阿姨喜欢豫剧" {
+		t.Fatalf("body = %v, want prompt", gotBody)
+	}
+}
