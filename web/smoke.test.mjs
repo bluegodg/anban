@@ -56,6 +56,69 @@ test('child web shows greeting text returned by backend', async () => {
   assert.match(app, /问候已触发：\$\{greeting\.text\}/);
 });
 
+test('API client saves greeting schedule with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ deviceId: 'dev-001', slots: [{ label: 'morning', time: '08:00' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.updateGreetingSchedule({
+    deviceId: 'dev-001',
+    slots: [
+      { label: 'morning', time: '08:00', enabled: true, tonePreset: 'warm' },
+      { label: 'noon', time: '12:30', enabled: true, tonePreset: 'casual' },
+      { label: 'evening', time: '18:00', enabled: true, tonePreset: 'warm' },
+    ],
+  });
+
+  assert.equal(request.url, 'http://anban.local/api/greetings/schedule');
+  assert.equal(request.options.method, 'PUT');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(JSON.parse(request.options.body).slots.length, 3);
+  assert.equal(result.deviceId, 'dev-001');
+});
+
+test('API client fetches greeting schedule with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ deviceId: 'dev-001', slots: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  await client.getGreetingSchedule({ deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/greetings/schedule?deviceId=dev-001');
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+});
+
+test('child web lets children configure greeting schedule', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(html, /greetingScheduleForm/);
+  assert.match(html, /morningGreetingTime/);
+  assert.match(app, /client\(\)\.updateGreetingSchedule/);
+  assert.match(app, /问候时段已保存/);
+});
+
 test('API client sends scheduled reminder payload', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;

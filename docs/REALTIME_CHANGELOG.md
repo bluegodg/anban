@@ -609,3 +609,27 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 76.5%。
   - 临时 Node 静态服务访问 `http://127.0.0.1:5177/` 返回 200，随后已停止该临时进程；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
+
+## 2026-06-02
+
+### 12:35 greeting 定时配置 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增 greeting 服务层 RED 测试，要求 `GetSchedule` 在设备未配置时返回早/午/晚 3 个默认问候时段，`UpdateSchedule` 可保存 3 个 slot 并校验 deviceId、slot、`HH:MM` 时间格式。
+- 目的：对齐完整 PRD #2 的“每天预设 3 个时间段，可在子女端配置”，先锁定持久配置能力。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 schedule 类型和服务方法尚不存在。
+- 文件：`server/internal/domains/greeting/handler_test.go`
+- 内容：新增 `GET /api/greetings/schedule?deviceId=` 与 `PUT /api/greetings/schedule` 的 HTTP RED 测试，并覆盖坏请求返回 400。
+- 目的：锁定子女端配置问候时段的北向接口轮廓。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 handler 尚未注册 schedule 路由。
+- 文件：`server/internal/childapi/greeting_routes_test.go`
+- 内容：扩展 greeting 路由装配测试，要求注入依赖时 schedule 路由可替换占位，未注入时 schedule 路由返回 501。
+- 目的：保持 childapi 只接入 domain handler，同时让 PRD 路径在缺省状态下也有明确占位。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前缺省 childapi 没有 schedule 占位。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 web RED 测试，要求 API client 提供 `getGreetingSchedule` / `updateGreetingSchedule`，并要求页面具备 `greetingScheduleForm` 且提交时调用真实后端。
+- 目的：让子女端主动问候从“只能点一次按钮”推进到“可配置早/午/晚问候时段”的基础骨架。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web client 和页面尚未实现。
+- 验证：
+  - 已运行 `go test ./internal/domains/greeting ./internal/childapi`，按预期失败。失败原因是 `GreetingSchedule` / `ScheduleRequest` / `ScheduleSlot` / `Service.GetSchedule` / `Service.UpdateSchedule` 尚未实现，且 childapi 缺省 `GET /api/greetings/schedule` 仍为 404 而非 501。
+  - 已运行 `npm test --prefix web`，按预期失败。失败原因是 `client.updateGreetingSchedule` / `client.getGreetingSchedule` 不存在，页面也缺少 `greetingScheduleForm`。

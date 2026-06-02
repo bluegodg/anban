@@ -88,6 +88,76 @@ func TestServiceTriggerValidatesInputAndDefaultsTone(t *testing.T) {
 	}
 }
 
+func TestServiceGreetingScheduleDefaultsAndPersists(t *testing.T) {
+	svc := newTestService(t, &xiaozhiclient.FakeClient{})
+	ctx := context.Background()
+
+	defaultSchedule, err := svc.GetSchedule(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("GetSchedule default: %v", err)
+	}
+	if defaultSchedule.DeviceID != "dev-001" {
+		t.Fatalf("DeviceID = %q, want dev-001", defaultSchedule.DeviceID)
+	}
+	if len(defaultSchedule.Slots) != 3 {
+		t.Fatalf("default slots = %+v, want 3 slots", defaultSchedule.Slots)
+	}
+	if defaultSchedule.Slots[0].Time != "08:00" || !defaultSchedule.Slots[0].Enabled {
+		t.Fatalf("morning slot = %+v, want enabled 08:00", defaultSchedule.Slots[0])
+	}
+
+	updated, err := svc.UpdateSchedule(ctx, ScheduleRequest{
+		DeviceID: " dev-001 ",
+		Slots: []ScheduleSlot{
+			{Label: "morning", Time: "07:30", Enabled: true, TonePreset: ToneWarm},
+			{Label: "noon", Time: "12:20", Enabled: false, TonePreset: ToneCasual},
+			{Label: "evening", Time: "18:10", Enabled: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSchedule: %v", err)
+	}
+	if updated.DeviceID != "dev-001" {
+		t.Fatalf("updated DeviceID = %q, want trimmed dev-001", updated.DeviceID)
+	}
+	if updated.Slots[2].TonePreset != ToneWarm {
+		t.Fatalf("evening tone = %q, want default warm", updated.Slots[2].TonePreset)
+	}
+
+	got, err := svc.GetSchedule(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("GetSchedule after update: %v", err)
+	}
+	if got.Slots[0].Time != "07:30" || got.Slots[1].Enabled {
+		t.Fatalf("persisted slots = %+v, want updated schedule", got.Slots)
+	}
+}
+
+func TestServiceGreetingScheduleValidatesInput(t *testing.T) {
+	svc := newTestService(t, &xiaozhiclient.FakeClient{})
+	ctx := context.Background()
+
+	tests := []struct {
+		name string
+		req  ScheduleRequest
+	}{
+		{name: "missing device", req: ScheduleRequest{Slots: []ScheduleSlot{{Label: "morning", Time: "08:00", Enabled: true}}}},
+		{name: "missing slots", req: ScheduleRequest{DeviceID: "dev-001"}},
+		{name: "bad time", req: ScheduleRequest{DeviceID: "dev-001", Slots: []ScheduleSlot{{Label: "morning", Time: "8am", Enabled: true}}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := svc.UpdateSchedule(ctx, tt.req); !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("err = %v, want ErrInvalidInput", err)
+			}
+		})
+	}
+
+	if _, err := svc.GetSchedule(ctx, " "); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("GetSchedule blank err = %v, want ErrInvalidInput", err)
+	}
+}
+
 func TestServiceTriggerMarksFailedWhenInjectFails(t *testing.T) {
 	svc := newTestService(t, failingClient{err: errors.New("manager unavailable")})
 
