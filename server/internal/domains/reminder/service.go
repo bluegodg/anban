@@ -9,6 +9,8 @@ import (
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
+const defaultAckTimeout = 30 * time.Minute
+
 type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
 	Cancel(id scheduler.JobID)
@@ -92,6 +94,13 @@ func (s *Service) Cancel(ctx context.Context, id uint) (Reminder, error) {
 	return rem, nil
 }
 
+func (s *Service) Acknowledge(ctx context.Context, id uint, req AckRequest) (Reminder, error) {
+	if id == 0 {
+		return Reminder{}, ErrInvalidInput
+	}
+	return s.acknowledge(ctx, id, normalizeAckKind(req.AckKind), true)
+}
+
 func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 	reminders, err := s.store.List(ctx, ListFilter{Status: StatusScheduled})
 	if err != nil {
@@ -142,7 +151,62 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 	playedAt := s.now().UTC()
 	rem.Status = StatusPlayed
 	rem.PlayedAt = &playedAt
+	rem.JobID = ""
+	jobID, err := s.sch.ScheduleAt(playedAt.Add(defaultAckTimeout), func() {
+		s.markUnanswered(rem.ID)
+	})
+	if err != nil {
+		rem.Status = StatusFailed
+		rem.ErrorMessage = err.Error()
+		_ = s.store.Update(ctx, rem)
+		return
+	}
+	rem.AckJobID = string(jobID)
 	_ = s.store.Update(ctx, rem)
+}
+
+func (s *Service) markUnanswered(id uint) {
+	_, _ = s.acknowledge(context.Background(), id, AckKindTimeout, false)
+}
+
+func (s *Service) acknowledge(ctx context.Context, id uint, kind AckKind, cancelJob bool) (Reminder, error) {
+	rem, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Reminder{}, err
+	}
+
+	switch rem.Status {
+	case StatusPlayed:
+	case StatusCompleted, StatusUnanswered:
+		return rem, nil
+	default:
+		return Reminder{}, ErrInvalidInput
+	}
+
+	if cancelJob && rem.AckJobID != "" {
+		s.sch.Cancel(scheduler.JobID(rem.AckJobID))
+	}
+
+	ackAt := s.now().UTC()
+	if kind == AckKindTimeout {
+		rem.Status = StatusUnanswered
+	} else {
+		rem.Status = StatusCompleted
+	}
+	rem.AckKind = kind
+	rem.AcknowledgedAt = &ackAt
+	rem.AckJobID = ""
+	if err := s.store.Update(ctx, &rem); err != nil {
+		return Reminder{}, err
+	}
+	return rem, nil
+}
+
+func normalizeAckKind(kind AckKind) AckKind {
+	if kind == AckKindTimeout {
+		return AckKindTimeout
+	}
+	return AckKindVoice
 }
 
 func normalizeCategory(category Category) Category {

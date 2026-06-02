@@ -776,3 +776,26 @@
 - 验证：
   - 已运行 `go test ./internal/domains/reminder`，按预期失败。失败原因是 `AckJobID` 字段、`StatusUnanswered`、`StatusCompleted`、`AckKindTimeout`、`AckKindVoice`、`AckRequest` 和 `Service.Acknowledge` 尚未实现。
   - 已运行 `npm test --prefix web`，按预期失败。失败原因是前端 `reminderStatusLabel` 尚未包含 `completed`/`unanswered` 文案，且 `played` 仍被当成“已完成”。
+
+### 16:56 reminder 确认/未应答状态 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/types.go`
+- 内容：新增 `completed`、`unanswered` 状态，新增 `AckKind`、`AckRequest`、`AckJobID` 和 `AcknowledgedAt` 字段。
+- 目的：让 reminder 域能区分“已播报等待确认”“已完成”“未应答”，贴合 PRD #6 状态语义。
+- 功能：提醒记录可持久化确认结果和超时 job。
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：播报成功后注册 30 分钟确认超时 job；新增 `Acknowledge`，语音确认时取消超时 job 并转 `completed`；超时 job 触发时转 `unanswered`。
+- 目的：补齐 PRD #6 的确认/未应答状态机，同时继续只通过 `xiaozhiclient.InjectSpeak` 下发语音，不改原版小智。
+- 功能：提醒到点播报后不会直接等同“完成”，需要确认或超时进入最终状态。
+- 文件：`web/app.js`
+- 内容：调整提醒状态文案，`played` 显示“已播报”，`completed` 显示“已完成”，`unanswered` 显示“未应答”。
+- 目的：让子女端列表能正确表达后端新增状态。
+- 功能：子女端可见提醒完成/未应答结果。
+- 验证：
+  - `go test ./internal/domains/reminder` 通过。
+  - `npm test --prefix web` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 75.9%。
+  - 临时 Node 静态服务访问 `http://127.0.0.1:5182/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。

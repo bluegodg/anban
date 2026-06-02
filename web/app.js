@@ -320,7 +320,9 @@ function statusLabel(status) {
 }
 
 function reminderStatusLabel(status) {
-  if (status === 'played') return '已完成';
+  if (status === 'played') return '已播报';
+  if (status === 'completed') return '已完成';
+  if (status === 'unanswered') return '未应答';
   if (status === 'failed') return '失败';
   if (status === 'canceled') return '已撤销';
   return '待提醒';
