@@ -188,6 +188,40 @@ test('child web exposes reminder cancel client capability', async () => {
   assert.match(client, /deleteReminder/);
 });
 
+test('API client fetches reminders with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ reminders: [{ reminderId: 9, status: 'scheduled' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.listReminders({ deviceId: 'dev-001', status: 'scheduled' });
+
+  assert.equal(request.url, 'http://anban.local/api/reminders?deviceId=dev-001&status=scheduled');
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(result.reminders[0].reminderId, 9);
+});
+
+test('child web lists and cancels backend reminders', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(html, /reminderList/);
+  assert.match(app, /client\(\)\.listReminders/);
+  assert.match(app, /renderReminders/);
+  assert.match(app, /client\(\)\.deleteReminder/);
+  assert.match(app, /提醒已撤销/);
+});
+
 test('API client fetches device status with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;

@@ -732,3 +732,11 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/greeting ./internal/scheduler` 通过，greeting 包覆盖率 88.6%，scheduler 包覆盖率 86.3%。
   - `npm test --prefix web` 通过。
+
+### 16:32 web 提醒列表撤销 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 smoke test，要求 API client 可带访问码筛选查询 `GET /api/reminders`，并要求子女端页面具备 `reminderList`、连接后调用 `client().listReminders` 渲染列表、点击撤销时调用 `client().deleteReminder` 并显示“提醒已撤销”。
+- 目的：对齐完整 PRD #6 `GET /api/reminders?deviceId=&status=` 列表和 `DELETE /api/reminders/:id` 撤销接口，把已实现的后端/API client 能力显露到子女端页面。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前页面只有创建提醒，没有提醒列表和撤销交互。
+- 验证：已运行 `npm test --prefix web`，按预期失败。失败原因是 `web/index.html` 缺少 `reminderList`，页面还没有提醒列表与撤销交互。
