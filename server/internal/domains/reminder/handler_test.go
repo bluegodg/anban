@@ -1,11 +1,13 @@
 package reminder
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 	"github.com/gin-gonic/gin"
@@ -86,6 +88,41 @@ func TestHandlerCreateRejectsBadRequests(t *testing.T) {
 				t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestHandlerAcknowledgeReminder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	created, err := svc.Create(context.Background(), CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: svc.now().Add(time.Minute),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	fakeSch.fire(0)
+
+	body := `{"ackKind":"voice"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/reminders/1/ack", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST ack status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+
+	var completed Reminder
+	if err := json.Unmarshal(w.Body.Bytes(), &completed); err != nil {
+		t.Fatalf("unmarshal completed: %v", err)
+	}
+	if completed.ID != created.ID || completed.Status != StatusCompleted || completed.AckKind != AckKindVoice {
+		t.Fatalf("completed = %+v, want completed voice ack for reminder %d", completed, created.ID)
 	}
 }
 

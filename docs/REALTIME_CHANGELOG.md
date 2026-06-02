@@ -799,3 +799,21 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 75.9%。
   - 临时 Node 静态服务访问 `http://127.0.0.1:5182/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
+
+### 17:01 reminder ACK 受控入口 RED 测试
+
+- 文件：`server/internal/domains/reminder/handler_test.go`
+- 内容：新增 RED 测试，创建提醒并触发播报后，要求 `POST /api/reminders/:id/ack` 接收 `{"ackKind":"voice"}` 并返回 `completed` 提醒。
+- 目的：把上一切片的 `Service.Acknowledge` 状态机接到受控 HTTP 入口，为后续设备适配器或演示脚本处理 PRD #6 `reminder_ack` 留出稳定接缝。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 handler 尚未注册 ack 路由。
+- 文件：`server/internal/childapi/reminder_routes_test.go`
+- 内容：扩展 reminder 路由装配测试，要求注入 reminder 依赖时 ack 路由可用；未注入时 ack 路由返回 501 占位。
+- 目的：保持 childapi 的路由形状稳定，继续遵守 childapi 只接入 domain handler 的边界。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期未注入 reminder 时 ack 路由当前为 404。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 API client RED 测试，要求 `ackReminder` 带访问码调用 `POST /api/reminders/:id/ack` 并提交 `ackKind`。
+- 目的：给子女端/演示脚本共享 API client 补齐 reminder ack 调用缝，不新增可见“子女代确认”按钮。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `web/api/client.js` 尚无 `ackReminder`。
+- 验证：
+  - 已运行 `go test ./internal/domains/reminder ./internal/childapi`，按预期失败。失败原因是 domain ack 路由返回 404，childapi 未注入 reminder 时 ack 占位也返回 404。
+  - 已运行 `npm test --prefix web`，按预期失败。失败原因是 `client.ackReminder` 不存在，`web/api/client.js` 也没有暴露 `ackReminder`。

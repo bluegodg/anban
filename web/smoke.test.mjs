@@ -182,10 +182,35 @@ test('API client cancels reminders with access code', async () => {
   assert.equal(result.status, 'canceled');
 });
 
+test('API client acknowledges reminders with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ reminderId: 9, status: 'completed', ackKind: 'voice' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.ackReminder(9, { ackKind: 'voice' });
+
+  assert.equal(request.url, 'http://anban.local/api/reminders/9/ack');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.deepEqual(JSON.parse(request.options.body), { ackKind: 'voice' });
+  assert.equal(result.status, 'completed');
+});
+
 test('child web exposes reminder cancel client capability', async () => {
   const client = await readFile(new URL('./api/client.js', import.meta.url), 'utf8');
 
   assert.match(client, /deleteReminder/);
+  assert.match(client, /ackReminder/);
 });
 
 test('API client fetches reminders with access code', async () => {
