@@ -892,3 +892,17 @@
 - 目的：对齐完整 PRD #4 “老人最近一次和设备说话是什么时候”和“最近互动时间准确度 ≤ 1 分钟误差”，把上一片新增的小智历史读取能力接入状态聚合。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 status 服务尚未调用 `GetHistory`。
 - 验证：已运行 `go test ./internal/domains/status`；首次在沙箱内因 Go build cache 权限失败，提升权限后得到有效 RED。失败原因为 `TestServiceGetUsesLatestHistoryForLastInteraction` 中 `history deviceID = ""`，说明 status 服务尚未调用 `GetHistory`。
+
+### 20:03 status 最近互动 GREEN 实现
+
+- 文件：`server/internal/domains/status/service.go`
+- 内容：`Service.Get` 在读取设备在线状态和留言状态后调用 `xiaozhiclient.GetHistory`，用历史消息中最大的 `At` 时间设置 `lastInteractionAt`；新增 `latestHistoryAt` 辅助函数；当历史接口返回 `ErrNotImplemented` 或无历史时，继续回退到设备 `last_active_at`。
+- 目的：让子女端状态面板中的“最近互动”更接近 PRD #4 所说的“老人最近一次和设备说话是什么时候”，而不是只显示设备活跃心跳时间。
+- 功能：`GET /api/device/status?deviceId=` 的响应保持原结构不变，但 `lastInteractionAt` 会优先反映小智对话历史中的最新互动时间；历史能力暂不可用时仍保持原有状态接口可用。
+- 验证：
+  - `go test ./internal/domains/status` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/status` 通过，status 包覆盖率 85.7%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
+  - `npm test --prefix web` 通过。

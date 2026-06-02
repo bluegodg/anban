@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 )
 
 const defaultMessageStatusLimit = 10
+const defaultHistoryLimit = 10
 
 type Service struct {
 	xc            xiaozhiclient.Client
@@ -47,11 +49,21 @@ func (s *Service) Get(ctx context.Context, req GetRequest) (Snapshot, error) {
 	}
 
 	lastSeen := timePtr(status.LastActiveAt)
+	lastInteraction := lastSeen
+	history, err := s.xc.GetHistory(ctx, deviceID, defaultHistoryLimit)
+	if err != nil {
+		if !errors.Is(err, sharedtypes.ErrNotImplemented) {
+			return Snapshot{}, err
+		}
+	} else if at := latestHistoryAt(history); at != nil {
+		lastInteraction = at
+	}
+
 	return Snapshot{
 		DeviceID:          status.DeviceID,
 		Online:            status.Online,
 		LastSeenAt:        lastSeen,
-		LastInteractionAt: lastSeen,
+		LastInteractionAt: lastInteraction,
 		Messages:          messages,
 	}, nil
 }
@@ -62,4 +74,18 @@ func timePtr(value time.Time) *time.Time {
 	}
 	utc := value.UTC()
 	return &utc
+}
+
+func latestHistoryAt(history []xiaozhiclient.HistoryMessage) *time.Time {
+	var latest time.Time
+	for _, message := range history {
+		if message.At.IsZero() {
+			continue
+		}
+		at := message.At.UTC()
+		if latest.IsZero() || at.After(latest) {
+			latest = at
+		}
+	}
+	return timePtr(latest)
 }
