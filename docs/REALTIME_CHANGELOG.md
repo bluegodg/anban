@@ -940,3 +940,25 @@
 - 目的：对齐完整 PRD #7 “轻量视觉触发”和 Roadmap “vision 首个 task：采帧→VLM 判定→触发”中的第一小步：先把设备拍照 MCP 工具封装成安伴后端可调用的受控入口。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `domains/vision`、`Deps.VisionRoutes` 和启动装配尚不存在。
 - 验证：已运行 `go test ./internal/domains/vision ./internal/childapi`；首次在沙箱内因 Go build cache 权限失败，提升权限后得到有效编译级 RED。失败原因是 `Deps.VisionRoutes` 字段不存在，且 `NewService`、`CaptureRequest`、`CaptureResult`、`NewHandler` 等 vision 域类型尚未实现。
+
+### 21:44 vision 采帧入口 GREEN 实现
+
+- 文件：`server/internal/domains/vision/types.go`
+- 内容：新增 `CaptureRequest`、`CaptureResult`、`DefaultCaptureTool` 和 `ErrInvalidInput`。
+- 文件：`server/internal/domains/vision/service.go`
+- 内容：新增 vision 服务，`Capture` 校验并修剪 `deviceId`，默认使用 `camera.capture`，调用 `xiaozhiclient.CallDeviceMCPTool` 并返回原始 JSON。
+- 文件：`server/internal/domains/vision/handler.go`
+- 内容：新增 `POST /api/vision/capture`，覆盖坏请求、缺少设备 ID 和 manager/MCP 调用失败。
+- 文件：`server/internal/childapi/server.go`
+- 内容：新增 `Deps.VisionRoutes`，未注入 vision 域时 `/api/vision/capture` 返回 501 占位。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时装配 vision service/handler，并注入 childapi。
+- 目的：先把 PRD #7 的设备拍照 MCP 能力接成安伴后端受控入口；VLM 判定、PresenceState 状态机和触发问候留给后续切片。
+- 功能：子女端/演示脚本可通过访问码调用 `/api/vision/capture`，触发设备 MCP 拍照工具并获得原始 JSON 结果，不影响原版小智语音主链路。
+- 验证：
+  - `go test ./internal/domains/vision ./internal/childapi` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/vision` 通过，vision 包覆盖率 100.0%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
+  - `npm test --prefix web` 通过。

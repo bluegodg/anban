@@ -15,6 +15,7 @@ type Deps struct {
 	ReminderRoutes RouteRegistrar
 	StatusRoutes   RouteRegistrar
 	ProfileRoutes  RouteRegistrar
+	VisionRoutes   RouteRegistrar
 }
 
 type RouteRegistrar interface {
@@ -70,6 +71,11 @@ func NewRouter(d Deps) *gin.Engine {
 	} else {
 		api.GET("/status", notImpl)        // status 域
 		api.GET("/device/status", notImpl) // status 域（PRD 路径）
+	}
+	if d.VisionRoutes != nil {
+		d.VisionRoutes.RegisterRoutes(api)
+	} else {
+		api.POST("/vision/capture", notImpl) // vision 域（拍照 MCP 入口）
 	}
 
 	return r

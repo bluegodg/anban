@@ -11,6 +11,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/domains/profile"
 	"github.com/bluegodg/anban/server/internal/domains/reminder"
 	"github.com/bluegodg/anban/server/internal/domains/status"
+	"github.com/bluegodg/anban/server/internal/domains/vision"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -74,6 +75,9 @@ func main() {
 	profileService := profile.NewService(profileStore, xc)
 	profileHandler := profile.NewHandler(profileService)
 
+	visionService := vision.NewService(xc)
+	visionHandler := vision.NewHandler(visionService)
+
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
 		MessageRoutes:  messageHandler,
@@ -81,6 +85,7 @@ func main() {
 		ReminderRoutes: reminderHandler,
 		StatusRoutes:   statusHandler,
 		ProfileRoutes:  profileHandler,
+		VisionRoutes:   visionHandler,
 	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)
