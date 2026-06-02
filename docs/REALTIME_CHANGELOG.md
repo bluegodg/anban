@@ -870,3 +870,17 @@
 - 目的：对齐完整文档中 status 域依赖 `xiaozhiclient.GetHistory` 的 Roadmap，把状态/历史所需的南向只读缝从占位推进到真实 manager OpenAPI 调用。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.GetHistory` 仍返回 `types.ErrNotImplemented`。
 - 验证：已运行 `go test ./internal/xiaozhiclient`；首次在沙箱内因 Go build cache 权限失败，提升权限后得到有效 RED。失败原因为 `TestGetHistoryReadsManagerHistoryEndpoint` 和 `TestGetHistoryParsesDirectArrayPayload` 均收到 `GetHistory: anban: not implemented`。
+
+### 18:14 xiaozhi GetHistory GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：实现 `HTTPClient.GetHistory`，构造 `/api/open/v1/history/messages` 查询参数，带 `X-API-Token` 读取 manager 历史消息；新增 `decodeHistoryMessages`，兼容 `data.messages`、根对象 `messages`、直接数组，以及 `content/text/message`、`created_at/at/timestamp` 字段。
+- 目的：补齐 status/深度查询依赖的南向只读接口，同时继续保持所有 xiaozhi HTTP 细节只存在于 `internal/xiaozhiclient`。
+- 功能：后续状态域或子女端深度历史功能可通过统一 client 读取小智 manager 中的对话历史；非法时间会显式返回解析错误。
+- 验证：
+  - `go test ./internal/xiaozhiclient` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/xiaozhiclient` 通过，xiaozhiclient 包覆盖率 85.8%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
+  - `npm test --prefix web` 通过。

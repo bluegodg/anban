@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,16 @@ type injectReq struct {
 
 type rolePromptReq struct {
 	Prompt string `json:"prompt"`
+}
+
+type historyMessagePayload struct {
+	Role      string `json:"role"`
+	Content   string `json:"content"`
+	Text      string `json:"text"`
+	Message   string `json:"message"`
+	CreatedAt string `json:"created_at"`
+	At        string `json:"at"`
+	Timestamp string `json:"timestamp"`
 }
 
 func (c *HTTPClient) InjectSpeak(ctx context.Context, deviceID, text string, opts InjectOptions) error {
@@ -80,6 +91,26 @@ func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string)
 	}
 	_, err = c.do(ctx, http.MethodPut, "/api/open/v1/devices/"+url.PathEscape(deviceID)+"/role-prompt", body)
 	return err
+}
+
+func (c *HTTPClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error) {
+	q := url.Values{}
+	if deviceID != "" {
+		q.Set("deviceId", deviceID)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	path := "/api/open/v1/history/messages"
+	if query := q.Encode(); query != "" {
+		path += "?" + query
+	}
+
+	body, err := c.do(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	return decodeHistoryMessages(body)
 }
 
 // do 发一个带 X-API-Token 的请求；2xx 返回响应体，否则返回错误（含状态码与响应片段）。
@@ -176,12 +207,52 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// 以下 2 个方法在地基期返回 ErrNotImplemented，由各自的域 follow-on 计划据真实端点补齐
-// （GetHistory→status/深度；CallDeviceMCPTool→vision）。
-func (c *HTTPClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error) {
-	return nil, types.ErrNotImplemented
+func decodeHistoryMessages(body []byte) ([]HistoryMessage, error) {
+	raw := body
+	var envelope struct {
+		Data     json.RawMessage `json:"data"`
+		Messages json.RawMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(body, &envelope); err == nil {
+		if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
+			raw = envelope.Data
+		} else if len(envelope.Messages) > 0 && string(envelope.Messages) != "null" {
+			raw = envelope.Messages
+		}
+	}
+
+	var payloads []historyMessagePayload
+	trimmed := strings.TrimSpace(string(raw))
+	if strings.HasPrefix(trimmed, "[") {
+		if err := json.Unmarshal(raw, &payloads); err != nil {
+			return nil, err
+		}
+	} else {
+		var list struct {
+			Messages []historyMessagePayload `json:"messages"`
+		}
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, err
+		}
+		payloads = list.Messages
+	}
+
+	messages := make([]HistoryMessage, 0, len(payloads))
+	for _, payload := range payloads {
+		at, err := parseOptionalTime(firstNonEmpty(payload.CreatedAt, payload.At, payload.Timestamp))
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, HistoryMessage{
+			Role: strings.TrimSpace(payload.Role),
+			Text: firstNonEmpty(payload.Content, payload.Text, payload.Message),
+			At:   at,
+		})
+	}
+	return messages, nil
 }
 
+// CallDeviceMCPTool 在 vision 域 follow-on 计划中据真实端点补齐。
 func (c *HTTPClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
 	return nil, types.ErrNotImplemented
 }
