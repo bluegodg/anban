@@ -176,12 +176,97 @@ func TestSetRolePromptErrorsOnNon2xx(t *testing.T) {
 	}
 }
 
+func TestGetHistoryReadsManagerHistoryEndpoint(t *testing.T) {
+	firstAt := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	secondAt := time.Date(2026, 6, 1, 8, 30, 5, 0, time.UTC)
+	var gotPath, gotToken, gotDeviceID, gotLimit string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotToken = r.Header.Get("X-API-Token")
+		gotDeviceID = r.URL.Query().Get("deviceId")
+		gotLimit = r.URL.Query().Get("limit")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"success": true,
+			"data": {
+				"messages": [
+					{
+						"role": "user",
+						"content": "我孙子叫啥",
+						"created_at": "2026-06-01T08:30:00Z"
+					},
+					{
+						"role": "assistant",
+						"text": "小宝今天 7 岁啦",
+						"at": "2026-06-01T08:30:05Z"
+					}
+				]
+			}
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	history, err := c.GetHistory(context.Background(), "dev-001", 2)
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
+	if gotPath != "/api/open/v1/history/messages" {
+		t.Fatalf("path = %q, want history endpoint", gotPath)
+	}
+	if gotToken != "tok_abc" {
+		t.Fatalf("X-API-Token = %q", gotToken)
+	}
+	if gotDeviceID != "dev-001" || gotLimit != "2" {
+		t.Fatalf("query deviceId=%q limit=%q, want dev-001/2", gotDeviceID, gotLimit)
+	}
+	if len(history) != 2 {
+		t.Fatalf("history = %+v, want 2 messages", history)
+	}
+	if history[0].Role != "user" || history[0].Text != "我孙子叫啥" || !history[0].At.Equal(firstAt) {
+		t.Fatalf("history[0] = %+v", history[0])
+	}
+	if history[1].Role != "assistant" || history[1].Text != "小宝今天 7 岁啦" || !history[1].At.Equal(secondAt) {
+		t.Fatalf("history[1] = %+v", history[1])
+	}
+}
+
+func TestGetHistoryParsesDirectArrayPayload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"role":"user","message":"今天腰有点酸","timestamp":"2026-06-01T09:00:00Z"}
+		]`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	history, err := c.GetHistory(context.Background(), "dev-001", 0)
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
+	if len(history) != 1 || history[0].Text != "今天腰有点酸" {
+		t.Fatalf("history = %+v, want direct array message", history)
+	}
+}
+
+func TestGetHistoryRejectsInvalidTime(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"role":"user","content":"hi","created_at":"not-a-time"}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if _, err := c.GetHistory(context.Background(), "dev-001", 5); err == nil {
+		t.Fatal("expected invalid time error, got nil")
+	}
+}
+
 func TestUnimplementedMethodsReturnErrNotImplemented(t *testing.T) {
 	c := NewHTTPClient("http://manager.local", "tok_abc")
 
-	if _, err := c.GetHistory(context.Background(), "dev-001", 5); err == nil {
-		t.Fatal("GetHistory err = nil, want not implemented")
-	}
 	if _, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "camera.capture", nil); err == nil {
 		t.Fatal("CallDeviceMCPTool err = nil, want not implemented")
 	}

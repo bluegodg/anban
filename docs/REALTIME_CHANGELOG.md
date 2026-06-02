@@ -862,3 +862,11 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/profile` 通过，profile 包覆盖率 85.4%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
   - 临时 Node 静态服务访问 `http://127.0.0.1:5184/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
+
+### 18:07 xiaozhi GetHistory RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `GetHistory` HTTP client 测试，要求带 `X-API-Token` 调用 `/api/open/v1/history/messages?deviceId=&limit=`，并解析 manager 常见的 `data.messages`、直接数组、`content/text/message` 和 `created_at/at/timestamp` 字段；同时验证非法时间会返回错误。
+- 目的：对齐完整文档中 status 域依赖 `xiaozhiclient.GetHistory` 的 Roadmap，把状态/历史所需的南向只读缝从占位推进到真实 manager OpenAPI 调用。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.GetHistory` 仍返回 `types.ErrNotImplemented`。
+- 验证：已运行 `go test ./internal/xiaozhiclient`；首次在沙箱内因 Go build cache 权限失败，提升权限后得到有效 RED。失败原因为 `TestGetHistoryReadsManagerHistoryEndpoint` 和 `TestGetHistoryParsesDirectArrayPayload` 均收到 `GetHistory: anban: not implemented`。
