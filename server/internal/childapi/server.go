@@ -54,6 +54,8 @@ func NewRouter(d Deps) *gin.Engine {
 		d.GreetingRoutes.RegisterRoutes(api)
 	} else {
 		api.POST("/greetings/trigger", notImpl) // greeting 域
+		api.GET("/greetings/schedule", notImpl) // greeting 域
+		api.PUT("/greetings/schedule", notImpl) // greeting 域
 	}
 	if d.ProfileRoutes != nil {
 		d.ProfileRoutes.RegisterRoutes(api)

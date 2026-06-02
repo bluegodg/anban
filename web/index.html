@@ -64,9 +64,63 @@
         <section class="panel actions-panel" aria-label="主动陪伴">
           <header>
             <p>主动陪伴</p>
-            <span>骨架</span>
+            <span>问候 · 提醒</span>
           </header>
           <button id="greetingButton" type="button">触发问候</button>
+          <form id="greetingScheduleForm" class="schedule-form">
+            <div class="schedule-row">
+              <label>
+                <span>早问候</span>
+                <input id="morningGreetingTime" name="morningGreetingTime" type="time" value="08:00">
+              </label>
+              <label class="checkline">
+                <input id="morningGreetingEnabled" name="morningGreetingEnabled" type="checkbox" checked>
+                <span>启用</span>
+              </label>
+              <label>
+                <span>口吻</span>
+                <select id="morningGreetingTone" name="morningGreetingTone">
+                  <option value="warm">温暖</option>
+                  <option value="casual">轻松</option>
+                </select>
+              </label>
+            </div>
+            <div class="schedule-row">
+              <label>
+                <span>午问候</span>
+                <input id="noonGreetingTime" name="noonGreetingTime" type="time" value="12:30">
+              </label>
+              <label class="checkline">
+                <input id="noonGreetingEnabled" name="noonGreetingEnabled" type="checkbox" checked>
+                <span>启用</span>
+              </label>
+              <label>
+                <span>口吻</span>
+                <select id="noonGreetingTone" name="noonGreetingTone">
+                  <option value="warm">温暖</option>
+                  <option value="casual">轻松</option>
+                </select>
+              </label>
+            </div>
+            <div class="schedule-row">
+              <label>
+                <span>晚问候</span>
+                <input id="eveningGreetingTime" name="eveningGreetingTime" type="time" value="18:00">
+              </label>
+              <label class="checkline">
+                <input id="eveningGreetingEnabled" name="eveningGreetingEnabled" type="checkbox" checked>
+                <span>启用</span>
+              </label>
+              <label>
+                <span>口吻</span>
+                <select id="eveningGreetingTone" name="eveningGreetingTone">
+                  <option value="warm">温暖</option>
+                  <option value="casual">轻松</option>
+                </select>
+              </label>
+            </div>
+            <button type="submit">保存问候时段</button>
+          </form>
           <form id="reminderForm">
             <label>
               <span>提醒时间</span>

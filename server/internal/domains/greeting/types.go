@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-var ErrInvalidInput = errors.New("greeting: invalid input")
+var (
+	ErrInvalidInput = errors.New("greeting: invalid input")
+	ErrNotFound     = errors.New("greeting: not found")
+)
 
 type TonePreset string
 
@@ -35,9 +38,29 @@ type Greeting struct {
 	UpdatedAt    time.Time  `json:"-"`
 }
 
+type ScheduleSlot struct {
+	Label      string     `json:"label"`
+	Time       string     `json:"time"`
+	Enabled    bool       `json:"enabled"`
+	TonePreset TonePreset `json:"tonePreset"`
+}
+
+type GreetingSchedule struct {
+	ID        uint           `gorm:"primaryKey" json:"scheduleId"`
+	DeviceID  string         `gorm:"uniqueIndex;not null" json:"deviceId"`
+	Slots     []ScheduleSlot `gorm:"serializer:json" json:"slots"`
+	CreatedAt time.Time      `json:"-"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
 type TriggerRequest struct {
 	DeviceID   string     `json:"deviceId"`
 	TonePreset TonePreset `json:"tonePreset"`
+}
+
+type ScheduleRequest struct {
+	DeviceID string         `json:"deviceId"`
+	Slots    []ScheduleSlot `json:"slots"`
 }
 
 type ListFilter struct {

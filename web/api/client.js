@@ -35,6 +35,15 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     triggerGreeting(payload) {
       return request('/api/greetings/trigger', { method: 'POST', body: payload });
     },
+    getGreetingSchedule({ deviceId } = {}) {
+      const params = new URLSearchParams();
+      if (deviceId) params.set('deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/greetings/schedule${suffix}`);
+    },
+    updateGreetingSchedule(payload) {
+      return request('/api/greetings/schedule', { method: 'PUT', body: payload });
+    },
     createReminder(payload) {
       return request('/api/reminders', { method: 'POST', body: payload });
     },

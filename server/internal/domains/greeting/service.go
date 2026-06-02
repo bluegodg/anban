@@ -2,6 +2,7 @@ package greeting
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -62,11 +63,81 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Greeting, erro
 	return s.store.List(ctx, filter)
 }
 
+func (s *Service) GetSchedule(ctx context.Context, deviceID string) (GreetingSchedule, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return GreetingSchedule{}, ErrInvalidInput
+	}
+
+	schedule, err := s.store.GetSchedule(ctx, deviceID)
+	if errors.Is(err, ErrNotFound) {
+		return defaultSchedule(deviceID), nil
+	}
+	if err != nil {
+		return GreetingSchedule{}, err
+	}
+	return schedule, nil
+}
+
+func (s *Service) UpdateSchedule(ctx context.Context, req ScheduleRequest) (GreetingSchedule, error) {
+	deviceID := strings.TrimSpace(req.DeviceID)
+	if deviceID == "" || len(req.Slots) == 0 {
+		return GreetingSchedule{}, ErrInvalidInput
+	}
+
+	slots := make([]ScheduleSlot, 0, len(req.Slots))
+	for _, slot := range req.Slots {
+		normalized, err := normalizeScheduleSlot(slot)
+		if err != nil {
+			return GreetingSchedule{}, err
+		}
+		slots = append(slots, normalized)
+	}
+
+	schedule := GreetingSchedule{
+		DeviceID: deviceID,
+		Slots:    slots,
+	}
+	if err := s.store.UpsertSchedule(ctx, &schedule); err != nil {
+		return GreetingSchedule{}, err
+	}
+	return schedule, nil
+}
+
 func normalizeTone(tone TonePreset) TonePreset {
 	if tone == ToneCasual {
 		return ToneCasual
 	}
 	return ToneWarm
+}
+
+func defaultSchedule(deviceID string) GreetingSchedule {
+	return GreetingSchedule{
+		DeviceID: deviceID,
+		Slots: []ScheduleSlot{
+			{Label: "morning", Time: "08:00", Enabled: true, TonePreset: ToneWarm},
+			{Label: "noon", Time: "12:30", Enabled: true, TonePreset: ToneWarm},
+			{Label: "evening", Time: "18:00", Enabled: true, TonePreset: ToneWarm},
+		},
+	}
+}
+
+func normalizeScheduleSlot(slot ScheduleSlot) (ScheduleSlot, error) {
+	label := strings.TrimSpace(slot.Label)
+	if label == "" {
+		label = "custom"
+	}
+	slotTime := strings.TrimSpace(slot.Time)
+	if _, err := time.Parse("15:04", slotTime); err != nil {
+		return ScheduleSlot{}, ErrInvalidInput
+	}
+
+	return ScheduleSlot{
+		Label:      label,
+		Time:       slotTime,
+		Enabled:    slot.Enabled,
+		TonePreset: normalizeTone(slot.TonePreset),
+	}, nil
 }
 
 func greetingText(tone TonePreset) string {

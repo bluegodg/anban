@@ -20,6 +20,16 @@ const els = {
   fromName: document.querySelector('#fromName'),
   messageList: document.querySelector('#messageList'),
   greetingButton: document.querySelector('#greetingButton'),
+  greetingScheduleForm: document.querySelector('#greetingScheduleForm'),
+  morningGreetingTime: document.querySelector('#morningGreetingTime'),
+  morningGreetingEnabled: document.querySelector('#morningGreetingEnabled'),
+  morningGreetingTone: document.querySelector('#morningGreetingTone'),
+  noonGreetingTime: document.querySelector('#noonGreetingTime'),
+  noonGreetingEnabled: document.querySelector('#noonGreetingEnabled'),
+  noonGreetingTone: document.querySelector('#noonGreetingTone'),
+  eveningGreetingTime: document.querySelector('#eveningGreetingTime'),
+  eveningGreetingEnabled: document.querySelector('#eveningGreetingEnabled'),
+  eveningGreetingTone: document.querySelector('#eveningGreetingTone'),
   reminderForm: document.querySelector('#reminderForm'),
   reminderContent: document.querySelector('#reminderContent'),
   reminderTime: document.querySelector('#reminderTime'),
@@ -88,6 +98,20 @@ els.greetingButton.addEventListener('click', async () => {
   }
 });
 
+els.greetingScheduleForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const schedule = await client().updateGreetingSchedule({
+      deviceId: state.deviceId,
+      slots: readGreetingSchedule(),
+    });
+    renderGreetingSchedule(schedule);
+    showNotice('问候时段已保存');
+  } catch (error) {
+    handleApiError(error, '问候时段保存失败');
+  }
+});
+
 els.reminderForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const content = els.reminderContent.value.trim();
@@ -144,6 +168,7 @@ async function refreshMessages() {
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
     renderMessages();
+    await refreshGreetingSchedule();
     showNotice('已连接后端');
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
@@ -152,6 +177,17 @@ async function refreshMessages() {
       return;
     }
     handleApiError(error, '暂时无法连接后端');
+  }
+}
+
+async function refreshGreetingSchedule() {
+  try {
+    const schedule = await client().getGreetingSchedule({ deviceId: state.deviceId });
+    renderGreetingSchedule(schedule);
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 501)) {
+      throw error;
+    }
   }
 }
 
@@ -175,6 +211,13 @@ function renderProfile(profile) {
   els.profileSummary.textContent = `${name} · 喜欢${hobbies}`;
 }
 
+function renderGreetingSchedule(schedule) {
+  const byLabel = new Map((schedule.slots || []).map((slot) => [slot.label, slot]));
+  writeGreetingSlot('morning', byLabel.get('morning'));
+  writeGreetingSlot('noon', byLabel.get('noon'));
+  writeGreetingSlot('evening', byLabel.get('evening'));
+}
+
 function renderMessages() {
   if (!state.messages.length) {
     els.messageList.innerHTML = '<li class="empty">暂无留言</li>';
@@ -188,6 +231,30 @@ function renderMessages() {
       return `<li><span>${escapeHtml(message.text)}</span><strong>${status}</strong><time>${at}</time></li>`;
     })
     .join('');
+}
+
+function readGreetingSchedule() {
+  return [
+    readGreetingSlot('morning'),
+    readGreetingSlot('noon'),
+    readGreetingSlot('evening'),
+  ];
+}
+
+function readGreetingSlot(label) {
+  return {
+    label,
+    time: els[`${label}GreetingTime`].value,
+    enabled: els[`${label}GreetingEnabled`].checked,
+    tonePreset: els[`${label}GreetingTone`].value,
+  };
+}
+
+function writeGreetingSlot(label, slot) {
+  if (!slot) return;
+  els[`${label}GreetingTime`].value = slot.time || els[`${label}GreetingTime`].value;
+  els[`${label}GreetingEnabled`].checked = Boolean(slot.enabled);
+  els[`${label}GreetingTone`].value = slot.tonePreset || 'warm';
 }
 
 function statusLabel(status) {

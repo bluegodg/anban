@@ -633,3 +633,57 @@
 - 验证：
   - 已运行 `go test ./internal/domains/greeting ./internal/childapi`，按预期失败。失败原因是 `GreetingSchedule` / `ScheduleRequest` / `ScheduleSlot` / `Service.GetSchedule` / `Service.UpdateSchedule` 尚未实现，且 childapi 缺省 `GET /api/greetings/schedule` 仍为 404 而非 501。
   - 已运行 `npm test --prefix web`，按预期失败。失败原因是 `client.updateGreetingSchedule` / `client.getGreetingSchedule` 不存在，页面也缺少 `greetingScheduleForm`。
+
+### 12:42 greeting 定时配置 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/types.go`
+- 内容：新增 `ScheduleSlot`、`GreetingSchedule`、`ScheduleRequest` 和 `ErrNotFound`。
+- 目的：承接 PRD #2 `GET/PUT /api/greetings/schedule` 的设备问候时段数据契约。
+- 功能：一个设备可拥有早/午/晚等多个问候 slot，每个 slot 记录标签、`HH:MM` 时间、启用状态和口吻。
+- 文件：`server/internal/domains/greeting/store.go`
+- 内容：`AutoMigrate` 增加 `GreetingSchedule` 表，新增 `UpsertSchedule` 和 `GetSchedule`。
+- 目的：把问候时段作为 greeting 域自有数据持久化，不放进 xiaozhi。
+- 功能：后端重启后子女端配置的问候时段不丢。
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：新增 `GetSchedule` / `UpdateSchedule`，未配置设备返回默认早/午/晚 3 时段；保存时校验 deviceId、slot 列表和 `HH:MM` 时间，并规范口吻默认值。
+- 目的：先实现可配置时段的基础层，自动到点触发留给后续 scheduler 切片。
+- 功能：子女端可读取默认问候计划并保存自定义问候计划。
+- 文件：`server/internal/domains/greeting/handler.go`
+- 内容：注册 `GET /api/greetings/schedule` 和 `PUT /api/greetings/schedule`，坏请求返回 400。
+- 目的：补齐 PRD #2 的北向接口轮廓。
+- 功能：HTTP API 可读写一台设备的问候时段配置。
+- 文件：`server/internal/childapi/server.go`
+- 内容：未注入 greeting 域时新增 schedule GET/PUT 的 501 占位。
+- 目的：保持 childapi 路由形状完整，且仍只接入 domain handler。
+- 功能：前端可对着稳定 URL 开发；缺省状态不会落到 404。
+- 文件：`web/api/client.js`
+- 内容：新增 `getGreetingSchedule` 和 `updateGreetingSchedule`。
+- 目的：建立子女端问候时段配置与后端 API 的调用缝。
+- 功能：前端可带 `X-Access-Code` 读取/保存问候时段。
+- 文件：`web/index.html`
+- 内容：主动陪伴面板新增 `greetingScheduleForm`，包含早/午/晚三个时间、启用开关和口吻选择。
+- 目的：让子女端不只支持手动问候，也能配置 PRD 要求的 3 个预设时间段。
+- 功能：路演操作者可在同一页面保存问候时段。
+- 文件：`web/app.js`
+- 内容：连接后读取问候时段并渲染表单，提交表单调用 `client().updateGreetingSchedule`，成功提示“问候时段已保存”。
+- 目的：把页面控件接到真实后端，而不是本地草稿。
+- 功能：问候时段保存后可立即看到表单按后端返回值刷新。
+- 文件：`web/styles.css`
+- 内容：新增 schedule 表单、时段行、启用 checkbox 和 select 的样式。
+- 目的：让新增控件在桌面和手机宽度下稳定排列，不挤压已有提醒表单。
+- 功能：主动陪伴面板可同时容纳问候配置和提醒创建。
+- 验证：已运行 `go test ./internal/domains/greeting ./internal/childapi` 和 `npm test --prefix web`，通过。
+
+### 12:43 greeting 定时配置总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成 greeting 定时配置切片后的全量后端测试、构建、vet、greeting 覆盖率检查、web smoke test 和临时静态页面访问检查。
+- 目的：确认新增问候时段持久化、GET/PUT API、childapi 占位和子女端表单没有破坏 message/reminder/profile/status/xiaozhiclient 既有能力。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/greeting` 通过，greeting 包覆盖率 86.2%。
+  - `npm test --prefix web` 通过。
+  - 临时 Node 静态服务访问 `http://127.0.0.1:5178/` 返回 200，随后已停止该临时进程；检查时使用 `-NoProxy` 避免本机代理影响 localhost。

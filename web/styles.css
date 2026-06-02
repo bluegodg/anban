@@ -30,6 +30,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -48,6 +49,7 @@ button:hover {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -256,6 +258,40 @@ form {
   background: var(--coral);
 }
 
+.schedule-form {
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f6f1e7;
+}
+
+.schedule-row {
+  display: grid;
+  grid-template-columns: minmax(92px, 1fr) 82px minmax(88px, 0.9fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.checkline {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.checkline input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--leaf);
+}
+
 .notice {
   display: block;
   min-height: 24px;
@@ -270,6 +306,10 @@ form {
   }
 
   .connect {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-row {
     grid-template-columns: 1fr;
   }
 
