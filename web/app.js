@@ -21,6 +21,8 @@ const els = {
   fromName: document.querySelector('#fromName'),
   messageList: document.querySelector('#messageList'),
   greetingButton: document.querySelector('#greetingButton'),
+  visionButton: document.querySelector('#visionButton'),
+  visionResult: document.querySelector('#visionResult'),
   greetingScheduleForm: document.querySelector('#greetingScheduleForm'),
   morningGreetingTime: document.querySelector('#morningGreetingTime'),
   morningGreetingEnabled: document.querySelector('#morningGreetingEnabled'),
@@ -98,6 +100,24 @@ els.greetingButton.addEventListener('click', async () => {
     showNotice(`问候已触发：${greeting.text}`);
   } catch (error) {
     handleApiError(error, '问候接口暂未接入');
+  }
+});
+
+els.visionButton.addEventListener('click', async () => {
+  els.visionButton.disabled = true;
+  try {
+    const capture = await client().captureVision({
+      deviceId: state.deviceId,
+      tool: 'camera.capture',
+      args: { quality: 'low' },
+    });
+    renderVisionCapture(capture);
+    renderStatus('在线', '刚刚完成一次看一眼');
+    showNotice('看一眼结果已返回');
+  } catch (error) {
+    handleApiError(error, '看一眼失败');
+  } finally {
+    els.visionButton.disabled = false;
   }
 });
 
@@ -280,6 +300,12 @@ function renderGreetingSchedule(schedule) {
   writeGreetingSlot('morning', byLabel.get('morning'));
   writeGreetingSlot('noon', byLabel.get('noon'));
   writeGreetingSlot('evening', byLabel.get('evening'));
+}
+
+function renderVisionCapture(capture) {
+  const raw = capture && capture.raw !== undefined ? capture.raw : capture;
+  const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+  els.visionResult.textContent = `看一眼结果：${text || '暂无内容'}`;
 }
 
 function renderMessages() {

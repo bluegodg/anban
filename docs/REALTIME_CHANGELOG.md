@@ -970,3 +970,22 @@
 - 目的：把上一切片新增的后端 `/api/vision/capture` 采帧入口显露到子女端骨架，贴合三周计划 0.4 中“看一眼”按钮和 PRD #7 视觉触发的演示前置能力。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web API client 和页面尚未提供视觉采帧入口。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：`client.captureVision is not a function`，且页面缺少 `visionButton`。
+
+### 22:29 web 看一眼入口 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：新增 `captureVision`，带访问码向 `POST /api/vision/capture` 提交采帧请求。
+- 文件：`web/index.html`
+- 内容：在“主动陪伴”面板加入“看一眼”按钮和 `visionResult` 输出区。
+- 文件：`web/app.js`
+- 内容：新增“看一眼”点击处理，调用 `client().captureVision`，提交默认 `camera.capture` 工具参数，并展示“看一眼结果”。
+- 文件：`web/styles.css`
+- 内容：给 `visionResult` 增加轻量结果框样式，保持现有子女端骨架视觉风格。
+- 目的：把后端 vision 采帧入口接到子女端演示界面，先提供可触发、可见结果的 PRD #7 前置能力。
+- 功能：子女端连接后可点击“看一眼”调用后端采帧接口，返回原始 MCP 结果；不在前端伪造“有人/没人”判定，后续由 VLM/状态机切片补齐。
+- 验证：
+  - `npm test --prefix web` 通过，22 个测试全绿。
+  - `go test -count=1 ./...` 通过；本次使用仓库内 `.gocache-go` 避开用户级 Go cache 权限问题。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - 本地静态服务冒烟通过：`http://127.0.0.1:4173/index.html` 返回 200，页面包含 `visionButton`。

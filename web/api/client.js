@@ -35,6 +35,9 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     triggerGreeting(payload) {
       return request('/api/greetings/trigger', { method: 'POST', body: payload });
     },
+    captureVision(payload) {
+      return request('/api/vision/capture', { method: 'POST', body: payload });
+    },
     getGreetingSchedule({ deviceId } = {}) {
       const params = new URLSearchParams();
       if (deviceId) params.set('deviceId', deviceId);
