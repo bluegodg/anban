@@ -687,3 +687,15 @@
   - `go test -count=1 -cover ./internal/domains/greeting` 通过，greeting 包覆盖率 86.2%。
   - `npm test --prefix web` 通过。
   - 临时 Node 静态服务访问 `http://127.0.0.1:5178/` 返回 200，随后已停止该临时进程；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
+
+### 12:47 greeting 定时触发 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增 greeting 服务层 RED 测试，要求保存问候 schedule 时只为 enabled slot 注册 cron，disabled slot 跳过；cron 触发时仍通过 `InjectSpeak` 主动播报；再次更新 schedule 时取消旧 cron；`RestoreSchedules` 能在启动时恢复 DB 中已保存的 enabled slot。
+- 目的：对齐完整 PRD #2 “定时问候到点触发误差 ≤ 30 秒”和“三个预设时段可配置”，把上一切片的持久配置推进到真实调度。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 greeting 服务尚未接入 scheduler。
+- 文件：`server/internal/scheduler/scheduler_test.go`
+- 内容：新增 cron job 取消 RED 测试，要求 `Scheduler.Cancel` 可移除 `RegisterCron` 创建的 `cron-*` job。
+- 目的：让 greeting schedule 更新时能撤掉旧定时任务，避免重复问候。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `Cancel` 只取消一次性 timer，不取消 cron。
+- 验证：已运行 `go test ./internal/domains/greeting ./internal/scheduler`，按预期失败。失败原因是 `NewService` 尚不接受 scheduler、`Service.RestoreSchedules` 尚不存在，且 `Scheduler.Cancel` 对 `cron-*` job 不生效。

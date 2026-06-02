@@ -4,6 +4,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 func TestScheduleAtFires(t *testing.T) {
@@ -33,5 +35,22 @@ func TestCancelStopsOneShot(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if fired.Load() != 0 {
 		t.Fatalf("fired = %d, want 0 (cancelled)", fired.Load())
+	}
+}
+
+func TestCancelRemovesCronJob(t *testing.T) {
+	s := New()
+
+	id, err := s.RegisterCron("* * * * *", func() {})
+	if err != nil {
+		t.Fatalf("RegisterCron: %v", err)
+	}
+	if id != "cron-1" {
+		t.Fatalf("id = %q, want cron-1", id)
+	}
+
+	s.Cancel(id)
+	if entry := s.cron.Entry(cron.EntryID(1)); entry.ID != 0 {
+		t.Fatalf("cron entry still exists after cancel: %+v", entry)
 	}
 }

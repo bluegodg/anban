@@ -7,11 +7,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
 func newTestService(t *testing.T, xc xiaozhiclient.Client) *Service {
+	t.Helper()
+	return newTestServiceWithScheduler(t, xc, nil)
+}
+
+func newTestServiceWithScheduler(t *testing.T, xc xiaozhiclient.Client, sch *fakeCronScheduler) *Service {
 	t.Helper()
 
 	st, err := store.Open(":memory:")
@@ -23,7 +29,12 @@ func newTestService(t *testing.T, xc xiaozhiclient.Client) *Service {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
-	svc := NewService(greetingStore, xc)
+	var svc *Service
+	if sch == nil {
+		svc = NewService(greetingStore, xc)
+	} else {
+		svc = NewService(greetingStore, xc, sch)
+	}
 	svc.now = func() time.Time { return time.Date(2026, 5, 31, 15, 30, 0, 0, time.UTC) }
 	return svc
 }
@@ -158,6 +169,91 @@ func TestServiceGreetingScheduleValidatesInput(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateScheduleRegistersCronJobsAndFires(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	fakeSch := &fakeCronScheduler{}
+	svc := newTestServiceWithScheduler(t, fakeXC, fakeSch)
+	ctx := context.Background()
+
+	_, err := svc.UpdateSchedule(ctx, ScheduleRequest{
+		DeviceID: "dev-001",
+		Slots: []ScheduleSlot{
+			{Label: "morning", Time: "07:30", Enabled: true, TonePreset: ToneWarm},
+			{Label: "noon", Time: "12:20", Enabled: false, TonePreset: ToneCasual},
+			{Label: "evening", Time: "18:10", Enabled: true, TonePreset: ToneCasual},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSchedule: %v", err)
+	}
+	if len(fakeSch.jobs) != 2 {
+		t.Fatalf("cron jobs = %+v, want 2 enabled slots", fakeSch.jobs)
+	}
+	if fakeSch.jobs[0].spec != "30 7 * * *" || fakeSch.jobs[1].spec != "10 18 * * *" {
+		t.Fatalf("cron specs = %+v, want 07:30 and 18:10 specs", fakeSch.jobs)
+	}
+
+	fakeSch.fire(1)
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want scheduled greeting to inject once", len(fakeXC.InjectCalls))
+	}
+	if fakeXC.InjectCalls[0].Text != "王阿姨，回来啦，今天过得怎么样？" {
+		t.Fatalf("inject text = %q, want casual greeting", fakeXC.InjectCalls[0].Text)
+	}
+
+	_, err = svc.UpdateSchedule(ctx, ScheduleRequest{
+		DeviceID: "dev-001",
+		Slots: []ScheduleSlot{
+			{Label: "morning", Time: "07:30", Enabled: false, TonePreset: ToneWarm},
+			{Label: "noon", Time: "12:20", Enabled: true, TonePreset: ToneWarm},
+			{Label: "evening", Time: "18:10", Enabled: false, TonePreset: ToneCasual},
+		},
+	})
+	if err != nil {
+		t.Fatalf("second UpdateSchedule: %v", err)
+	}
+	if len(fakeSch.canceled) != 2 {
+		t.Fatalf("canceled jobs = %+v, want previous two jobs canceled", fakeSch.canceled)
+	}
+	if fakeSch.jobs[2].spec != "20 12 * * *" {
+		t.Fatalf("new cron spec = %q, want noon spec", fakeSch.jobs[2].spec)
+	}
+}
+
+func TestServiceRestoreSchedulesRehydratesPersistedCronJobs(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	fakeSch := &fakeCronScheduler{}
+	svc := newTestServiceWithScheduler(t, fakeXC, fakeSch)
+	ctx := context.Background()
+
+	if err := svc.store.UpsertSchedule(ctx, &GreetingSchedule{
+		DeviceID: "dev-001",
+		Slots: []ScheduleSlot{
+			{Label: "morning", Time: "08:00", Enabled: true, TonePreset: ToneWarm},
+			{Label: "noon", Time: "12:30", Enabled: false, TonePreset: ToneWarm},
+			{Label: "evening", Time: "18:00", Enabled: true, TonePreset: ToneWarm},
+		},
+	}); err != nil {
+		t.Fatalf("UpsertSchedule: %v", err)
+	}
+
+	count, err := svc.RestoreSchedules(ctx)
+	if err != nil {
+		t.Fatalf("RestoreSchedules: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("restored count = %d, want 2 enabled slots", count)
+	}
+	if len(fakeSch.jobs) != 2 {
+		t.Fatalf("cron jobs = %+v, want 2 restored jobs", fakeSch.jobs)
+	}
+
+	fakeSch.fire(0)
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want restored cron to inject once", len(fakeXC.InjectCalls))
+	}
+}
+
 func TestServiceTriggerMarksFailedWhenInjectFails(t *testing.T) {
 	svc := newTestService(t, failingClient{err: errors.New("manager unavailable")})
 
@@ -171,6 +267,29 @@ func TestServiceTriggerMarksFailedWhenInjectFails(t *testing.T) {
 	if got.ErrorMessage == "" {
 		t.Fatal("ErrorMessage is empty")
 	}
+}
+
+type fakeCronScheduler struct {
+	jobs     []fakeCronJob
+	canceled []scheduler.JobID
+}
+
+type fakeCronJob struct {
+	spec string
+	fn   func()
+}
+
+func (f *fakeCronScheduler) RegisterCron(spec string, fn func()) (scheduler.JobID, error) {
+	f.jobs = append(f.jobs, fakeCronJob{spec: spec, fn: fn})
+	return scheduler.JobID("cron-" + string(rune('0'+len(f.jobs)))), nil
+}
+
+func (f *fakeCronScheduler) Cancel(id scheduler.JobID) {
+	f.canceled = append(f.canceled, id)
+}
+
+func (f *fakeCronScheduler) fire(i int) {
+	f.jobs[i].fn()
 }
 
 type failingClient struct {
