@@ -928,3 +928,15 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/xiaozhiclient` 通过，xiaozhiclient 包覆盖率 85.3%。
   - `npm test --prefix web` 通过。
+
+### 21:41 vision 采帧入口 RED 测试
+
+- 文件：`server/internal/domains/vision/service_test.go`
+- 内容：新增 vision 服务层 RED 测试，要求 `Capture` 修剪 `deviceId`、默认使用 `camera.capture`、调用 `xiaozhiclient.CallDeviceMCPTool` 并返回原始 JSON；缺少 `deviceId` 时返回 `ErrInvalidInput`。
+- 文件：`server/internal/domains/vision/handler_test.go`
+- 内容：新增 `POST /api/vision/capture` handler RED 测试，覆盖成功、非法 JSON、缺少设备 ID、MCP 调用失败返回 502。
+- 文件：`server/internal/childapi/vision_routes_test.go`
+- 内容：新增 childapi 路由装配 RED 测试，要求注入 vision 依赖时 `/api/vision/capture` 可替换 501 占位，未注入时仍返回 501。
+- 目的：对齐完整 PRD #7 “轻量视觉触发”和 Roadmap “vision 首个 task：采帧→VLM 判定→触发”中的第一小步：先把设备拍照 MCP 工具封装成安伴后端可调用的受控入口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `domains/vision`、`Deps.VisionRoutes` 和启动装配尚不存在。
+- 验证：已运行 `go test ./internal/domains/vision ./internal/childapi`；首次在沙箱内因 Go build cache 权限失败，提升权限后得到有效编译级 RED。失败原因是 `Deps.VisionRoutes` 字段不存在，且 `NewService`、`CaptureRequest`、`CaptureResult`、`NewHandler` 等 vision 域类型尚未实现。
