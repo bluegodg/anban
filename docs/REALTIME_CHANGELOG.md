@@ -914,3 +914,17 @@
 - 目的：对齐完整小智架构图 §9 “调设备能力（含拍照）→ POST /api/open/v1/devices/:id/mcp-call”，为后续 PRD #7 视觉触发/拍照 MCP 工具打南向基础。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.CallDeviceMCPTool` 仍返回 `types.ErrNotImplemented`。
 - 验证：已运行 `go test ./internal/xiaozhiclient`，按预期失败。失败原因为 `TestCallDeviceMCPToolSendsManagerRequest` 和 `TestCallDeviceMCPToolReturnsDirectPayload` 均收到 `CallDeviceMCPTool: anban: not implemented`。
+
+### 21:37 xiaozhi MCP 调用 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：实现 `HTTPClient.CallDeviceMCPTool`，向 `/api/open/v1/devices/:id/mcp-call` 发送 `tool` 和 `args`，沿用 `X-API-Token` 鉴权；新增 `mcpCallReq` 和 `unwrapData`，将 manager 响应中的 `data` 解包返回，直接 payload 则原样返回。
+- 目的：补齐 vision 域后续“设备拍照 MCP 工具 / 调设备能力”依赖的南向封装，同时继续守住只有 `xiaozhiclient` 懂 manager OpenAPI 的边界。
+- 功能：业务域可通过统一 client 调用设备 MCP 工具并拿到原始 JSON 结果；具体视觉判断、触发问候等逻辑仍留给后续 vision 小切片。
+- 验证：
+  - `go test ./internal/xiaozhiclient` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/xiaozhiclient` 通过，xiaozhiclient 包覆盖率 85.3%。
+  - `npm test --prefix web` 通过。

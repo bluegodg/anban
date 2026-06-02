@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/bluegodg/anban/server/pkg/types"
 )
 
 // HTTPClient 是 Client 的真实现：对 manager 的 /api/open/v1。
@@ -42,6 +40,11 @@ type injectReq struct {
 
 type rolePromptReq struct {
 	Prompt string `json:"prompt"`
+}
+
+type mcpCallReq struct {
+	Tool string         `json:"tool"`
+	Args map[string]any `json:"args,omitempty"`
 }
 
 type historyMessagePayload struct {
@@ -252,7 +255,24 @@ func decodeHistoryMessages(body []byte) ([]HistoryMessage, error) {
 	return messages, nil
 }
 
-// CallDeviceMCPTool 在 vision 域 follow-on 计划中据真实端点补齐。
 func (c *HTTPClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
-	return nil, types.ErrNotImplemented
+	body, err := json.Marshal(mcpCallReq{Tool: tool, Args: args})
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.do(ctx, http.MethodPost, "/api/open/v1/devices/"+url.PathEscape(deviceID)+"/mcp-call", body)
+	if err != nil {
+		return nil, err
+	}
+	return unwrapData(resp), nil
+}
+
+func unwrapData(body []byte) json.RawMessage {
+	var envelope struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Data) > 0 && string(envelope.Data) != "null" {
+		return envelope.Data
+	}
+	return json.RawMessage(body)
 }
