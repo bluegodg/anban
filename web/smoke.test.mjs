@@ -321,9 +321,43 @@ test('API client updates family profile with access code', async () => {
   assert.equal(result.fields.nickname, '妈');
 });
 
+test('API client fetches family profile with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({
+        deviceId: 'dev-001',
+        fields: { nickname: '妈', hobbies: ['豫剧'] },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.getProfile({ deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/profile?deviceId=dev-001');
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(result.fields.nickname, '妈');
+});
+
 test('child web submits profile to backend instead of local draft only', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 
   assert.match(app, /client\(\)\.updateProfile/);
   assert.match(app, /画像已同步/);
+});
+
+test('child web loads saved profile on connect', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /refreshProfile/);
+  assert.match(app, /client\(\)\.getProfile/);
+  assert.match(app, /writeProfileForm/);
 });

@@ -840,3 +840,11 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 73.1%。
   - 临时 Node 静态服务访问 `http://127.0.0.1:5183/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
+
+### 17:59 web 连接加载画像 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 API client 测试，要求 `getProfile` 带访问码调用 `GET /api/profile?deviceId=`；新增子女端连接流程 RED 测试，要求页面连接后通过 `refreshProfile` 调用 `client().getProfile` 并用 `writeProfileForm` 回填画像表单。
+- 目的：对齐完整 PRD #5 “家庭画像 ≥ 8 字段”“后端重启后画像不丢”“子女端 Web 能增删改画像字段”，把已保存画像从“只能提交”推进到“连接即读取并回填”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `web/app.js` 尚未在连接流程中读取画像，也没有画像表单回填函数。
+- 验证：已运行 `npm test --prefix web`，按预期失败。结果为 20 个测试中 19 个通过，`child web loads saved profile on connect` 失败；失败原因是 `web/app.js` 尚未包含 `refreshProfile`。
