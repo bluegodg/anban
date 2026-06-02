@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -231,6 +232,67 @@ func TestSetRolePromptErrorsOnNon2xx(t *testing.T) {
 	c := NewHTTPClient(srv.URL, "tok_abc")
 	if err := c.SetRolePrompt(context.Background(), "missing", "prompt"); err == nil {
 		t.Fatal("expected error on non-2xx, got nil")
+	}
+}
+
+func TestSetRolePromptErrorsWhenDeviceHasNoBoundAgent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"success": true,
+			"data": [
+				{"id": 2, "device_name": "dev-001", "agent_id": 0}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	err := c.SetRolePrompt(context.Background(), "dev-001", "prompt")
+	if err == nil || !strings.Contains(err.Error(), "no bound agent") {
+		t.Fatalf("err = %v, want no bound agent", err)
+	}
+}
+
+func TestDecodeManagerDevicesParsesNestedListAndStringIDs(t *testing.T) {
+	devices, err := decodeManagerDevices([]byte(`{
+		"success": true,
+		"data": {
+			"devices": [
+				{"id": "dev-row-1", "device_id": "dev-001", "device_name": "mac-001", "agent_id": "17"}
+			]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("decodeManagerDevices: %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("devices = %+v, want 1", devices)
+	}
+	if !devices[0].matches("dev-row-1") || !devices[0].matches("dev-001") || !devices[0].matches("mac-001") {
+		t.Fatalf("device matches failed for %+v", devices[0])
+	}
+	if rawJSONIDString(devices[0].AgentID) != "17" {
+		t.Fatalf("agent id = %q, want 17", rawJSONIDString(devices[0].AgentID))
+	}
+}
+
+func TestDecodeManagerAgentParsesNestedAgentPayload(t *testing.T) {
+	agent, err := decodeManagerAgent([]byte(`{
+		"success": true,
+		"data": {
+			"agent": {
+				"id": 9,
+				"name": "care-agent",
+				"custom_prompt": "old"
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("decodeManagerAgent: %v", err)
+	}
+	if agent["name"] != "care-agent" || agent["custom_prompt"] != "old" {
+		t.Fatalf("agent = %v, want nested payload", agent)
 	}
 }
 

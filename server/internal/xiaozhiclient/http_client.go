@@ -38,13 +38,16 @@ type injectReq struct {
 	AutoListen *bool  `json:"auto_listen,omitempty"`
 }
 
-type rolePromptReq struct {
-	Prompt string `json:"prompt"`
-}
-
 type mcpCallReq struct {
 	Tool string         `json:"tool"`
 	Args map[string]any `json:"args,omitempty"`
+}
+
+type managerDevicePayload struct {
+	ID         json.RawMessage `json:"id"`
+	DeviceID   string          `json:"device_id"`
+	DeviceName string          `json:"device_name"`
+	AgentID    json.RawMessage `json:"agent_id"`
 }
 
 type historyMessagePayload struct {
@@ -88,12 +91,51 @@ func (c *HTTPClient) GetDeviceStatus(ctx context.Context, deviceID string) (Devi
 }
 
 func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
-	body, err := json.Marshal(rolePromptReq{Prompt: prompt})
+	agentID, err := c.findAgentIDForDevice(ctx, deviceID)
 	if err != nil {
 		return err
 	}
-	_, err = c.do(ctx, http.MethodPut, "/api/open/v1/devices/"+url.PathEscape(deviceID)+"/role-prompt", body)
+
+	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/agents/"+url.PathEscape(agentID), nil)
+	if err != nil {
+		return err
+	}
+	agent, err := decodeManagerAgent(body)
+	if err != nil {
+		return err
+	}
+	agent["custom_prompt"] = prompt
+
+	updateBody, err := json.Marshal(agent)
+	if err != nil {
+		return err
+	}
+	_, err = c.do(ctx, http.MethodPut, "/api/open/v1/agents/"+url.PathEscape(agentID), updateBody)
 	return err
+}
+
+func (c *HTTPClient) findAgentIDForDevice(ctx context.Context, deviceID string) (string, error) {
+	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices", nil)
+	if err != nil {
+		return "", err
+	}
+	devices, err := decodeManagerDevices(body)
+	if err != nil {
+		return "", err
+	}
+
+	target := strings.TrimSpace(deviceID)
+	for _, device := range devices {
+		if !device.matches(target) {
+			continue
+		}
+		agentID := rawJSONIDString(device.AgentID)
+		if agentID == "" || agentID == "0" {
+			return "", fmt.Errorf("xiaozhi manager device %q has no bound agent", deviceID)
+		}
+		return agentID, nil
+	}
+	return "", fmt.Errorf("xiaozhi manager device %q not found", deviceID)
 }
 
 func (c *HTTPClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error) {
@@ -188,6 +230,91 @@ func decodeDeviceStatus(body []byte) (DeviceStatus, error) {
 		Online:       online,
 		LastActiveAt: lastActive,
 	}, nil
+}
+
+func (d managerDevicePayload) matches(deviceID string) bool {
+	candidates := []string{
+		d.DeviceID,
+		d.DeviceName,
+		rawJSONIDString(d.ID),
+	}
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) == deviceID {
+			return true
+		}
+	}
+	return false
+}
+
+func decodeManagerDevices(body []byte) ([]managerDevicePayload, error) {
+	raw := unwrapData(body)
+	if devices, err := unmarshalManagerDeviceArray(raw); err == nil {
+		return devices, nil
+	}
+
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"devices", "items", "list", "records", "rows"} {
+		nested, ok := object[key]
+		if !ok || len(nested) == 0 || string(nested) == "null" {
+			continue
+		}
+		if devices, err := unmarshalManagerDeviceArray(nested); err == nil {
+			return devices, nil
+		}
+	}
+	return nil, fmt.Errorf("xiaozhi manager devices response does not contain a device list")
+}
+
+func unmarshalManagerDeviceArray(raw json.RawMessage) ([]managerDevicePayload, error) {
+	var devices []managerDevicePayload
+	if err := json.Unmarshal(raw, &devices); err != nil {
+		return nil, err
+	}
+	return devices, nil
+}
+
+func decodeManagerAgent(body []byte) (map[string]any, error) {
+	raw := unwrapData(body)
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &object); err == nil {
+		for _, key := range []string{"agent", "item"} {
+			nested, ok := object[key]
+			if !ok || len(nested) == 0 || string(nested) == "null" {
+				continue
+			}
+			return unmarshalObjectMap(nested)
+		}
+	}
+	return unmarshalObjectMap(raw)
+}
+
+func unmarshalObjectMap(raw json.RawMessage) (map[string]any, error) {
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return nil, err
+	}
+	if len(object) == 0 {
+		return nil, fmt.Errorf("xiaozhi manager response is not an object")
+	}
+	return object, nil
+}
+
+func rawJSONIDString(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n.String()
+	}
+	return strings.Trim(strings.TrimSpace(string(raw)), `"`)
 }
 
 func parseOptionalTime(value string) (time.Time, error) {

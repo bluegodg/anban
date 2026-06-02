@@ -999,3 +999,19 @@
 - 目的：对齐完整文档中“家庭画像→人设 = manager role/agent/switch-role API”和真实上游 OpenAPI 路由，避免继续调用不存在的 `/devices/:id/role-prompt` 端点。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.SetRolePrompt` 仍会打旧端点并失败。
 - 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED。失败原因为 `TestSetRolePromptSendsManagerAgentRequest` 收到 `xiaozhi manager PUT /api/open/v1/devices/dev-001/role-prompt -> 404`，说明旧实现仍调用不存在的设备 role-prompt 端点。
+
+### 00:26 xiaozhi SetRolePrompt 真实 manager 链路 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：`HTTPClient.SetRolePrompt` 改为通过 `GET /api/open/v1/devices` 查找目标设备绑定的 `agent_id`，再 `GET /api/open/v1/agents/:id` 读取现有 agent JSON，最后在原 agent payload 上只替换 `custom_prompt` 并 `PUT /api/open/v1/agents/:id` 写回；新增设备列表、agent 响应和数字/字符串 ID 的解析辅助函数。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：补充设备未绑定 agent 的错误路径、`data.devices` 嵌套设备列表、字符串/数字 ID、嵌套 `data.agent` 响应的解析测试。
+- 目的：把家庭画像 prompt 注入接到真实 manager agent API，同时避免 PUT 时清空 agent 现有模型、音色、MCP 服务等配置。
+- 功能：profile 域调用 `SetRolePrompt` 时，会把安伴生成的家庭画像 prompt 写到小智 agent 的 `custom_prompt`，仍保持所有 manager HTTP 细节只在 `internal/xiaozhiclient` 内。
+- 验证：
+  - `go test ./internal/xiaozhiclient` 通过。
+  - `go test -count=1 -cover ./internal/xiaozhiclient` 通过，xiaozhiclient 包覆盖率 85.0%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，22 个测试全绿。
