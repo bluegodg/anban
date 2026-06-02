@@ -264,10 +264,69 @@ func TestGetHistoryRejectsInvalidTime(t *testing.T) {
 	}
 }
 
-func TestUnimplementedMethodsReturnErrNotImplemented(t *testing.T) {
-	c := NewHTTPClient("http://manager.local", "tok_abc")
+func TestCallDeviceMCPToolSendsManagerRequest(t *testing.T) {
+	var gotPath, gotMethod, gotToken string
+	var gotBody map[string]any
 
-	if _, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "camera.capture", nil); err == nil {
-		t.Fatal("CallDeviceMCPTool err = nil, want not implemented")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		gotToken = r.Header.Get("X-API-Token")
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"imageUrl":"https://example.test/capture.jpg"}}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	raw, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "camera.capture", map[string]any{"quality": "low"})
+	if err != nil {
+		t.Fatalf("CallDeviceMCPTool: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/api/open/v1/devices/dev-001/mcp-call" {
+		t.Fatalf("path = %q, want device mcp call endpoint", gotPath)
+	}
+	if gotToken != "tok_abc" {
+		t.Fatalf("X-API-Token = %q", gotToken)
+	}
+	if gotBody["tool"] != "camera.capture" {
+		t.Fatalf("tool = %v, want camera.capture", gotBody["tool"])
+	}
+	args, ok := gotBody["args"].(map[string]any)
+	if !ok || args["quality"] != "low" {
+		t.Fatalf("args = %v, want quality low", gotBody["args"])
+	}
+
+	var payload map[string]string
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("unmarshal raw payload: %v", err)
+	}
+	if payload["imageUrl"] != "https://example.test/capture.jpg" {
+		t.Fatalf("payload = %v, want imageUrl", payload)
+	}
+}
+
+func TestCallDeviceMCPToolReturnsDirectPayload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	raw, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "camera.capture", nil)
+	if err != nil {
+		t.Fatalf("CallDeviceMCPTool: %v", err)
+	}
+	var payload map[string]bool
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("unmarshal direct payload: %v", err)
+	}
+	if !payload["ok"] {
+		t.Fatalf("payload = %v, want ok true", payload)
 	}
 }

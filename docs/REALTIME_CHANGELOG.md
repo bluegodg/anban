@@ -906,3 +906,11 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/status` 通过，status 包覆盖率 85.7%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
   - `npm test --prefix web` 通过。
+
+### 21:34 xiaozhi MCP 调用 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `CallDeviceMCPTool` HTTP client RED 测试，要求通过 `POST /api/open/v1/devices/:id/mcp-call`、`X-API-Token` 和 `{"tool","args"}` 调用 manager；同时要求返回值解包 manager 的 `data` 字段，若响应本身是直接 payload 则原样返回。
+- 目的：对齐完整小智架构图 §9 “调设备能力（含拍照）→ POST /api/open/v1/devices/:id/mcp-call”，为后续 PRD #7 视觉触发/拍照 MCP 工具打南向基础。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.CallDeviceMCPTool` 仍返回 `types.ErrNotImplemented`。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，按预期失败。失败原因为 `TestCallDeviceMCPToolSendsManagerRequest` 和 `TestCallDeviceMCPToolReturnsDirectPayload` 均收到 `CallDeviceMCPTool: anban: not implemented`。
