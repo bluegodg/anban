@@ -3,6 +3,8 @@
 package scheduler
 
 import (
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,8 +67,16 @@ func (s *Scheduler) ScheduleAt(t time.Time, fn func()) (JobID, error) {
 	return id, nil
 }
 
-// Cancel 取消一次性任务（cron 任务的取消地基期不需要，留待按需扩展）。
+// Cancel 取消一次性任务或 cron 任务。
 func (s *Scheduler) Cancel(id JobID) {
+	if raw, ok := strings.CutPrefix(string(id), "cron-"); ok {
+		n, err := strconv.ParseInt(raw, 10, 64)
+		if err == nil {
+			s.cron.Remove(cron.EntryID(n))
+		}
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if t, ok := s.oneShots[id]; ok {

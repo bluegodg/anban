@@ -29,6 +29,10 @@ func main() {
 
 	xc := xiaozhiclient.NewHTTPClient(cfg.ManagerBaseURL, cfg.ManagerAPIToken)
 
+	sch := scheduler.New()
+	sch.Start()
+	defer sch.Stop()
+
 	messageStore := message.NewStore(st.DB)
 	if err := messageStore.AutoMigrate(); err != nil {
 		log.Fatalf("message 表迁移失败: %v", err)
@@ -40,12 +44,13 @@ func main() {
 	if err := greetingStore.AutoMigrate(); err != nil {
 		log.Fatalf("greeting 表迁移失败: %v", err)
 	}
-	greetingService := greeting.NewService(greetingStore, xc)
+	greetingService := greeting.NewService(greetingStore, xc, sch)
+	if restored, err := greetingService.RestoreSchedules(context.Background()); err != nil {
+		log.Fatalf("greeting 恢复调度失败: %v", err)
+	} else if restored > 0 {
+		log.Printf("greeting 恢复调度 %d 个时段", restored)
+	}
 	greetingHandler := greeting.NewHandler(greetingService)
-
-	sch := scheduler.New()
-	sch.Start()
-	defer sch.Stop()
 
 	reminderStore := reminder.NewStore(st.DB)
 	if err := reminderStore.AutoMigrate(); err != nil {

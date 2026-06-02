@@ -3,23 +3,40 @@ package greeting
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
-type Service struct {
-	store *Store
-	xc    xiaozhiclient.Client
-	now   func() time.Time
+type CronScheduler interface {
+	RegisterCron(spec string, fn func()) (scheduler.JobID, error)
+	Cancel(id scheduler.JobID)
 }
 
-func NewService(store *Store, xc xiaozhiclient.Client) *Service {
+type Service struct {
+	store    *Store
+	xc       xiaozhiclient.Client
+	sch      CronScheduler
+	mu       sync.Mutex
+	cronJobs map[string][]scheduler.JobID
+	now      func() time.Time
+}
+
+func NewService(store *Store, xc xiaozhiclient.Client, schedulers ...CronScheduler) *Service {
+	var sch CronScheduler
+	if len(schedulers) > 0 {
+		sch = schedulers[0]
+	}
 	return &Service{
-		store: store,
-		xc:    xc,
-		now:   time.Now,
+		store:    store,
+		xc:       xc,
+		sch:      sch,
+		cronJobs: make(map[string][]scheduler.JobID),
+		now:      time.Now,
 	}
 }
 
@@ -101,7 +118,27 @@ func (s *Service) UpdateSchedule(ctx context.Context, req ScheduleRequest) (Gree
 	if err := s.store.UpsertSchedule(ctx, &schedule); err != nil {
 		return GreetingSchedule{}, err
 	}
+	if _, err := s.registerSchedule(schedule); err != nil {
+		return GreetingSchedule{}, err
+	}
 	return schedule, nil
+}
+
+func (s *Service) RestoreSchedules(ctx context.Context) (int, error) {
+	schedules, err := s.store.ListSchedules(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	restored := 0
+	for _, schedule := range schedules {
+		count, err := s.registerSchedule(schedule)
+		if err != nil {
+			return restored, err
+		}
+		restored += count
+	}
+	return restored, nil
 }
 
 func normalizeTone(tone TonePreset) TonePreset {
@@ -138,6 +175,67 @@ func normalizeScheduleSlot(slot ScheduleSlot) (ScheduleSlot, error) {
 		Enabled:    slot.Enabled,
 		TonePreset: normalizeTone(slot.TonePreset),
 	}, nil
+}
+
+func (s *Service) registerSchedule(schedule GreetingSchedule) (int, error) {
+	if s.sch == nil {
+		return 0, nil
+	}
+
+	s.cancelScheduleJobs(schedule.DeviceID)
+	count := 0
+	for _, slot := range schedule.Slots {
+		if !slot.Enabled {
+			continue
+		}
+		spec, err := cronSpec(slot.Time)
+		if err != nil {
+			return count, err
+		}
+		deviceID := schedule.DeviceID
+		slot := slot
+		jobID, err := s.sch.RegisterCron(spec, func() {
+			s.triggerScheduled(deviceID, slot)
+		})
+		if err != nil {
+			return count, err
+		}
+		s.addScheduleJob(schedule.DeviceID, jobID)
+		count++
+	}
+	return count, nil
+}
+
+func (s *Service) cancelScheduleJobs(deviceID string) {
+	s.mu.Lock()
+	jobs := append([]scheduler.JobID(nil), s.cronJobs[deviceID]...)
+	delete(s.cronJobs, deviceID)
+	s.mu.Unlock()
+
+	for _, jobID := range jobs {
+		s.sch.Cancel(jobID)
+	}
+}
+
+func (s *Service) addScheduleJob(deviceID string, jobID scheduler.JobID) {
+	s.mu.Lock()
+	s.cronJobs[deviceID] = append(s.cronJobs[deviceID], jobID)
+	s.mu.Unlock()
+}
+
+func (s *Service) triggerScheduled(deviceID string, slot ScheduleSlot) {
+	_, _ = s.Trigger(context.Background(), TriggerRequest{
+		DeviceID:   deviceID,
+		TonePreset: slot.TonePreset,
+	})
+}
+
+func cronSpec(slotTime string) (string, error) {
+	parsed, err := time.Parse("15:04", slotTime)
+	if err != nil {
+		return "", ErrInvalidInput
+	}
+	return fmt.Sprintf("%d %d * * *", parsed.Minute(), parsed.Hour()), nil
 }
 
 func greetingText(tone TonePreset) string {

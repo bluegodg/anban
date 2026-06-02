@@ -699,3 +699,36 @@
 - 目的：让 greeting schedule 更新时能撤掉旧定时任务，避免重复问候。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `Cancel` 只取消一次性 timer，不取消 cron。
 - 验证：已运行 `go test ./internal/domains/greeting ./internal/scheduler`，按预期失败。失败原因是 `NewService` 尚不接受 scheduler、`Service.RestoreSchedules` 尚不存在，且 `Scheduler.Cancel` 对 `cron-*` job 不生效。
+
+### 12:51 greeting 定时触发 GREEN 实现
+
+- 文件：`server/internal/scheduler/scheduler.go`
+- 内容：扩展 `Cancel`，当 jobId 为 `cron-*` 时解析 cron entry id 并调用 `cron.Remove`；一次性 `once-*` timer 取消逻辑保持不变。
+- 目的：支持业务域更新计划时撤销旧 cron 任务，避免重复主动问候。
+- 功能：scheduler 同时可取消一次性提醒和 cron 问候任务。
+- 文件：`server/internal/domains/greeting/store.go`
+- 内容：新增 `ListSchedules(ctx)`，按设备列出已保存的问候时段配置。
+- 目的：服务启动时可恢复 DB 中已有的 schedule。
+- 功能：问候时段配置可在进程重启后重新注册到 scheduler。
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：`NewService` 支持可选 `CronScheduler`；`UpdateSchedule` 保存后注册 enabled slot；新增 `RestoreSchedules` 恢复所有已保存 schedule；新增 cron spec 生成、旧 job 取消和定时触发逻辑。
+- 目的：实现 PRD #2 的“定时问候到点触发”，并保持小智边界不变。
+- 功能：enabled 早/午/晚 slot 会被注册为每日 cron，到点复用 `Trigger`，最终仍通过 `xiaozhiclient.InjectSpeak` 主动播报；disabled slot 不注册；再次保存会撤销旧 cron。
+- 文件：`server/cmd/anban/main.go`
+- 内容：提前创建并启动共享 scheduler，将其注入 greeting 服务，启动时调用 `greetingService.RestoreSchedules(context.Background())`。
+- 目的：让真实服务进程启动后恢复已保存的问候定时任务。
+- 功能：后端重启后，子女端保存过的问候时段会恢复为可触发 cron。
+- 验证：已运行 `go test ./internal/domains/greeting ./internal/scheduler`，通过。
+
+### 12:52 greeting 定时触发总体验证
+
+- 文件：无代码文件变化；本条记录验证结果。
+- 内容：完成 greeting 定时触发切片后的全量后端测试、构建、vet、greeting/scheduler 覆盖率检查和 web smoke test。
+- 目的：确认新增 cron 取消、问候时段注册、启动恢复和定时触发没有破坏 message/reminder/profile/status/xiaozhiclient 既有能力，也不影响子女端页面 API 骨架。
+- 功能影响：无生产功能变化。
+- 验证：
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/greeting ./internal/scheduler` 通过，greeting 包覆盖率 88.6%，scheduler 包覆盖率 86.3%。
+  - `npm test --prefix web` 通过。

@@ -54,6 +54,14 @@ func (s *Store) GetSchedule(ctx context.Context, deviceID string) (GreetingSched
 	return schedule, nil
 }
 
+func (s *Store) ListSchedules(ctx context.Context) ([]GreetingSchedule, error) {
+	var out []GreetingSchedule
+	if err := s.db.WithContext(ctx).Order("device_id asc, id asc").Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *Store) List(ctx context.Context, filter ListFilter) ([]Greeting, error) {
 	q := s.db.WithContext(ctx).Order("triggered_at desc, id desc")
 	if filter.DeviceID != "" {
