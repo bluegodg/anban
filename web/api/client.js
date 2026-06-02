@@ -57,6 +57,9 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     deleteReminder(reminderId) {
       return request(`/api/reminders/${encodeURIComponent(reminderId)}`, { method: 'DELETE' });
     },
+    ackReminder(reminderId, payload) {
+      return request(`/api/reminders/${encodeURIComponent(reminderId)}/ack`, { method: 'POST', body: payload });
+    },
     getStatus({ deviceId } = {}) {
       const params = new URLSearchParams();
       if (deviceId) params.set('deviceId', deviceId);

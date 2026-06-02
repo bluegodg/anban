@@ -20,6 +20,7 @@ func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.POST("/reminders", h.create)
 	r.GET("/reminders", h.list)
 	r.DELETE("/reminders/:id", h.cancel)
+	r.POST("/reminders/:id/ack", h.ack)
 }
 
 func (h *Handler) create(c *gin.Context) {
@@ -74,6 +75,36 @@ func (h *Handler) cancel(c *gin.Context) {
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "提醒撤销失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, rem)
+}
+
+func (h *Handler) ack(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "reminder id 无效"})
+		return
+	}
+
+	var req AckRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
+		return
+	}
+
+	rem, err := h.service.Acknowledge(c.Request.Context(), uint(id), req)
+	if errors.Is(err, ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "提醒不存在"})
+		return
+	}
+	if errors.Is(err, ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "提醒尚不可确认"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "提醒确认失败"})
 		return
 	}
 

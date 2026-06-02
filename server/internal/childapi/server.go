@@ -47,8 +47,9 @@ func NewRouter(d Deps) *gin.Engine {
 	if d.ReminderRoutes != nil {
 		d.ReminderRoutes.RegisterRoutes(api)
 	} else {
-		api.POST("/reminders", notImpl) // reminder 域
-		api.GET("/reminders", notImpl)  // reminder 域
+		api.POST("/reminders", notImpl)         // reminder 域
+		api.GET("/reminders", notImpl)          // reminder 域
+		api.POST("/reminders/:id/ack", notImpl) // reminder 域
 	}
 	if d.GreetingRoutes != nil {
 		d.GreetingRoutes.RegisterRoutes(api)

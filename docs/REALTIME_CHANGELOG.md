@@ -817,3 +817,26 @@
 - 验证：
   - 已运行 `go test ./internal/domains/reminder ./internal/childapi`，按预期失败。失败原因是 domain ack 路由返回 404，childapi 未注入 reminder 时 ack 占位也返回 404。
   - 已运行 `npm test --prefix web`，按预期失败。失败原因是 `client.ackReminder` 不存在，`web/api/client.js` 也没有暴露 `ackReminder`。
+
+### 17:04 reminder ACK 受控入口 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/handler.go`
+- 内容：新增 `POST /api/reminders/:id/ack`，解析 `AckRequest` 并调用 `Service.Acknowledge`，覆盖坏 id、坏 JSON、找不到提醒和不可确认状态。
+- 目的：给 PRD #6 `reminder_ack` 提供受控 HTTP 接缝，未来设备适配器或演示脚本可通过此入口驱动“已完成”状态。
+- 功能：已播报提醒可经 HTTP ack 转为 `completed`。
+- 文件：`server/internal/childapi/server.go`
+- 内容：未注入 reminder 域时新增 `/api/reminders/:id/ack` 的 501 占位。
+- 目的：保持 childapi 路由形状稳定，前端/API client 可先对着 URL 开发。
+- 功能：缺省状态不会落到 404。
+- 文件：`web/api/client.js`
+- 内容：新增 `ackReminder(reminderId, payload)`，带访问码调用 `POST /api/reminders/:id/ack`。
+- 目的：给子女端和演示脚本共享 API client 增加 reminder ack 调用能力。
+- 功能：可提交 `{ackKind:"voice"}` 并接收 completed 提醒。
+- 验证：
+  - `go test ./internal/domains/reminder ./internal/childapi` 通过。
+  - `npm test --prefix web` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 73.1%。
+  - 临时 Node 静态服务访问 `http://127.0.0.1:5183/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
