@@ -129,18 +129,59 @@ func TestGetDeviceStatusRejectsInvalidTime(t *testing.T) {
 	}
 }
 
-func TestSetRolePromptSendsManagerRequest(t *testing.T) {
-	var gotPath, gotMethod, gotToken string
+func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
+	var requests []string
+	var tokens []string
 	var gotBody map[string]any
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotMethod = r.Method
-		gotToken = r.Header.Get("X-API-Token")
-		b, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(b, &gotBody)
+		requests = append(requests, r.Method+" "+r.URL.RequestURI())
+		tokens = append(tokens, r.Header.Get("X-API-Token"))
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success":true}`))
+
+		switch r.URL.Path {
+		case "/api/open/v1/devices":
+			if r.Method != http.MethodGet {
+				t.Fatalf("devices method = %q, want GET", r.Method)
+			}
+			_, _ = w.Write([]byte(`{
+				"success": true,
+				"data": [
+					{"id": 1, "device_name": "dev-other", "agent_id": 7},
+					{"id": 2, "device_name": "dev-001", "agent_id": 9}
+				]
+			}`))
+		case "/api/open/v1/agents/9":
+			switch r.Method {
+			case http.MethodGet:
+				_, _ = w.Write([]byte(`{
+					"success": true,
+					"data": {
+						"id": 9,
+						"user_id": 5,
+						"name": "care-agent",
+						"nickname": "小伴",
+						"custom_prompt": "old prompt",
+						"llm_config_id": "llm-a",
+						"tts_config_id": "tts-a",
+						"voice": "voice-a",
+						"asr_speed": "normal",
+						"memory_mode": "short",
+						"speaker_chat_mode": "off",
+						"mcp_service_names": ["camera"],
+						"knowledge_base_ids": [3]
+					}
+				}`))
+			case http.MethodPut:
+				b, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(b, &gotBody)
+				_, _ = w.Write([]byte(`{"success":true}`))
+			default:
+				t.Fatalf("agent method = %q, want GET or PUT", r.Method)
+			}
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer srv.Close()
 
@@ -149,17 +190,34 @@ func TestSetRolePromptSendsManagerRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetRolePrompt: %v", err)
 	}
-	if gotMethod != http.MethodPut {
-		t.Fatalf("method = %q, want PUT", gotMethod)
+
+	wantRequests := []string{
+		"GET /api/open/v1/devices",
+		"GET /api/open/v1/agents/9",
+		"PUT /api/open/v1/agents/9",
 	}
-	if gotPath != "/api/open/v1/devices/dev-001/role-prompt" {
-		t.Fatalf("path = %q, want role prompt endpoint", gotPath)
+	if len(requests) != len(wantRequests) {
+		t.Fatalf("requests = %v, want %v", requests, wantRequests)
 	}
-	if gotToken != "tok_abc" {
-		t.Fatalf("X-API-Token = %q", gotToken)
+	for i, want := range wantRequests {
+		if requests[i] != want {
+			t.Fatalf("requests = %v, want %v", requests, wantRequests)
+		}
 	}
-	if gotBody["prompt"] != "请记住王阿姨喜欢豫剧" {
-		t.Fatalf("body = %v, want prompt", gotBody)
+	for _, token := range tokens {
+		if token != "tok_abc" {
+			t.Fatalf("X-API-Token sequence = %v, want tok_abc on every request", tokens)
+		}
+	}
+	if gotBody["custom_prompt"] != "请记住王阿姨喜欢豫剧" {
+		t.Fatalf("body = %v, want updated custom_prompt", gotBody)
+	}
+	if gotBody["name"] != "care-agent" || gotBody["voice"] != "voice-a" {
+		t.Fatalf("body = %v, want existing agent fields preserved", gotBody)
+	}
+	mcpServices, ok := gotBody["mcp_service_names"].([]any)
+	if !ok || len(mcpServices) != 1 || mcpServices[0] != "camera" {
+		t.Fatalf("mcp_service_names = %v, want preserved camera", gotBody["mcp_service_names"])
 	}
 }
 

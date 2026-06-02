@@ -989,3 +989,13 @@
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
   - 本地静态服务冒烟通过：`http://127.0.0.1:4173/index.html` 返回 200，页面包含 `visionButton`。
+
+## 2026-06-03
+
+### 00:18 xiaozhi SetRolePrompt 真实 manager 链路 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：替换 `SetRolePrompt` HTTP client 测试，要求先通过 `GET /api/open/v1/devices` 找到 `device_name=deviceId` 的设备及其 `agent_id`，再 `GET /api/open/v1/agents/:id` 读取现有 agent 配置，最后 `PUT /api/open/v1/agents/:id` 只更新 `custom_prompt` 并保留 `name/voice/mcp_service_names` 等已有字段；同时要求三次请求都带 `X-API-Token`。
+- 目的：对齐完整文档中“家庭画像→人设 = manager role/agent/switch-role API”和真实上游 OpenAPI 路由，避免继续调用不存在的 `/devices/:id/role-prompt` 端点。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.SetRolePrompt` 仍会打旧端点并失败。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED。失败原因为 `TestSetRolePromptSendsManagerAgentRequest` 收到 `xiaozhi manager PUT /api/open/v1/devices/dev-001/role-prompt -> 404`，说明旧实现仍调用不存在的设备 role-prompt 端点。
