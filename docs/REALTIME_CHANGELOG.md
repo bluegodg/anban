@@ -848,3 +848,17 @@
 - 目的：对齐完整 PRD #5 “家庭画像 ≥ 8 字段”“后端重启后画像不丢”“子女端 Web 能增删改画像字段”，把已保存画像从“只能提交”推进到“连接即读取并回填”。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `web/app.js` 尚未在连接流程中读取画像，也没有画像表单回填函数。
 - 验证：已运行 `npm test --prefix web`，按预期失败。结果为 20 个测试中 19 个通过，`child web loads saved profile on connect` 失败；失败原因是 `web/app.js` 尚未包含 `refreshProfile`。
+
+### 18:01 web 连接加载画像 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：连接刷新流程在状态、留言、提醒和问候时段后调用 `refreshProfile`，通过 `client().getProfile({ deviceId })` 读取已保存画像；新增 `writeProfileForm` / `writeFormValue`，把后端返回的 8 个画像字段回填到表单；当画像接口仍为占位或设备暂无画像时，忽略 501/404，不阻断连接。
+- 目的：让子女端进入页面后能看到后端 DB 中的家庭画像，避免后端已持久化但前端只显示静态默认值。
+- 功能：已保存的姓名、称呼、子女、孙辈、喜好、作息、健康背景、忌口会在连接后同步到页面摘要和编辑表单。
+- 验证：
+  - `npm test --prefix web` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/profile` 通过，profile 包覆盖率 85.4%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
+  - 临时 Node 静态服务访问 `http://127.0.0.1:5184/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。

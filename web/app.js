@@ -193,6 +193,7 @@ async function refreshMessages() {
     renderMessages();
     await refreshReminders();
     await refreshGreetingSchedule();
+    await refreshProfile();
     showNotice('已连接后端');
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
@@ -229,6 +230,19 @@ async function refreshGreetingSchedule() {
   }
 }
 
+async function refreshProfile() {
+  try {
+    const profile = await client().getProfile({ deviceId: state.deviceId });
+    renderProfile(profile);
+    writeProfileForm(profile);
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 404 || error.status === 501)) {
+      return;
+    }
+    throw error;
+  }
+}
+
 function renderBackendStatus(snapshot) {
   const label = snapshot.online ? '在线' : '离线';
   const at = snapshot.lastInteractionAt || snapshot.lastSeenAt;
@@ -247,6 +261,18 @@ function renderProfile(profile) {
   const name = fields.nickname || fields.name || '未命名';
   const hobbies = Array.isArray(fields.hobbies) ? fields.hobbies.join('、') : fields.hobbies || '暂无喜好';
   els.profileSummary.textContent = `${name} · 喜欢${hobbies}`;
+}
+
+function writeProfileForm(profile) {
+  const fields = profile.fields || {};
+  writeFormValue('elderName', fields.name);
+  writeFormValue('nickname', fields.nickname);
+  writeFormValue('children', fields.children);
+  writeFormValue('grandchildren', fields.grandchildren);
+  writeFormValue('hobby', fields.hobbies);
+  writeFormValue('schedule', fields.schedule);
+  writeFormValue('health', fields.health);
+  writeFormValue('taboos', fields.taboos);
 }
 
 function renderGreetingSchedule(schedule) {
@@ -311,6 +337,12 @@ function writeGreetingSlot(label, slot) {
   els[`${label}GreetingTime`].value = slot.time || els[`${label}GreetingTime`].value;
   els[`${label}GreetingEnabled`].checked = Boolean(slot.enabled);
   els[`${label}GreetingTone`].value = slot.tonePreset || 'warm';
+}
+
+function writeFormValue(name, value) {
+  const input = els.profileForm.elements.namedItem(name);
+  if (!input || value === undefined || value === null) return;
+  input.value = Array.isArray(value) ? value.join(', ') : value;
 }
 
 function statusLabel(status) {
