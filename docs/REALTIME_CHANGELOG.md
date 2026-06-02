@@ -884,3 +884,11 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/xiaozhiclient` 通过，xiaozhiclient 包覆盖率 85.8%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
   - `npm test --prefix web` 通过。
+
+### 20:01 status 最近互动 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 status 服务层 RED 测试，要求 `Service.Get` 调用 `xiaozhiclient.GetHistory` 读取最近历史消息，并用最新历史消息时间设置 `lastInteractionAt`；同时要求当历史接口仍不可用（`ErrNotImplemented`）时回退到设备 `last_active_at`，不阻断状态接口。
+- 目的：对齐完整 PRD #4 “老人最近一次和设备说话是什么时候”和“最近互动时间准确度 ≤ 1 分钟误差”，把上一片新增的小智历史读取能力接入状态聚合。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 status 服务尚未调用 `GetHistory`。
+- 验证：已运行 `go test ./internal/domains/status`；首次在沙箱内因 Go build cache 权限失败，提升权限后得到有效 RED。失败原因为 `TestServiceGetUsesLatestHistoryForLastInteraction` 中 `history deviceID = ""`，说明 status 服务尚未调用 `GetHistory`。

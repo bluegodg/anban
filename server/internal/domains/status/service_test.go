@@ -87,16 +87,82 @@ func TestServiceGetIncludesRecentMessageStatuses(t *testing.T) {
 	}
 }
 
+func TestServiceGetUsesLatestHistoryForLastInteraction(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	olderInteraction := time.Date(2026, 6, 1, 8, 29, 0, 0, time.UTC)
+	latestInteraction := time.Date(2026, 6, 1, 8, 45, 0, 0, time.UTC)
+	xc := &statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID:     "dev-001",
+			Online:       true,
+			LastActiveAt: lastActive,
+		},
+		history: []xiaozhiclient.HistoryMessage{
+			{Role: "assistant", Text: "小宝今天 7 岁啦", At: olderInteraction},
+			{Role: "user", Text: "今天腰有点酸", At: latestInteraction},
+		},
+	}
+	svc := NewService(xc)
+
+	snapshot, err := svc.Get(context.Background(), GetRequest{DeviceID: " dev-001 "})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if xc.gotHistoryDeviceID != "dev-001" {
+		t.Fatalf("history deviceID = %q, want trimmed dev-001", xc.gotHistoryDeviceID)
+	}
+	if xc.gotHistoryLimit != 10 {
+		t.Fatalf("history limit = %d, want 10", xc.gotHistoryLimit)
+	}
+	if snapshot.LastSeenAt == nil || !snapshot.LastSeenAt.Equal(lastActive) {
+		t.Fatalf("lastSeenAt = %v, want device last active %s", snapshot.LastSeenAt, lastActive)
+	}
+	if snapshot.LastInteractionAt == nil || !snapshot.LastInteractionAt.Equal(latestInteraction) {
+		t.Fatalf("lastInteractionAt = %v, want latest history %s", snapshot.LastInteractionAt, latestInteraction)
+	}
+}
+
+func TestServiceGetFallsBackWhenHistoryIsUnavailable(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	xc := &statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID:     "dev-001",
+			Online:       true,
+			LastActiveAt: lastActive,
+		},
+		historyErr: sharedtypes.ErrNotImplemented,
+	}
+	svc := NewService(xc)
+
+	snapshot, err := svc.Get(context.Background(), GetRequest{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if snapshot.LastInteractionAt == nil || !snapshot.LastInteractionAt.Equal(lastActive) {
+		t.Fatalf("lastInteractionAt = %v, want fallback last active %s", snapshot.LastInteractionAt, lastActive)
+	}
+}
+
 type statusClient struct {
 	xiaozhiclient.FakeClient
-	status      xiaozhiclient.DeviceStatus
-	err         error
-	gotDeviceID string
+	status             xiaozhiclient.DeviceStatus
+	history            []xiaozhiclient.HistoryMessage
+	err                error
+	historyErr         error
+	gotDeviceID        string
+	gotHistoryDeviceID string
+	gotHistoryLimit    int
 }
 
 func (c *statusClient) GetDeviceStatus(ctx context.Context, deviceID string) (xiaozhiclient.DeviceStatus, error) {
 	c.gotDeviceID = deviceID
 	return c.status, c.err
+}
+
+func (c *statusClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]xiaozhiclient.HistoryMessage, error) {
+	c.gotHistoryDeviceID = deviceID
+	c.gotHistoryLimit = limit
+	return c.history, c.historyErr
 }
 
 type statusMessageReader struct {
