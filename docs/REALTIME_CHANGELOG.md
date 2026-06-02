@@ -740,3 +740,25 @@
 - 目的：对齐完整 PRD #6 `GET /api/reminders?deviceId=&status=` 列表和 `DELETE /api/reminders/:id` 撤销接口，把已实现的后端/API client 能力显露到子女端页面。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前页面只有创建提醒，没有提醒列表和撤销交互。
 - 验证：已运行 `npm test --prefix web`，按预期失败。失败原因是 `web/index.html` 缺少 `reminderList`，页面还没有提醒列表与撤销交互。
+
+### 16:34 web 提醒列表撤销 GREEN 实现
+
+- 文件：`web/index.html`
+- 内容：在主动陪伴面板的提醒表单下新增 `reminderList` 列表容器。
+- 目的：承接 PRD #6 的提醒列表/撤销入口，让子女端能看到后端已排入的提醒。
+- 功能：页面有稳定位置展示提醒记录。
+- 文件：`web/app.js`
+- 内容：新增 `state.reminders`、`refreshReminders`、`renderReminders` 和提醒列表点击撤销逻辑；连接后读取后端提醒列表，创建提醒后立即插入列表，点击“撤销”调用 `client().deleteReminder` 并显示“提醒已撤销”。
+- 目的：把后端已有 `GET /api/reminders` 和 `DELETE /api/reminders/:id` 能力接到子女端页面。
+- 功能：子女端可查看提醒状态并撤销 scheduled 提醒，撤销后页面状态更新为“已撤销”。
+- 文件：`web/styles.css`
+- 内容：复用留言列表样式并新增提醒列表、撤销按钮和移动端单列布局。
+- 目的：让提醒列表在桌面/手机都保持可扫读、按钮不挤压内容。
+- 功能：提醒内容、状态、时间和撤销按钮稳定排列。
+- 验证：
+  - `npm test --prefix web` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 76.5%。
+  - 临时 Node 静态服务访问 `http://127.0.0.1:5181/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。

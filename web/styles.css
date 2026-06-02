@@ -215,7 +215,8 @@ form {
   gap: 10px;
 }
 
-.message-list {
+.message-list,
+.reminder-list {
   display: grid;
   gap: 8px;
   margin: 16px 0 0;
@@ -223,7 +224,8 @@ form {
   list-style: none;
 }
 
-.message-list li {
+.message-list li,
+.reminder-list li {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
@@ -234,18 +236,32 @@ form {
   background: #f6f1e7;
 }
 
-.message-list strong {
+.reminder-list li {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  border-left-color: var(--gold);
+}
+
+.message-list strong,
+.reminder-list strong {
   color: var(--leaf);
 }
 
-.message-list time {
+.message-list time,
+.reminder-list time {
   color: var(--muted);
   font-size: 12px;
 }
 
-.message-list .empty {
+.message-list .empty,
+.reminder-list .empty {
   grid-template-columns: 1fr;
   color: var(--muted);
+}
+
+.reminder-list button {
+  min-height: 32px;
+  padding: 0 10px;
+  background: var(--coral);
 }
 
 .actions-panel,
@@ -311,6 +327,11 @@ form {
 
   .schedule-row {
     grid-template-columns: 1fr;
+  }
+
+  .reminder-list li {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   h1 {

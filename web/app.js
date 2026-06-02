@@ -5,6 +5,7 @@ const state = {
   deviceId: localStorage.getItem('anban.deviceId') || 'dev-001',
   apiBaseURL: localStorage.getItem('anban.apiBaseURL') || '',
   messages: [],
+  reminders: [],
 };
 
 const els = {
@@ -33,6 +34,7 @@ const els = {
   reminderForm: document.querySelector('#reminderForm'),
   reminderContent: document.querySelector('#reminderContent'),
   reminderTime: document.querySelector('#reminderTime'),
+  reminderList: document.querySelector('#reminderList'),
   profileForm: document.querySelector('#profileForm'),
   profileSummary: document.querySelector('#profileSummary'),
   notice: document.querySelector('#notice'),
@@ -51,6 +53,7 @@ function boot() {
   els.apiBaseURL.value = state.apiBaseURL;
   renderStatus('未连接', '等待访问码');
   renderMessages();
+  renderReminders();
 }
 
 els.connectForm.addEventListener('submit', async (event) => {
@@ -127,10 +130,30 @@ els.reminderForm.addEventListener('submit', async (event) => {
       content,
       category: 'med',
     });
+    state.reminders = [reminder, ...state.reminders.filter((item) => item.reminderId !== reminder.reminderId)];
+    renderReminders();
     renderStatus('在线', `已排入提醒：${formatTime(reminder.scheduledAt)}`);
     showNotice(`提醒已创建：${reminder.content}`);
   } catch (error) {
     handleApiError(error, '提醒创建失败');
+  }
+});
+
+els.reminderList.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-reminder-id]');
+  if (!button) return;
+
+  button.disabled = true;
+  try {
+    const reminder = await client().deleteReminder(button.dataset.reminderId);
+    state.reminders = state.reminders.map((item) => (
+      String(item.reminderId) === String(reminder.reminderId) ? reminder : item
+    ));
+    renderReminders();
+    showNotice(`提醒已撤销：${reminder.content}`);
+  } catch (error) {
+    button.disabled = false;
+    handleApiError(error, '提醒撤销失败');
   }
 });
 
@@ -168,6 +191,7 @@ async function refreshMessages() {
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
     renderMessages();
+    await refreshReminders();
     await refreshGreetingSchedule();
     showNotice('已连接后端');
   } catch (error) {
@@ -177,6 +201,20 @@ async function refreshMessages() {
       return;
     }
     handleApiError(error, '暂时无法连接后端');
+  }
+}
+
+async function refreshReminders() {
+  try {
+    const payload = await client().listReminders({ deviceId: state.deviceId });
+    state.reminders = payload.reminders || [];
+    renderReminders();
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 501)) {
+      throw error;
+    }
+    state.reminders = [];
+    renderReminders();
   }
 }
 
@@ -233,6 +271,24 @@ function renderMessages() {
     .join('');
 }
 
+function renderReminders() {
+  if (!state.reminders.length) {
+    els.reminderList.innerHTML = '<li class="empty">暂无提醒</li>';
+    return;
+  }
+
+  els.reminderList.innerHTML = state.reminders
+    .map((reminder) => {
+      const status = reminderStatusLabel(reminder.status);
+      const at = formatDateTime(reminder.scheduledAt);
+      const action = reminder.status === 'scheduled'
+        ? `<button type="button" data-reminder-id="${escapeHtml(reminder.reminderId)}">撤销</button>`
+        : '';
+      return `<li><span>${escapeHtml(reminder.content)}</span><strong>${status}</strong><time>${at}</time>${action}</li>`;
+    })
+    .join('');
+}
+
 function readGreetingSchedule() {
   return [
     readGreetingSlot('morning'),
@@ -261,6 +317,13 @@ function statusLabel(status) {
   if (status === 'played') return '已播报';
   if (status === 'failed') return '失败';
   return '排队中';
+}
+
+function reminderStatusLabel(status) {
+  if (status === 'played') return '已完成';
+  if (status === 'failed') return '失败';
+  if (status === 'canceled') return '已撤销';
+  return '待提醒';
 }
 
 function formatTime(value) {
@@ -293,7 +356,7 @@ function readList(form, name) {
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, (char) => ({
+  return String(value || '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
