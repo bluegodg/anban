@@ -962,3 +962,11 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/vision` 通过，vision 包覆盖率 100.0%；首次在沙箱内因 Go build cache 目录权限失败，提升权限后同一命令通过。
   - `npm test --prefix web` 通过。
+
+### 22:22 web 看一眼入口 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 API client RED 测试，要求 `captureVision` 带访问码调用 `POST /api/vision/capture` 并提交 `deviceId/tool/args`；新增页面 RED 测试，要求子女端有 `visionButton`、`visionResult`，点击逻辑调用 `client().captureVision` 并展示“看一眼结果”。
+- 目的：把上一切片新增的后端 `/api/vision/capture` 采帧入口显露到子女端骨架，贴合三周计划 0.4 中“看一眼”按钮和 PRD #7 视觉触发的演示前置能力。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web API client 和页面尚未提供视觉采帧入口。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：`client.captureVision is not a function`，且页面缺少 `visionButton`。
