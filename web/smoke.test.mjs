@@ -222,6 +222,14 @@ test('child web lists and cancels backend reminders', async () => {
   assert.match(app, /提醒已撤销/);
 });
 
+test('child web labels reminder ack and timeout states', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /status === 'played'\) return '已播报'/);
+  assert.match(app, /status === 'completed'\) return '已完成'/);
+  assert.match(app, /status === 'unanswered'\) return '未应答'/);
+});
+
 test('API client fetches device status with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;

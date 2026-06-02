@@ -245,6 +245,99 @@ func TestServiceCancelScheduledReminder(t *testing.T) {
 	}
 }
 
+func TestServiceMarksReminderUnansweredAfterAckTimeout(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 10, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	fakeSch.fire(0)
+	played, err := svc.store.Get(ctx, got.ID)
+	if err != nil {
+		t.Fatalf("Get played: %v", err)
+	}
+	if played.Status != StatusPlayed {
+		t.Fatalf("Status after play = %q, want %q", played.Status, StatusPlayed)
+	}
+	if played.AckJobID != "job-2" {
+		t.Fatalf("AckJobID = %q, want job-2", played.AckJobID)
+	}
+	if len(fakeSch.jobs) != 2 {
+		t.Fatalf("scheduled jobs = %d, want reminder + ack timeout", len(fakeSch.jobs))
+	}
+	wantTimeoutAt := svc.now().UTC().Add(30 * time.Minute)
+	if !fakeSch.jobs[1].at.Equal(wantTimeoutAt) {
+		t.Fatalf("ack timeout at = %s, want %s", fakeSch.jobs[1].at, wantTimeoutAt)
+	}
+
+	fakeSch.fire(1)
+	list, err := svc.List(ctx, ListFilter{Status: StatusUnanswered})
+	if err != nil {
+		t.Fatalf("List unanswered: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != got.ID || list[0].AckKind != AckKindTimeout {
+		t.Fatalf("unanswered reminders = %+v, want timeout reminder", list)
+	}
+	if list[0].AckJobID != "" {
+		t.Fatalf("AckJobID = %q, want cleared after timeout", list[0].AckJobID)
+	}
+}
+
+func TestServiceAcknowledgePlayedReminderCompletesAndCancelsTimeout(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 10, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	fakeSch.fire(0)
+
+	completed, err := svc.Acknowledge(ctx, got.ID, AckRequest{AckKind: AckKindVoice})
+	if err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+	if completed.Status != StatusCompleted {
+		t.Fatalf("Status = %q, want %q", completed.Status, StatusCompleted)
+	}
+	if completed.AckKind != AckKindVoice {
+		t.Fatalf("AckKind = %q, want %q", completed.AckKind, AckKindVoice)
+	}
+	if completed.AcknowledgedAt == nil {
+		t.Fatal("AcknowledgedAt = nil, want timestamp")
+	}
+	if completed.AckJobID != "" {
+		t.Fatalf("AckJobID = %q, want cleared after acknowledge", completed.AckJobID)
+	}
+	if len(fakeSch.canceled) != 1 || fakeSch.canceled[0] != "job-2" {
+		t.Fatalf("canceled jobs = %+v, want ack timeout job-2", fakeSch.canceled)
+	}
+
+	fakeSch.fire(1)
+	list, err := svc.List(ctx, ListFilter{Status: StatusUnanswered})
+	if err != nil {
+		t.Fatalf("List unanswered: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("unanswered reminders = %+v, want none after voice ack", list)
+	}
+}
+
 type fakeScheduler struct {
 	jobs     []fakeJob
 	canceled []scheduler.JobID

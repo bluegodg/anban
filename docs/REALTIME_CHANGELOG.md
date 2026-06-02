@@ -762,3 +762,17 @@
   - `go vet ./...` 通过。
   - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 76.5%。
   - 临时 Node 静态服务访问 `http://127.0.0.1:5181/` 返回 200，随后已停止该临时 job；检查时使用 `-NoProxy` 避免本机代理影响 localhost。
+
+### 16:53 reminder 确认/未应答状态 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 RED 测试，要求提醒播报成功后注册 30 分钟确认超时 job，超时触发时状态转为 `unanswered`；老人语音确认对应的 `Acknowledge` 会把 `played` 提醒转为 `completed`、记录 `ackKind`/确认时间并取消超时 job。
+- 目的：对齐完整 PRD #6 “老人语音回好/知道了/收到 → 已完成；30 分钟无应答 → 未应答且子女端可见”，先把 reminder 域状态机补齐。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 reminder 只有 scheduled/played/failed/canceled，没有确认和未应答状态。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 RED 测试，要求子女端能把 `played` 显示为“已播报”、`completed` 显示为“已完成”、`unanswered` 显示为“未应答”。
+- 目的：确保后端状态扩展后，子女端列表能表达 PRD #6 的完成/未应答结果。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前页面仍把 `played` 当成“已完成”，且没有 completed/unanswered 文案。
+- 验证：
+  - 已运行 `go test ./internal/domains/reminder`，按预期失败。失败原因是 `AckJobID` 字段、`StatusUnanswered`、`StatusCompleted`、`AckKindTimeout`、`AckKindVoice`、`AckRequest` 和 `Service.Acknowledge` 尚未实现。
+  - 已运行 `npm test --prefix web`，按预期失败。失败原因是前端 `reminderStatusLabel` 尚未包含 `completed`/`unanswered` 文案，且 `played` 仍被当成“已完成”。
