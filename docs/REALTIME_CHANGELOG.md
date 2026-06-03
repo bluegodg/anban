@@ -1268,6 +1268,14 @@
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
 
+### 18:58 子女端提醒状态 10 秒轮询 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增提醒状态轮询 RED 测试，要求 `web/reminder-status-polling.js` 暴露 `REMINDER_STATUS_REFRESH_INTERVAL_MS=10000`、`startReminderStatusPolling` 和 `stopReminderStatusPolling`；新增页面集成断言，要求 `app.js` 在连接后通过 `restartReminderStatusPolling` 启动 `refreshBackendReminders` 轮询。
+- 目的：对齐完整 PRD #6 “老人语音回好/知道了/收到 -> 状态自动转已完成；30 分钟无应答 -> 转未应答且子女端可见”，让后端提醒状态变化持续同步到子女端。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只在连接时读取一次提醒列表，没有提醒状态轮询模块。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：33 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/reminder-status-polling.js`，以及 `app.js` 未包含 `startReminderStatusPolling`/`restartReminderStatusPolling`/`refreshBackendReminders`。
+
 ### 18:47 子女端留言状态 10 秒轮询 RED 测试
 
 - 文件：`web/smoke.test.mjs`
