@@ -1045,3 +1045,18 @@
 - 目的：对齐完整 PRD #3 “留言文字长度 ≤ 100 字（超出截断 + 子女端提示）”，补齐当前页面只依赖 `textarea maxlength`、缺少提交前明确提示的缺口。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前前端尚未提供 `message-input.js` 规整模块，页面发送逻辑也尚未展示截断提示。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：25 个测试中 3 个失败，失败原因为 `ERR_MODULE_NOT_FOUND: web/message-input.js`，以及 `app.js` 缺少 `normalizeMessageDraft` 接入。
+
+### 11:23 web 留言 100 字提示 GREEN 实现
+
+- 文件：`web/message-input.js`
+- 内容：新增 `MESSAGE_TEXT_LIMIT=100` 与 `normalizeMessageDraft`，按 Unicode 字符计数，提交前 trim，并在超出 100 字时截断且返回“留言已按 100 字发送”提示。
+- 文件：`web/app.js`
+- 内容：留言表单提交前改用 `normalizeMessageDraft`，向后端发送截断后的文本；发送成功后优先展示截断提示，否则展示原“留言已发送”。
+- 目的：把 PRD #3 的“超出截断 + 子女端提示”从浏览器输入限制补强为明确的提交前业务规则。
+- 功能：子女端即使通过粘贴或脚本填入超过 100 字的留言，也会只提交前 100 字，并给子女明确反馈。
+- 验证：
+  - `npm test --prefix web` 通过，25 个测试全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，web 整体行覆盖率 86.49%，`message-input.js` 行/函数覆盖率 100.0%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。

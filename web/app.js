@@ -1,4 +1,5 @@
 import { ApiError, createAnbanClient } from './api/client.js';
+import { normalizeMessageDraft } from './message-input.js';
 
 const state = {
   accessCode: localStorage.getItem('anban.accessCode') || 'demo',
@@ -71,8 +72,8 @@ els.connectForm.addEventListener('submit', async (event) => {
 
 els.messageForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const text = els.messageText.value.trim();
-  if (!text) {
+  const draft = normalizeMessageDraft(els.messageText.value);
+  if (!draft.text) {
     showNotice('留言不能为空');
     return;
   }
@@ -80,14 +81,14 @@ els.messageForm.addEventListener('submit', async (event) => {
   try {
     const message = await client().sendMessage({
       deviceId: state.deviceId,
-      text,
+      text: draft.text,
       fromName: els.fromName.value.trim(),
     });
     els.messageText.value = '';
     state.messages = [message, ...state.messages.filter((item) => item.messageId !== message.messageId)];
     renderMessages();
     renderStatus('在线', '刚刚完成一次留言播报');
-    showNotice('留言已发送');
+    showNotice(draft.notice || '留言已发送');
   } catch (error) {
     handleApiError(error, '留言发送失败');
   }
