@@ -135,6 +135,31 @@ func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 		}
 		restored++
 	}
+
+	played, err := s.store.List(ctx, ListFilter{Status: StatusPlayed})
+	if err != nil {
+		return restored, err
+	}
+	for i := range played {
+		rem := played[i]
+		if rem.PlayedAt == nil {
+			continue
+		}
+		jobID, err := s.sch.ScheduleAt(rem.PlayedAt.UTC().Add(defaultAckTimeout), func() {
+			s.markUnanswered(rem.ID)
+		})
+		if err != nil {
+			rem.Status = StatusFailed
+			rem.ErrorMessage = err.Error()
+			_ = s.store.Update(ctx, &rem)
+			return restored, err
+		}
+		rem.AckJobID = string(jobID)
+		if err := s.store.Update(ctx, &rem); err != nil {
+			return restored, err
+		}
+		restored++
+	}
 	return restored, nil
 }
 

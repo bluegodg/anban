@@ -1392,3 +1392,18 @@
 - 目的：对齐完整 PRD #6 “30 分钟无应答 → 转未应答且子女端可见”和“后端重启后已排入提醒不丢”，避免已播报但未回应的提醒在重启后永远停留在 `played`。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `RestoreScheduled` 只恢复 `scheduled` 提醒，不会恢复 `played` 提醒的应答超时任务。
 - 验证：已运行 `go test ./internal/domains/reminder`，得到有效 RED：`TestServiceRestoreScheduledRehydratesPlayedAckTimeouts` 失败，`restored count = 0, want 1 played ack timeout`。
+
+### 20:58 reminder 播报后应答超时恢复 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：扩展 `RestoreScheduled`，在恢复 `scheduled` 提醒播放任务后，再扫描 `played` 且有 `PlayedAt` 的提醒，按 `PlayedAt + defaultAckTimeout` 重新安排未应答超时任务，并更新新的 `AckJobID`。
+- 目的：对齐完整 PRD #6 “30 分钟无应答 → 转未应答且子女端可见”和“后端重启后已排入提醒不丢”，让已经播报、等待老人回应的提醒在重启后继续生命周期。
+- 功能：后端重启后，已播报但未完成/未应答的提醒会重新进入 30 分钟超时跟踪；若超时时间已过，底层一次性调度会立即触发并转为 `unanswered`。
+- 验证：
+  - `go test ./internal/domains/reminder` 通过。
+  - `go test -count=1 -cover ./internal/domains/reminder` 通过，reminder 包覆盖率 80.3%。
+  - `npm test --prefix web` 通过，36 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 89.23%、function 89.66%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。
