@@ -1252,3 +1252,18 @@
 - 目的：对齐完整 PRD #4 “设备掉线后子女端 ≤ 30 秒内显示离线”和三周计划 W2 “子女端 Web 切到真后端，留言/状态/触发问候/触发提醒/编辑画像五件全通”。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只在连接时读取一次状态，没有 30 秒轮询模块。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：29 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/status-polling.js`，以及 `app.js` 未包含 `startStatusPolling`/`restartStatusPolling`/`refreshBackendStatus`。
+
+### 18:31 子女端状态 30 秒轮询 GREEN 实现
+
+- 文件：`web/status-polling.js`
+- 内容：新增 `STATUS_REFRESH_INTERVAL_MS=30000`、`startStatusPolling` 和 `stopStatusPolling`，将 30 秒轮询间隔封装成可测试模块。
+- 文件：`web/app.js`
+- 内容：连接成功后调用 `restartStatusPolling`，先停止旧轮询再启动 `refreshBackendStatus`；轮询只请求 `/api/device/status` 并更新顶部状态，501 占位静默忽略，其他错误显示“离线 / 状态刷新失败”。
+- 目的：对齐 PRD #4 设备离线 ≤30 秒可见，同时不把消息、提醒、问候和画像的完整刷新压到 30 秒循环里。
+- 功能：子女端保持连接后会每 30 秒刷新一次设备在线/最近互动状态；切换设备或后端地址后不会叠加多个轮询。
+- 验证：
+  - `npm test --prefix web` 通过，29 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 86.72%、function 85.00%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。

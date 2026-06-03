@@ -1,5 +1,6 @@
 import { ApiError, createAnbanClient } from './api/client.js';
 import { normalizeMessageDraft } from './message-input.js';
+import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 
 const state = {
   accessCode: localStorage.getItem('anban.accessCode') || 'demo',
@@ -7,6 +8,7 @@ const state = {
   apiBaseURL: localStorage.getItem('anban.apiBaseURL') || '',
   messages: [],
   reminders: [],
+  statusPoller: null,
 };
 
 const els = {
@@ -70,6 +72,7 @@ els.connectForm.addEventListener('submit', async (event) => {
   localStorage.setItem('anban.deviceId', state.deviceId);
   localStorage.setItem('anban.apiBaseURL', state.apiBaseURL);
   await refreshMessages();
+  restartStatusPolling();
 });
 
 els.messageForm.addEventListener('submit', async (event) => {
@@ -245,6 +248,23 @@ async function refreshMessages() {
     }
     handleApiError(error, '暂时无法连接后端');
   }
+}
+
+async function refreshBackendStatus() {
+  try {
+    const snapshot = await client().getStatus({ deviceId: state.deviceId });
+    renderBackendStatus(snapshot);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 501) {
+      return;
+    }
+    renderStatus('离线', '状态刷新失败');
+  }
+}
+
+function restartStatusPolling() {
+  stopStatusPolling(state.statusPoller);
+  state.statusPoller = startStatusPolling(refreshBackendStatus);
 }
 
 async function refreshReminders() {
