@@ -588,10 +588,43 @@ test('child web submits profile to backend instead of local draft only', async (
   assert.match(app, /画像已同步/);
 });
 
+test('profile form writer clears fields missing from backend profile', async () => {
+  const { writeProfileFormFields } = await import('./profile-form.js');
+  const inputs = {
+    elderName: { value: '王秀英' },
+    nickname: { value: '王阿姨' },
+    children: { value: '小明, 小红' },
+    grandchildren: { value: '小宝（7岁）' },
+    hobby: { value: '豫剧, 下棋' },
+    schedule: { value: '早睡早起' },
+    health: { value: '高血压' },
+    taboos: { value: '甜食' },
+  };
+  const form = {
+    elements: {
+      namedItem: (name) => inputs[name] || null,
+    },
+  };
+
+  writeProfileFormFields(form, {
+    nickname: '妈',
+    hobbies: ['豫剧'],
+  });
+
+  assert.equal(inputs.elderName.value, '');
+  assert.equal(inputs.nickname.value, '妈');
+  assert.equal(inputs.children.value, '');
+  assert.equal(inputs.grandchildren.value, '');
+  assert.equal(inputs.hobby.value, '豫剧');
+  assert.equal(inputs.schedule.value, '');
+  assert.equal(inputs.health.value, '');
+  assert.equal(inputs.taboos.value, '');
+});
+
 test('child web loads saved profile on connect', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 
   assert.match(app, /refreshProfile/);
   assert.match(app, /client\(\)\.getProfile/);
-  assert.match(app, /writeProfileForm/);
+  assert.match(app, /writeProfileFormFields/);
 });
