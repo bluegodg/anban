@@ -1,6 +1,7 @@
 import { ApiError, createAnbanClient } from './api/client.js';
 import { startMessageStatusPolling, stopMessageStatusPolling } from './message-status-polling.js';
 import { normalizeMessageDraft } from './message-input.js';
+import { startReminderStatusPolling, stopReminderStatusPolling } from './reminder-status-polling.js';
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 
 const state = {
@@ -11,6 +12,7 @@ const state = {
   reminders: [],
   statusPoller: null,
   messageStatusPoller: null,
+  reminderStatusPoller: null,
 };
 
 const els = {
@@ -76,6 +78,7 @@ els.connectForm.addEventListener('submit', async (event) => {
   await refreshMessages();
   restartStatusPolling();
   restartMessageStatusPolling();
+  restartReminderStatusPolling();
 });
 
 els.messageForm.addEventListener('submit', async (event) => {
@@ -286,6 +289,19 @@ async function refreshBackendMessages() {
 function restartMessageStatusPolling() {
   stopMessageStatusPolling(state.messageStatusPoller);
   state.messageStatusPoller = startMessageStatusPolling(refreshBackendMessages);
+}
+
+async function refreshBackendReminders() {
+  try {
+    await refreshReminders();
+  } catch (error) {
+    showNotice('提醒状态刷新失败');
+  }
+}
+
+function restartReminderStatusPolling() {
+  stopReminderStatusPolling(state.reminderStatusPoller);
+  state.reminderStatusPoller = startReminderStatusPolling(refreshBackendReminders);
 }
 
 async function refreshReminders() {

@@ -1268,14 +1268,6 @@
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
 
-### 18:58 子女端提醒状态 10 秒轮询 RED 测试
-
-- 文件：`web/smoke.test.mjs`
-- 内容：新增提醒状态轮询 RED 测试，要求 `web/reminder-status-polling.js` 暴露 `REMINDER_STATUS_REFRESH_INTERVAL_MS=10000`、`startReminderStatusPolling` 和 `stopReminderStatusPolling`；新增页面集成断言，要求 `app.js` 在连接后通过 `restartReminderStatusPolling` 启动 `refreshBackendReminders` 轮询。
-- 目的：对齐完整 PRD #6 “老人语音回好/知道了/收到 -> 状态自动转已完成；30 分钟无应答 -> 转未应答且子女端可见”，让后端提醒状态变化持续同步到子女端。
-- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只在连接时读取一次提醒列表，没有提醒状态轮询模块。
-- 验证：已运行 `npm test --prefix web`，得到有效 RED：33 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/reminder-status-polling.js`，以及 `app.js` 未包含 `startReminderStatusPolling`/`restartReminderStatusPolling`/`refreshBackendReminders`。
-
 ### 18:47 子女端留言状态 10 秒轮询 RED 测试
 
 - 文件：`web/smoke.test.mjs`
@@ -1295,6 +1287,29 @@
 - 验证：
   - `npm test --prefix web` 通过，31 个测试全绿。
   - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 86.62%、function 86.36%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。
+
+### 18:58 子女端提醒状态 10 秒轮询 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增提醒状态轮询 RED 测试，要求 `web/reminder-status-polling.js` 暴露 `REMINDER_STATUS_REFRESH_INTERVAL_MS=10000`、`startReminderStatusPolling` 和 `stopReminderStatusPolling`；新增页面集成断言，要求 `app.js` 在连接后通过 `restartReminderStatusPolling` 启动 `refreshBackendReminders` 轮询。
+- 目的：对齐完整 PRD #6 “老人语音回好/知道了/收到 -> 状态自动转已完成；30 分钟无应答 -> 转未应答且子女端可见”，让后端提醒状态变化持续同步到子女端。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只在连接时读取一次提醒列表，没有提醒状态轮询模块。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：33 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/reminder-status-polling.js`，以及 `app.js` 未包含 `startReminderStatusPolling`/`restartReminderStatusPolling`/`refreshBackendReminders`。
+
+### 19:00 子女端提醒状态 10 秒轮询 GREEN 实现
+
+- 文件：`web/reminder-status-polling.js`
+- 内容：新增 `REMINDER_STATUS_REFRESH_INTERVAL_MS=10000`、`startReminderStatusPolling` 和 `stopReminderStatusPolling`，将提醒状态刷新间隔封装成可测试模块。
+- 文件：`web/app.js`
+- 内容：连接成功后调用 `restartReminderStatusPolling`，先停止旧轮询再启动 `refreshBackendReminders`；轮询复用现有 `refreshReminders` 拉取 `/api/reminders?deviceId=...` 并重绘提醒列表，失败时显示“提醒状态刷新失败”。
+- 目的：对齐 PRD #6 提醒完成/未应答状态对子女端可见，和留言状态轮询同频 10 秒，保持路演时状态变化可感知。
+- 功能：子女端保持连接后会每 10 秒刷新一次提醒状态；切换设备或后端地址后不会叠加多个提醒状态轮询。
+- 验证：
+  - `npm test --prefix web` 通过，33 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 86.54%、function 87.50%。
   - 在 `server/` 运行 `go test -count=1 ./...` 通过。
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
