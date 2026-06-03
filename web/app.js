@@ -1,6 +1,7 @@
 import { ApiError, createAnbanClient } from './api/client.js';
 import { startMessageStatusPolling, stopMessageStatusPolling } from './message-status-polling.js';
 import { normalizeMessageDraft } from './message-input.js';
+import { upsertMessage, upsertMessageFromSendError } from './message-state.js';
 import { writeProfileFormFields } from './profile-form.js';
 import { startReminderStatusPolling, stopReminderStatusPolling } from './reminder-status-polling.js';
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
@@ -97,11 +98,15 @@ els.messageForm.addEventListener('submit', async (event) => {
       fromName: els.fromName.value.trim(),
     });
     els.messageText.value = '';
-    state.messages = [message, ...state.messages.filter((item) => item.messageId !== message.messageId)];
+    state.messages = upsertMessage(state.messages, message);
     renderMessages();
     renderStatus('在线', '刚刚完成一次留言播报');
     showNotice(draft.notice || '留言已发送');
   } catch (error) {
+    if (error instanceof ApiError && error.payload?.message) {
+      state.messages = upsertMessageFromSendError(state.messages, error);
+      renderMessages();
+    }
     handleApiError(error, '留言发送失败');
   }
 });

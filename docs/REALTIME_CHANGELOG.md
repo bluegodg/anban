@@ -1367,3 +1367,20 @@
 - 目的：对齐完整 PRD #3 “单条留言失败不会卡死后续留言”和 PRD #4 “子女端能看到自己刚发的留言播了没”，避免 manager 注入失败时子女端只看到错误提示、看不到该条失败状态。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 Web 没有 `message-state.js`，且 `app.js` 发送失败分支只调用 `handleApiError`。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：36 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/message-state.js`，以及 `app.js` 未包含 `upsertMessageFromSendError`。
+
+### 20:47 子女端留言失败状态可见 GREEN 实现
+
+- 文件：`web/message-state.js`
+- 内容：新增 `upsertMessage(messages, message)` 与 `upsertMessageFromSendError(messages, error)`，按 `messageId` 去重并把最新状态放到列表顶部；发送失败时可从 `ApiError.payload.message` 提取后端已持久化的失败留言。
+- 文件：`web/app.js`
+- 内容：发送成功路径改用 `upsertMessage`；发送失败 catch 分支在 `ApiError` 携带 `payload.message` 时立即合并失败留言并 `renderMessages()`，再保留原有错误提示。
+- 文件：`web/smoke.test.mjs`
+- 内容：在 RED 测试基础上补充无效 message 与无 `payload.message` 的边界断言，覆盖新 helper 的静默不变分支。
+- 目的：对齐完整 PRD #3 “单条留言失败不会卡死后续留言”和 PRD #4 “子女端能看到自己刚发的留言播了没”。
+- 功能：当 xiaozhi manager 注入失败但后端已记录失败留言时，子女端马上显示该条留言为“失败”，不用等下一轮轮询。
+- 验证：
+  - `npm test --prefix web` 通过，36 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 89.23%、function 89.66%；`web/message-state.js` line/function/branch 均 100%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。

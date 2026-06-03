@@ -87,6 +87,10 @@ test('message state surfaces failed message returned by send API error', async (
   const merged = upsertMessage([older, pending], { messageId: 9, text: '新留言', status: 'played' });
   assert.deepEqual(merged.map((item) => item.messageId), [9, 3, 7]);
 
+  const unchanged = [older];
+  assert.equal(upsertMessage(unchanged, {}), unchanged);
+  assert.equal(upsertMessageFromSendError(unchanged, { payload: {} }), unchanged);
+
   const surfaced = upsertMessageFromSendError([pending, older], {
     payload: { message: failed },
   });
