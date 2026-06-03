@@ -1222,3 +1222,11 @@
   - `go test -count=1 ./...` 通过。
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
+
+### 15:16 profile 画像 prompt 注入长度保护 RED 测试
+
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：新增 `TestBuildPromptKeepsPromptWithinPRDBudget`，用超长家庭画像字段生成 prompt，要求最终 prompt 不超过 1500 个 Unicode 字符，同时仍保留姓名、称呼、子女、孙辈、喜好等高价值字段。
+- 目的：对齐完整 PRD #5 “单次 LLM 调用注入的记忆 token ≤ 1500”，避免子女端输入大量画像文本时把写入 xiaozhi agent 的 system prompt 撑爆。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `BuildPrompt` 仍会原样拼接全部字段，超出保守预算。
+- 验证：已运行 `go test ./internal/domains/profile`，得到有效 RED：`TestBuildPromptKeepsPromptWithinPRDBudget` 失败，当前 prompt 长度为 12728 个字符，超过 1500 字符预算。

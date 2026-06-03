@@ -114,6 +114,30 @@ func TestServiceUpdateReturnsSyncErrorAfterPersisting(t *testing.T) {
 	}
 }
 
+func TestBuildPromptKeepsPromptWithinPRDBudget(t *testing.T) {
+	longText := strings.Repeat("今天腰有点酸但还想去公园散步，", 140)
+
+	prompt := BuildPrompt(Fields{
+		Name:          "王秀英",
+		Nickname:      "妈",
+		Children:      []string{"小明", longText},
+		Grandchildren: []string{"小宝", longText},
+		Hobbies:       []string{"豫剧", longText},
+		Schedule:      longText,
+		Health:        longText,
+		Taboos:        []string{"甜食", longText},
+	})
+
+	if got := len([]rune(prompt)); got > 1500 {
+		t.Fatalf("prompt length = %d runes, want <= 1500", got)
+	}
+	for _, want := range []string{"王秀英", "常用称呼：妈", "小明", "小宝", "豫剧"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want preserve high-value field %q", prompt, want)
+		}
+	}
+}
+
 type profileClient struct {
 	xiaozhiclient.FakeClient
 	gotDeviceID string
