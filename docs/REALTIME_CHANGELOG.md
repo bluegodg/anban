@@ -1015,3 +1015,11 @@
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
   - `npm test --prefix web` 通过，22 个测试全绿。
+
+### 11:04 xiaozhi GetDeviceStatus 真实设备列表 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：将 `GetDeviceStatus` HTTP client 测试从单设备 `/api/open/v1/devices/:id` 改为真实的 `GET /api/open/v1/devices` 列表读取：按 `device_name/device_id/id` 匹配目标设备，解析 `online/status` 与 `last_active_at/last_seen_at`；新增设备不存在的错误路径。
+- 目的：对齐完整文档中 “设备在线/最近互动 → manager 设备 API 的 `last_active_at`” 的 status 真相源，同时复用上一切片已经建立的设备列表解析方向。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.GetDeviceStatus` 仍会打旧的 `/devices/:id` 端点并失败。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED。失败原因为 `TestGetDeviceStatusReadsManagerDeviceList` 收到 `xiaozhi manager GET /api/open/v1/devices/dev-001 -> 404`，说明旧实现仍调用单设备端点；另外列表 payload 也无法被旧的单对象解析逻辑处理。

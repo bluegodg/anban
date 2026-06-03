@@ -58,21 +58,34 @@ func TestInjectSpeakErrorsOnNon2xx(t *testing.T) {
 	}
 }
 
-func TestGetDeviceStatusReadsManagerDeviceEndpoint(t *testing.T) {
+func TestGetDeviceStatusReadsManagerDeviceList(t *testing.T) {
 	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
 	var gotPath, gotToken string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotToken = r.Header.Get("X-API-Token")
+		if r.URL.Path != "/api/open/v1/devices" {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"success": true,
-			"data": {
-				"device_id": "dev-001",
-				"online": true,
-				"last_active_at": "2026-06-01T08:30:00Z"
-			}
+			"data": [
+				{
+					"id": 1,
+					"device_name": "dev-other",
+					"online": false,
+					"last_active_at": "2026-06-01T08:20:00Z"
+				},
+				{
+					"id": 2,
+					"device_name": "dev-001",
+					"online": true,
+					"last_active_at": "2026-06-01T08:30:00Z"
+				}
+			]
 		}`))
 	}))
 	defer srv.Close()
@@ -82,8 +95,8 @@ func TestGetDeviceStatusReadsManagerDeviceEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDeviceStatus: %v", err)
 	}
-	if gotPath != "/api/open/v1/devices/dev-001" {
-		t.Fatalf("path = %q, want device endpoint", gotPath)
+	if gotPath != "/api/open/v1/devices" {
+		t.Fatalf("path = %q, want device list endpoint", gotPath)
 	}
 	if gotToken != "tok_abc" {
 		t.Fatalf("X-API-Token = %q", gotToken)
@@ -100,9 +113,13 @@ func TestGetDeviceStatusParsesDirectActivePayload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
-			"id": "dev-002",
-			"status": "active",
-			"last_seen_at": "2026-06-01T08:31:00Z"
+			"data": [
+				{
+					"device_id": "dev-002",
+					"status": "active",
+					"last_seen_at": "2026-06-01T08:31:00Z"
+				}
+			]
 		}`))
 	}))
 	defer srv.Close()
@@ -120,13 +137,27 @@ func TestGetDeviceStatusParsesDirectActivePayload(t *testing.T) {
 func TestGetDeviceStatusRejectsInvalidTime(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"device_id":"dev-001","last_active_at":"not-a-time"}`))
+		_, _ = w.Write([]byte(`{"data":[{"device_name":"dev-001","last_active_at":"not-a-time"}]}`))
 	}))
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.URL, "tok_abc")
 	if _, err := c.GetDeviceStatus(context.Background(), "dev-001"); err == nil {
 		t.Fatal("expected invalid time error, got nil")
+	}
+}
+
+func TestGetDeviceStatusErrorsWhenDeviceIsMissing(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"device_name":"dev-other","online":true}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	_, err := c.GetDeviceStatus(context.Background(), "missing")
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("err = %v, want not found", err)
 	}
 }
 
