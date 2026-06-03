@@ -143,6 +143,30 @@ func TestServiceGetFallsBackWhenHistoryIsUnavailable(t *testing.T) {
 	}
 }
 
+func TestServiceGetKeepsDeviceStatusWhenHistoryReadFails(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	xc := &statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID:     "dev-001",
+			Online:       true,
+			LastActiveAt: lastActive,
+		},
+		historyErr: errors.New("history api timeout"),
+	}
+	svc := NewService(xc)
+
+	snapshot, err := svc.Get(context.Background(), GetRequest{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if snapshot.DeviceID != "dev-001" || !snapshot.Online {
+		t.Fatalf("snapshot = %+v, want online dev-001 despite history failure", snapshot)
+	}
+	if snapshot.LastInteractionAt == nil || !snapshot.LastInteractionAt.Equal(lastActive) {
+		t.Fatalf("lastInteractionAt = %v, want fallback last active %s", snapshot.LastInteractionAt, lastActive)
+	}
+}
+
 type statusClient struct {
 	xiaozhiclient.FakeClient
 	status             xiaozhiclient.DeviceStatus

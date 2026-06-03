@@ -1336,3 +1336,11 @@
   - 在 `server/` 运行 `go test -count=1 ./...` 通过。
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
+
+### 20:31 status 历史接口失败降级 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 `TestServiceGetKeepsDeviceStatusWhenHistoryReadFails`，要求 xiaozhi history API 临时失败时，`status.Service.Get` 仍返回已读到的设备在线状态和 `last_active_at` 兜底的最近互动时间。
+- 目的：对齐完整 PRD #4 “子女端能看到设备在线/最近互动”和“设备掉线后 ≤30 秒显示离线”，避免可选的历史消息读取失败拖垮核心状态接口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前实现会把非 `ErrNotImplemented` 的 history 错误直接返回，导致 `/api/device/status` 失败。
+- 验证：已运行 `go test ./internal/domains/status`，得到有效 RED：`TestServiceGetKeepsDeviceStatusWhenHistoryReadFails` 失败，错误为 `Get: history api timeout`，说明当前实现仍会把 history 临时失败冒泡为整个状态接口失败。
