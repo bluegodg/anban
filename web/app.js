@@ -384,6 +384,7 @@ function reminderStatusLabel(status) {
   if (status === 'unanswered') return '未应答';
   if (status === 'failed') return '失败';
   if (status === 'canceled') return '已撤销';
+  if (status === 'skipped') return '已跳过';
   return '待提醒';
 }
 

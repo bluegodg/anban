@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
 type CronScheduler interface {
@@ -18,12 +19,13 @@ type CronScheduler interface {
 }
 
 type Service struct {
-	store    *Store
-	xc       xiaozhiclient.Client
-	sch      CronScheduler
-	mu       sync.Mutex
-	cronJobs map[string][]scheduler.JobID
-	now      func() time.Time
+	store     *Store
+	xc        xiaozhiclient.Client
+	sch       CronScheduler
+	mu        sync.Mutex
+	cronJobs  map[string][]scheduler.JobID
+	now       func() time.Time
+	voiceGate sharedtypes.ProactiveVoiceGate
 }
 
 func NewService(store *Store, xc xiaozhiclient.Client, schedulers ...CronScheduler) *Service {
@@ -38,6 +40,10 @@ func NewService(store *Store, xc xiaozhiclient.Client, schedulers ...CronSchedul
 		cronJobs: make(map[string][]scheduler.JobID),
 		now:      time.Now,
 	}
+}
+
+func (s *Service) UseProactiveVoiceGate(gate sharedtypes.ProactiveVoiceGate) {
+	s.voiceGate = gate
 }
 
 func (s *Service) Trigger(ctx context.Context, req TriggerRequest) (Greeting, error) {
@@ -60,11 +66,25 @@ func (s *Service) Trigger(ctx context.Context, req TriggerRequest) (Greeting, er
 		return Greeting{}, err
 	}
 
+	lease, err := s.tryAcquireProactiveVoice(ctx, greeting.DeviceID, now)
+	if err != nil {
+		greeting.Status = StatusSkipped
+		greeting.ErrorMessage = err.Error()
+		_ = s.store.Update(ctx, &greeting)
+		return greeting, err
+	}
+
 	if err := s.xc.InjectSpeak(ctx, greeting.DeviceID, greeting.Text, xiaozhiclient.InjectOptions{SkipLLM: true}); err != nil {
+		if lease != nil {
+			_ = lease.Rollback(ctx)
+		}
 		greeting.Status = StatusFailed
 		greeting.ErrorMessage = err.Error()
 		_ = s.store.Update(ctx, &greeting)
 		return greeting, err
+	}
+	if lease != nil {
+		_ = lease.Commit(ctx)
 	}
 
 	playedAt := s.now().UTC()
@@ -74,6 +94,13 @@ func (s *Service) Trigger(ctx context.Context, req TriggerRequest) (Greeting, er
 		return Greeting{}, err
 	}
 	return greeting, nil
+}
+
+func (s *Service) tryAcquireProactiveVoice(ctx context.Context, deviceID string, at time.Time) (sharedtypes.ProactiveVoiceLease, error) {
+	if s.voiceGate == nil {
+		return nil, nil
+	}
+	return s.voiceGate.TryAcquireProactiveVoice(ctx, deviceID, at)
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]Greeting, error) {

@@ -23,6 +23,7 @@ const (
 	StatusPending Status = "pending"
 	StatusPlayed  Status = "played"
 	StatusFailed  Status = "failed"
+	StatusSkipped Status = "skipped"
 )
 
 type Greeting struct {

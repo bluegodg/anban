@@ -11,8 +11,22 @@ import (
 // ErrNotImplemented 供尚未实现的接口方法返回（地基期 FakeClient / 占位用）。
 var ErrNotImplemented = errors.New("anban: not implemented")
 
+// ErrProactiveVoiceThrottled 表示同一设备主动语音 10 分钟共享配额已用完。
+var ErrProactiveVoiceThrottled = errors.New("anban: proactive voice throttled")
+
 // DeviceID 是 xiaozhi 侧的设备标识（= manager 的 device_name）。
 type DeviceID string
+
+// ProactiveVoiceGate 是 #2 问候、#6 提醒、#7 视觉触发共用的主动语音配额闸门。
+type ProactiveVoiceGate interface {
+	TryAcquireProactiveVoice(ctx context.Context, deviceID string, at time.Time) (ProactiveVoiceLease, error)
+}
+
+// ProactiveVoiceLease 允许调用方在 xiaozhi 注入成功后提交，失败时回滚本次预占。
+type ProactiveVoiceLease interface {
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
+}
 
 // MessageStatusSummary 是 status 域展示留言播放状态所需的最小跨域摘要。
 type MessageStatusSummary struct {

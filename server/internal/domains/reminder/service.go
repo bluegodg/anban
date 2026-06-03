@@ -7,6 +7,7 @@ import (
 
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
 const (
@@ -21,10 +22,11 @@ type OneShotScheduler interface {
 }
 
 type Service struct {
-	store *Store
-	xc    xiaozhiclient.Client
-	sch   OneShotScheduler
-	now   func() time.Time
+	store     *Store
+	xc        xiaozhiclient.Client
+	sch       OneShotScheduler
+	now       func() time.Time
+	voiceGate sharedtypes.ProactiveVoiceGate
 }
 
 func NewService(store *Store, xc xiaozhiclient.Client, sch OneShotScheduler) *Service {
@@ -34,6 +36,10 @@ func NewService(store *Store, xc xiaozhiclient.Client, sch OneShotScheduler) *Se
 		sch:   sch,
 		now:   time.Now,
 	}
+}
+
+func (s *Service) UseProactiveVoiceGate(gate sharedtypes.ProactiveVoiceGate) {
+	s.voiceGate = gate
 }
 
 func (s *Service) Create(ctx context.Context, req CreateRequest) (Reminder, error) {
@@ -145,14 +151,29 @@ func (s *Service) fire(id uint) {
 }
 
 func (s *Service) play(ctx context.Context, rem *Reminder) {
+	playedAt := s.now().UTC()
+	lease, err := s.tryAcquireProactiveVoice(ctx, rem.DeviceID, playedAt)
+	if err != nil {
+		rem.Status = StatusSkipped
+		rem.ErrorMessage = err.Error()
+		rem.JobID = ""
+		_ = s.store.Update(ctx, rem)
+		return
+	}
+
 	if err := s.xc.InjectSpeak(ctx, rem.DeviceID, rem.Text, xiaozhiclient.InjectOptions{SkipLLM: true}); err != nil {
+		if lease != nil {
+			_ = lease.Rollback(ctx)
+		}
 		rem.Status = StatusFailed
 		rem.ErrorMessage = err.Error()
 		_ = s.store.Update(ctx, rem)
 		return
 	}
+	if lease != nil {
+		_ = lease.Commit(ctx)
+	}
 
-	playedAt := s.now().UTC()
 	rem.Status = StatusPlayed
 	rem.PlayedAt = &playedAt
 	rem.JobID = ""
@@ -167,6 +188,13 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 	}
 	rem.AckJobID = string(jobID)
 	_ = s.store.Update(ctx, rem)
+}
+
+func (s *Service) tryAcquireProactiveVoice(ctx context.Context, deviceID string, at time.Time) (sharedtypes.ProactiveVoiceLease, error) {
+	if s.voiceGate == nil {
+		return nil, nil
+	}
+	return s.voiceGate.TryAcquireProactiveVoice(ctx, deviceID, at)
 }
 
 func (s *Service) markUnanswered(id uint) {

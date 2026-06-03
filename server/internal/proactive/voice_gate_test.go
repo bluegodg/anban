@@ -31,6 +31,44 @@ func TestVoiceGateLimitsDeviceToOneProactiveVoicePerWindow(t *testing.T) {
 	}
 }
 
+func TestVoiceGateValidatesInputAndHonorsCanceledContext(t *testing.T) {
+	gate := NewVoiceGate(10 * time.Minute)
+	ctx := context.Background()
+	at := time.Date(2026, 6, 3, 9, 0, 0, 0, time.UTC)
+
+	if _, err := gate.TryAcquireProactiveVoice(ctx, " ", at); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("blank device err = %v, want ErrInvalidInput", err)
+	}
+
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := gate.TryAcquireProactiveVoice(canceled, "dev-001", at); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled TryAcquireProactiveVoice err = %v, want context.Canceled", err)
+	}
+
+	lease, err := gate.TryAcquireProactiveVoice(ctx, "dev-001", at)
+	if err != nil {
+		t.Fatalf("TryAcquireProactiveVoice: %v", err)
+	}
+	if err := lease.Commit(canceled); err != nil {
+		t.Fatalf("Commit with canceled context: %v", err)
+	}
+	if _, err := gate.TryAcquireProactiveVoice(ctx, "dev-001", at.Add(time.Minute)); !errors.Is(err, sharedtypes.ErrProactiveVoiceThrottled) {
+		t.Fatalf("TryAcquireProactiveVoice after canceled Commit err = %v, want ErrProactiveVoiceThrottled", err)
+	}
+
+	rollbackLease, err := gate.TryAcquireProactiveVoice(ctx, "dev-002", at)
+	if err != nil {
+		t.Fatalf("TryAcquireProactiveVoice for rollback lease: %v", err)
+	}
+	if err := rollbackLease.Rollback(canceled); err != nil {
+		t.Fatalf("Rollback with canceled context: %v", err)
+	}
+	if _, err := gate.TryAcquireProactiveVoice(ctx, "dev-002", at.Add(time.Minute)); err != nil {
+		t.Fatalf("TryAcquireProactiveVoice after canceled Rollback: %v", err)
+	}
+}
+
 func TestVoiceGateIsPerDeviceAndRollsBackFailedAttempts(t *testing.T) {
 	gate := NewVoiceGate(10 * time.Minute)
 	ctx := context.Background()

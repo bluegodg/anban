@@ -28,6 +28,7 @@ const (
 	StatusUnanswered Status = "unanswered"
 	StatusFailed     Status = "failed"
 	StatusCanceled   Status = "canceled"
+	StatusSkipped    Status = "skipped"
 )
 
 type AckKind string

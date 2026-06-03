@@ -1103,3 +1103,29 @@
 - 验证：
   - 已运行 `go test ./internal/proactive ./internal/domains/greeting ./internal/domains/reminder`，得到有效 RED。失败原因是 `NewVoiceGate`、`ErrProactiveVoiceThrottled`、`ProactiveVoiceLease`、`UseProactiveVoiceGate` 和 `StatusSkipped` 尚未实现。
   - 已运行 `npm test --prefix web`，得到有效 RED：25 个测试中 1 个失败，失败原因是 reminder `skipped` 状态尚未展示为“已跳过”。
+
+### 12:03 主动语音 10 分钟共享频控 GREEN 实现
+
+- 文件：`server/pkg/types/types.go`
+- 内容：新增 `ErrProactiveVoiceThrottled`、`ProactiveVoiceGate` 和 `ProactiveVoiceLease`，作为 #2/#6/#7 共用主动语音配额的跨模块接口。
+- 文件：`server/internal/proactive/voice_gate.go`
+- 内容：新增内存 `VoiceGate`，按设备记录最近主动语音提交时间；`TryAcquireProactiveVoice` 先预占并阻止并发双播，成功后 `Commit`，xiaozhi 注入失败可 `Rollback`；提交/回滚是本地状态操作，不因请求 context 取消而丢失。
+- 文件：`server/internal/proactive/voice_gate_test.go`
+- 内容：补充 gate 输入校验和 context canceled 行为测试，覆盖 blank device、取消的 acquire，以及取消 context 下仍能提交/回滚 lease。
+- 文件：`server/internal/domains/greeting/types.go`、`server/internal/domains/greeting/service.go`、`server/internal/domains/greeting/handler.go`
+- 内容：greeting 新增 `skipped` 状态和 `UseProactiveVoiceGate` 注入点；触发问候前先走共享 gate，配额已用时落库 skipped、不调用 xiaozhi，HTTP 返回 429。
+- 文件：`server/internal/domains/reminder/types.go`、`server/internal/domains/reminder/service.go`
+- 内容：reminder 新增 `skipped` 状态和共享 gate 注入点；提醒到点但配额已用时落库 skipped、清空 `jobId`、不创建 ack timeout、不调用 xiaozhi。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时创建一个 10 分钟 `VoiceGate`，注入 greeting 和 reminder；vision 目前只采帧不主动播报，后续触发问候切片再接同一 gate。
+- 文件：`web/app.js`
+- 内容：子女端 reminder 列表把 `skipped` 展示为“已跳过”，避免误显示成“待提醒”。
+- 目的：落实完整 PRD #2/#6/#7 的同设备主动语音 10 分钟共享配额，先覆盖当前已经会主动播报的 greeting/reminder。
+- 功能：同一设备 10 分钟内只能成功发出一次主动问候/提醒；被限流的提醒或问候会保留记录，方便子女端和后续状态页解释。
+- 验证：
+  - `go test ./internal/proactive ./internal/domains/greeting ./internal/domains/reminder` 通过。
+  - `npm test --prefix web` 通过，25 个测试全绿。
+  - `go test -count=1 -cover ./internal/proactive ./internal/domains/greeting ./internal/domains/reminder` 通过，覆盖率分别为 proactive 86.1%、greeting 89.1%、reminder 81.5%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。

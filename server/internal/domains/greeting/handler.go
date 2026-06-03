@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,6 +32,10 @@ func (h *Handler) trigger(c *gin.Context) {
 	greeting, err := h.service.Trigger(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 必填"})
+		return
+	}
+	if errors.Is(err, sharedtypes.ErrProactiveVoiceThrottled) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "主动语音配额已用", "greeting": greeting})
 		return
 	}
 	if err != nil {

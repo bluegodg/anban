@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/bluegodg/anban/server/internal/childapi"
 	"github.com/bluegodg/anban/server/internal/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/domains/reminder"
 	"github.com/bluegodg/anban/server/internal/domains/status"
 	"github.com/bluegodg/anban/server/internal/domains/vision"
+	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -34,6 +36,8 @@ func main() {
 	sch.Start()
 	defer sch.Stop()
 
+	voiceGate := proactive.NewVoiceGate(10 * time.Minute)
+
 	messageStore := message.NewStore(st.DB)
 	if err := messageStore.AutoMigrate(); err != nil {
 		log.Fatalf("message 表迁移失败: %v", err)
@@ -46,6 +50,7 @@ func main() {
 		log.Fatalf("greeting 表迁移失败: %v", err)
 	}
 	greetingService := greeting.NewService(greetingStore, xc, sch)
+	greetingService.UseProactiveVoiceGate(voiceGate)
 	if restored, err := greetingService.RestoreSchedules(context.Background()); err != nil {
 		log.Fatalf("greeting 恢复调度失败: %v", err)
 	} else if restored > 0 {
@@ -58,6 +63,7 @@ func main() {
 		log.Fatalf("reminder 表迁移失败: %v", err)
 	}
 	reminderService := reminder.NewService(reminderStore, xc, sch)
+	reminderService.UseProactiveVoiceGate(voiceGate)
 	if restored, err := reminderService.RestoreScheduled(context.Background()); err != nil {
 		log.Fatalf("reminder 恢复调度失败: %v", err)
 	} else if restored > 0 {
