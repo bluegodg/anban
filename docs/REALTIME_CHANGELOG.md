@@ -1442,3 +1442,17 @@
 - 目的：对齐完整 PRD #6 “老人答‘好的’→ 子女端那条提醒变已完成”，为路演/联调提供可手动触发的完成状态闭环，复用后端已有 `/api/reminders/:id/ack`。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前页面只支持撤销 scheduled 提醒，不支持 played 提醒的完成确认。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：38 个测试中 1 个失败，失败项为 `child web can mark played reminders completed for demo ack flow`，原因是 `app.js` 未针对 `played` 提醒渲染完成操作，也没有在提醒列表点击分支调用 `ackReminder`。
+
+### 00:20 子女端提醒完成联调 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：提醒列表点击处理器新增 `data-reminder-action` 分支：`cancel` 继续调用 `deleteReminder`，`complete` 调用 `ackReminder(reminderId, { ackKind: 'voice' })`；渲染提醒列表时，对 `scheduled` 显示“撤销”，对 `played` 显示“完成”。
+- 目的：让子女端能在路演/联调中直接把已播报提醒标记为已完成，补齐 PRD #6 “已播报 → 老人应答 → 子女端完成态可见”的基础状态闭环。
+- 功能：后端返回完成后的提醒后，前端原地替换列表项并提示“提醒已完成”；撤销提醒保持原行为。
+- 验证：
+  - `npm test --prefix web` 通过，38 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 89.23%、function 89.66%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go build ./...` 通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go vet ./...` 通过。
+  - 已运行 `go clean -cache`，并删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。

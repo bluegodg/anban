@@ -200,17 +200,21 @@ els.reminderList.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-reminder-id]');
   if (!button) return;
 
+  const action = button.dataset.reminderAction || 'cancel';
+  const completeReminder = action === 'complete';
   button.disabled = true;
   try {
-    const reminder = await client().deleteReminder(button.dataset.reminderId);
+    const reminder = completeReminder
+      ? await client().ackReminder(button.dataset.reminderId, { ackKind: 'voice' })
+      : await client().deleteReminder(button.dataset.reminderId);
     state.reminders = state.reminders.map((item) => (
       String(item.reminderId) === String(reminder.reminderId) ? reminder : item
     ));
     renderReminders();
-    showNotice(`提醒已撤销：${reminder.content}`);
+    showNotice(completeReminder ? `提醒已完成：${reminder.content}` : `提醒已撤销：${reminder.content}`);
   } catch (error) {
     button.disabled = false;
-    handleApiError(error, '提醒撤销失败');
+    handleApiError(error, completeReminder ? '提醒确认失败' : '提醒撤销失败');
   }
 });
 
@@ -418,9 +422,13 @@ function renderReminders() {
     .map((reminder) => {
       const status = reminderStatusLabel(reminder.status);
       const at = formatDateTime(reminder.scheduledAt);
-      const action = reminder.status === 'scheduled'
-        ? `<button type="button" data-reminder-id="${escapeHtml(reminder.reminderId)}">撤销</button>`
-        : '';
+      let action = '';
+      if (reminder.status === 'scheduled') {
+        action = `<button type="button" data-reminder-id="${escapeHtml(reminder.reminderId)}" data-reminder-action="cancel">撤销</button>`;
+      }
+      if (reminder.status === 'played') {
+        action = `<button type="button" data-reminder-id="${escapeHtml(reminder.reminderId)}" data-reminder-action="complete">完成</button>`;
+      }
       return `<li><span>${escapeHtml(reminder.content)}</span><strong>${status}</strong><time>${at}</time>${action}</li>`;
     })
     .join('');
