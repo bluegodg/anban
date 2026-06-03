@@ -1037,3 +1037,11 @@
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
   - `npm test --prefix web` 通过，22 个测试全绿。
+
+### 11:21 web 留言 100 字提示 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增消息草稿规整 RED 测试，要求 `web/message-input.js` 提供 `normalizeMessageDraft`：提交前 trim、按 100 字截断，并在超长时返回“留言已按 100 字发送”的子女端提示；同时新增页面集成断言，要求 `app.js` 在发送前使用该规整结果。
+- 目的：对齐完整 PRD #3 “留言文字长度 ≤ 100 字（超出截断 + 子女端提示）”，补齐当前页面只依赖 `textarea maxlength`、缺少提交前明确提示的缺口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前前端尚未提供 `message-input.js` 规整模块，页面发送逻辑也尚未展示截断提示。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：25 个测试中 3 个失败，失败原因为 `ERR_MODULE_NOT_FOUND: web/message-input.js`，以及 `app.js` 缺少 `normalizeMessageDraft` 接入。

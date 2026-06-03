@@ -50,6 +50,36 @@ test('API client sends child access code and message payload', async () => {
   assert.equal(result.messageId, 7);
 });
 
+test('message draft normalizer truncates overlong text and reports child notice', async () => {
+  const { MESSAGE_TEXT_LIMIT, normalizeMessageDraft } = await import('./message-input.js');
+  const overlong = '妈'.repeat(MESSAGE_TEXT_LIMIT + 1);
+
+  const result = normalizeMessageDraft(`  ${overlong}  `);
+
+  assert.equal(Array.from(result.text).length, MESSAGE_TEXT_LIMIT);
+  assert.equal(result.wasTruncated, true);
+  assert.equal(result.notice, '留言已按 100 字发送');
+});
+
+test('message draft normalizer keeps short text without notice', async () => {
+  const { normalizeMessageDraft } = await import('./message-input.js');
+
+  const result = normalizeMessageDraft('  妈，我到家了  ');
+
+  assert.deepEqual(result, {
+    text: '妈，我到家了',
+    wasTruncated: false,
+    notice: '',
+  });
+});
+
+test('child web applies message length notice before sending', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /normalizeMessageDraft/);
+  assert.match(app, /draft\.notice/);
+});
+
 test('child web shows greeting text returned by backend', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 
