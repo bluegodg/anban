@@ -17,6 +17,7 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.POST("/vision/capture", h.capture)
+	r.POST("/vision/check-presence", h.checkPresence)
 	r.POST("/vision/presence", h.observePresence)
 }
 
@@ -34,6 +35,29 @@ func (h *Handler) capture(c *gin.Context) {
 	}
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "视觉采帧失败"})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) checkPresence(c *gin.Context) {
+	var req CaptureRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
+		return
+	}
+
+	result, err := h.service.CaptureAndObservePresence(c.Request.Context(), req)
+	if errors.Is(err, ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 必填"})
+		return
+	}
+	if errors.Is(err, ErrPresenceUnavailable) {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "视觉 presence 缺失", "result": result})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "视觉采帧判定失败", "result": result})
 		return
 	}
 	c.JSON(http.StatusOK, result)

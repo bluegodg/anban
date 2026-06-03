@@ -2,6 +2,7 @@ package vision
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -52,6 +53,26 @@ func (s *Service) Capture(ctx context.Context, req CaptureRequest) (CaptureResul
 	}, nil
 }
 
+func (s *Service) CaptureAndObservePresence(ctx context.Context, req CaptureRequest) (PresenceCheckResult, error) {
+	capture, err := s.Capture(ctx, req)
+	if err != nil {
+		return PresenceCheckResult{}, err
+	}
+
+	presence, err := parsePresence(capture.Raw)
+	if err != nil {
+		return PresenceCheckResult{Capture: capture}, err
+	}
+	observation, err := s.ObservePresence(ctx, PresenceObservationRequest{
+		DeviceID: capture.DeviceID,
+		Presence: presence,
+	})
+	return PresenceCheckResult{
+		Capture:     capture,
+		Observation: observation,
+	}, err
+}
+
 func (s *Service) ObservePresence(ctx context.Context, req PresenceObservationRequest) (PresenceObservationResult, error) {
 	deviceID := strings.TrimSpace(req.DeviceID)
 	presence := normalizePresence(req.Presence)
@@ -93,6 +114,20 @@ func (s *Service) ObservePresence(ctx context.Context, req PresenceObservationRe
 	}
 	result.TriggeredGreeting = true
 	return result, nil
+}
+
+func parsePresence(raw json.RawMessage) (Presence, error) {
+	var payload struct {
+		Presence Presence `json:"presence"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return PresenceUnknown, ErrPresenceUnavailable
+	}
+	presence := normalizePresence(payload.Presence)
+	if presence == PresenceUnknown {
+		return PresenceUnknown, ErrPresenceUnavailable
+	}
+	return presence, nil
 }
 
 func normalizePresence(presence Presence) Presence {

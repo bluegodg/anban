@@ -11,6 +11,7 @@ import (
 const DefaultCaptureTool = "camera.capture"
 
 var ErrInvalidInput = errors.New("vision: invalid input")
+var ErrPresenceUnavailable = errors.New("vision: presence unavailable")
 
 type CaptureRequest struct {
 	DeviceID string         `json:"deviceId"`
@@ -45,4 +46,9 @@ type PresenceObservationResult struct {
 	ObservedAt        time.Time                            `json:"observedAt"`
 	TriggeredGreeting bool                                 `json:"triggeredGreeting"`
 	Greeting          *sharedtypes.ProactiveGreetingResult `json:"greeting,omitempty"`
+}
+
+type PresenceCheckResult struct {
+	Capture     CaptureResult             `json:"capture"`
+	Observation PresenceObservationResult `json:"observation"`
 }
