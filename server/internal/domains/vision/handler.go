@@ -17,6 +17,7 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.POST("/vision/capture", h.capture)
+	r.POST("/vision/presence", h.observePresence)
 }
 
 func (h *Handler) capture(c *gin.Context) {
@@ -33,6 +34,25 @@ func (h *Handler) capture(c *gin.Context) {
 	}
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "视觉采帧失败"})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) observePresence(c *gin.Context) {
+	var req PresenceObservationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
+		return
+	}
+
+	result, err := h.service.ObservePresence(c.Request.Context(), req)
+	if errors.Is(err, ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 和 presence 必填"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "视觉触发问候失败", "result": result})
 		return
 	}
 	c.JSON(http.StatusOK, result)

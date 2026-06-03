@@ -81,7 +81,7 @@ func main() {
 	profileService := profile.NewService(profileStore, xc)
 	profileHandler := profile.NewHandler(profileService)
 
-	visionService := vision.NewService(xc)
+	visionService := vision.NewService(xc, greetingService)
 	visionHandler := vision.NewHandler(visionService)
 
 	r := childapi.NewRouter(childapi.Deps{

@@ -122,6 +122,30 @@
 - 目的：对齐完整 PRD #7 “有人 → 无人 → 有人状态变化触发 1 次问候”，先建立 VLM 结果进入后端后的 PresenceState 最小闭环；VLM 云调用和周期采帧留到后续切片。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `PresenceObservationRequest`、`ObservePresence`、`ProactiveGreetingResult`、`TriggerProactiveGreeting` 和 `/vision/presence` 路由尚未实现。
 - 验证：已运行 `go test ./internal/domains/vision ./internal/childapi`，得到有效 RED。失败原因是 vision 包缺少 `ProactiveGreetingResult`、`ObservePresence`、`PresenceObservationRequest`、`PresenceSomeone` 等类型/方法，且 childapi 未注入 vision 依赖时 `/api/vision/presence` 当前返回 404 而非 501。
+
+### 12:32 vision PresenceState 触发问候 GREEN 实现
+
+- 文件：`server/pkg/types/types.go`
+- 内容：新增 `ProactiveGreetingResult` 和 `ProactiveGreetingTrigger`，让 vision 能通过跨域接口触发问候，而不直接 import greeting 域。
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：新增 `TriggerProactiveGreeting`，复用现有 `Trigger`，使用 casual tone 生成“回来啦”风格问候，并返回跨域摘要。
+- 文件：`server/internal/domains/vision/types.go`、`server/internal/domains/vision/service.go`
+- 内容：新增 `Presence`、`PresenceObservationRequest`、`PresenceObservationResult` 与内存 PresenceState；`unknown -> someone` 不触发，`no_one -> someone` 调用 `ProactiveGreetingTrigger`，重复 `someone` 不重复问候。
+- 文件：`server/internal/domains/vision/handler.go`
+- 内容：新增 `POST /api/vision/presence`，接收 VLM/演示脚本给出的 `someone/no_one` 粗粒度结果并返回是否触发问候。
+- 文件：`server/internal/childapi/server.go`
+- 内容：vision 依赖未注入时为 `/api/vision/presence` 返回 501 占位，保持子女端/演示脚本可预期的 API 形状。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时把 `greetingService` 作为跨域问候触发器注入 `visionService`，仍保持 domains 之间不互相 import。
+- 目的：落实完整 PRD #7 的后端内部状态机最小闭环，为后续“采帧 → VLM 判定 → ObservePresence”打基础。
+- 功能：设备或演示脚本连续上报 `no_one` 后再上报 `someone` 时，vision 会触发一句 greeting 域问候；主动语音 10 分钟共享频控仍由 greeting 内的 gate 负责。
+- 验证：
+  - `go test ./internal/domains/vision ./internal/childapi` 通过。
+  - `go test -count=1 -cover ./internal/domains/vision ./internal/childapi` 通过，覆盖率分别为 vision 94.2%、childapi 97.5%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，25 个测试全绿。
   - `go test -count=1 -cover ./internal/domains/message` 通过，message 覆盖率 92.1%。
   - `npm test --prefix web` 通过。
   - 已启动静态 web 服务：`http://127.0.0.1:5173/`，本地 HTTP 检查返回 200。

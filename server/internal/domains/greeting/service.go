@@ -46,6 +46,19 @@ func (s *Service) UseProactiveVoiceGate(gate sharedtypes.ProactiveVoiceGate) {
 	s.voiceGate = gate
 }
 
+func (s *Service) TriggerProactiveGreeting(ctx context.Context, deviceID string) (sharedtypes.ProactiveGreetingResult, error) {
+	greeting, err := s.Trigger(ctx, TriggerRequest{
+		DeviceID:   deviceID,
+		TonePreset: ToneCasual,
+	})
+	return sharedtypes.ProactiveGreetingResult{
+		ID:           greeting.ID,
+		Status:       string(greeting.Status),
+		Text:         greeting.Text,
+		ErrorMessage: greeting.ErrorMessage,
+	}, err
+}
+
 func (s *Service) Trigger(ctx context.Context, req TriggerRequest) (Greeting, error) {
 	deviceID := strings.TrimSpace(req.DeviceID)
 	if deviceID == "" {

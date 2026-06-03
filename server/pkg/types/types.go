@@ -28,6 +28,19 @@ type ProactiveVoiceLease interface {
 	Rollback(ctx context.Context) error
 }
 
+// ProactiveGreetingResult 是跨域返回给 vision/status 的最小问候结果摘要。
+type ProactiveGreetingResult struct {
+	ID           uint   `json:"greetingId,omitempty"`
+	Status       string `json:"status"`
+	Text         string `json:"text,omitempty"`
+	ErrorMessage string `json:"errorMessage,omitempty"`
+}
+
+// ProactiveGreetingTrigger 让 vision 触发一句主动问候，而不直接 import greeting 域。
+type ProactiveGreetingTrigger interface {
+	TriggerProactiveGreeting(ctx context.Context, deviceID string) (ProactiveGreetingResult, error)
+}
+
 // MessageStatusSummary 是 status 域展示留言播放状态所需的最小跨域摘要。
 type MessageStatusSummary struct {
 	MessageID uint       `json:"messageId"`

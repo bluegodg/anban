@@ -75,7 +75,8 @@ func NewRouter(d Deps) *gin.Engine {
 	if d.VisionRoutes != nil {
 		d.VisionRoutes.RegisterRoutes(api)
 	} else {
-		api.POST("/vision/capture", notImpl) // vision 域（拍照 MCP 入口）
+		api.POST("/vision/capture", notImpl)  // vision 域（拍照 MCP 入口）
+		api.POST("/vision/presence", notImpl) // vision 域（VLM presence 状态入口）
 	}
 
 	return r
