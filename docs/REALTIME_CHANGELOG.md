@@ -1023,3 +1023,17 @@
 - 目的：对齐完整文档中 “设备在线/最近互动 → manager 设备 API 的 `last_active_at`” 的 status 真相源，同时复用上一切片已经建立的设备列表解析方向。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `HTTPClient.GetDeviceStatus` 仍会打旧的 `/devices/:id` 端点并失败。
 - 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED。失败原因为 `TestGetDeviceStatusReadsManagerDeviceList` 收到 `xiaozhi manager GET /api/open/v1/devices/dev-001 -> 404`，说明旧实现仍调用单设备端点；另外列表 payload 也无法被旧的单对象解析逻辑处理。
+
+### 11:09 xiaozhi GetDeviceStatus 真实设备列表 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：`HTTPClient.GetDeviceStatus` 改为请求 `GET /api/open/v1/devices`，复用 `decodeManagerDevices` 后按 `device_id/device_name/id` 找目标设备；扩展 `managerDevicePayload` 解析 `online/status/last_active_at/last_seen_at/last_interaction_at`，新增单条设备记录转 `DeviceStatus` 的逻辑，并移除不再使用的旧单设备对象解析 helper。
+- 目的：让 status 域读取小智 manager DB 中由 core WS 更新的设备在线/活跃时间真相源，同时避免继续依赖未确认的单设备 OpenAPI 路径。
+- 功能：`GET /api/device/status?deviceId=` 通过 profile/status 现有链路获取设备在线、最近活跃时间时，会走真实 manager 设备列表；设备不存在时返回明确错误。
+- 验证：
+  - `go test ./internal/xiaozhiclient` 通过。
+  - `go test -count=1 -cover ./internal/xiaozhiclient` 通过，xiaozhiclient 包覆盖率 85.9%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，22 个测试全绿。

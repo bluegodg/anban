@@ -44,10 +44,15 @@ type mcpCallReq struct {
 }
 
 type managerDevicePayload struct {
-	ID         json.RawMessage `json:"id"`
-	DeviceID   string          `json:"device_id"`
-	DeviceName string          `json:"device_name"`
-	AgentID    json.RawMessage `json:"agent_id"`
+	ID                json.RawMessage `json:"id"`
+	DeviceID          string          `json:"device_id"`
+	DeviceName        string          `json:"device_name"`
+	AgentID           json.RawMessage `json:"agent_id"`
+	Online            *bool           `json:"online"`
+	Status            string          `json:"status"`
+	LastActiveAt      string          `json:"last_active_at"`
+	LastSeenAt        string          `json:"last_seen_at"`
+	LastInteractionAt string          `json:"last_interaction_at"`
 }
 
 type historyMessagePayload struct {
@@ -75,19 +80,27 @@ func (c *HTTPClient) InjectSpeak(ctx context.Context, deviceID, text string, opt
 }
 
 func (c *HTTPClient) GetDeviceStatus(ctx context.Context, deviceID string) (DeviceStatus, error) {
-	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices/"+url.PathEscape(deviceID), nil)
+	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices", nil)
+	if err != nil {
+		return DeviceStatus{}, err
+	}
+	devices, err := decodeManagerDevices(body)
 	if err != nil {
 		return DeviceStatus{}, err
 	}
 
-	status, err := decodeDeviceStatus(body)
-	if err != nil {
-		return DeviceStatus{}, err
+	target := strings.TrimSpace(deviceID)
+	for _, device := range devices {
+		if !device.matches(target) {
+			continue
+		}
+		status, err := device.toDeviceStatus(target)
+		if err != nil {
+			return DeviceStatus{}, err
+		}
+		return status, nil
 	}
-	if status.DeviceID == "" {
-		status.DeviceID = deviceID
-	}
-	return status, nil
+	return DeviceStatus{}, fmt.Errorf("xiaozhi manager device %q not found", deviceID)
 }
 
 func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
@@ -179,59 +192,6 @@ func (c *HTTPClient) do(ctx context.Context, method, path string, body []byte) (
 	return respBody, nil
 }
 
-type deviceStatusEnvelope struct {
-	Data json.RawMessage `json:"data"`
-}
-
-type deviceStatusPayload struct {
-	DeviceID          string `json:"device_id"`
-	ID                string `json:"id"`
-	Online            *bool  `json:"online"`
-	Status            string `json:"status"`
-	LastActiveAt      string `json:"last_active_at"`
-	LastSeenAt        string `json:"last_seen_at"`
-	LastInteractionAt string `json:"last_interaction_at"`
-}
-
-func decodeDeviceStatus(body []byte) (DeviceStatus, error) {
-	raw := body
-	var envelope deviceStatusEnvelope
-	if err := json.Unmarshal(body, &envelope); err == nil && len(envelope.Data) > 0 && string(envelope.Data) != "null" {
-		raw = envelope.Data
-	}
-
-	var payload deviceStatusPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return DeviceStatus{}, err
-	}
-
-	lastActive, err := parseOptionalTime(firstNonEmpty(payload.LastActiveAt, payload.LastSeenAt, payload.LastInteractionAt))
-	if err != nil {
-		return DeviceStatus{}, err
-	}
-
-	online := false
-	if payload.Online != nil {
-		online = *payload.Online
-	} else {
-		online = strings.EqualFold(payload.Status, "online") || strings.EqualFold(payload.Status, "active")
-		if !online && !lastActive.IsZero() {
-			online = time.Since(lastActive) <= 30*time.Second
-		}
-	}
-
-	deviceID := payload.DeviceID
-	if deviceID == "" {
-		deviceID = payload.ID
-	}
-
-	return DeviceStatus{
-		DeviceID:     deviceID,
-		Online:       online,
-		LastActiveAt: lastActive,
-	}, nil
-}
-
 func (d managerDevicePayload) matches(deviceID string) bool {
 	candidates := []string{
 		d.DeviceID,
@@ -244,6 +204,30 @@ func (d managerDevicePayload) matches(deviceID string) bool {
 		}
 	}
 	return false
+}
+
+func (d managerDevicePayload) toDeviceStatus(fallbackDeviceID string) (DeviceStatus, error) {
+	lastActive, err := parseOptionalTime(firstNonEmpty(d.LastActiveAt, d.LastSeenAt, d.LastInteractionAt))
+	if err != nil {
+		return DeviceStatus{}, err
+	}
+
+	online := false
+	if d.Online != nil {
+		online = *d.Online
+	} else {
+		online = strings.EqualFold(d.Status, "online") || strings.EqualFold(d.Status, "active")
+		if !online && !lastActive.IsZero() {
+			online = time.Since(lastActive) <= 30*time.Second
+		}
+	}
+
+	deviceID := firstNonEmpty(d.DeviceID, d.DeviceName, rawJSONIDString(d.ID), fallbackDeviceID)
+	return DeviceStatus{
+		DeviceID:     deviceID,
+		Online:       online,
+		LastActiveAt: lastActive,
+	}, nil
 }
 
 func decodeManagerDevices(body []byte) ([]managerDevicePayload, error) {
