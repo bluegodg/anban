@@ -624,6 +624,23 @@ test('child web submits profile to backend instead of local draft only', async (
   assert.match(app, /画像已同步/);
 });
 
+test('child web writes backend-normalized profile back after save', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const submitIndex = app.indexOf("els.profileForm.addEventListener('submit'");
+  const updateIndex = app.indexOf('client().updateProfile', submitIndex);
+  const renderIndex = app.indexOf('renderProfile(profile)', updateIndex);
+  const catchIndex = app.indexOf('} catch (error) {', renderIndex);
+  const submitSuccessBlock = app.slice(updateIndex, catchIndex);
+  const writeIndex = submitSuccessBlock.indexOf('writeProfileForm(profile)');
+
+  assert.notEqual(submitIndex, -1);
+  assert.notEqual(updateIndex, -1);
+  assert.notEqual(renderIndex, -1);
+  assert.notEqual(catchIndex, -1);
+  assert.notEqual(writeIndex, -1);
+  assert.ok(writeIndex > submitSuccessBlock.indexOf('renderProfile(profile)'));
+});
+
 test('profile form writer clears fields missing from backend profile', async () => {
   const { writeProfileFormFields } = await import('./profile-form.js');
   const inputs = {

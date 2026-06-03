@@ -1407,3 +1407,15 @@
   - 在 `server/` 运行 `go test -count=1 ./...` 通过。
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
+
+## 2026-06-04
+
+### 00:02 子女端画像保存后表单归一化 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web writes backend-normalized profile back after save`，要求画像保存成功后，`app.js` 在调用 `updateProfile` 并 `renderProfile(profile)` 后继续调用 `writeProfileForm(profile)`，把后端返回的归一化字段写回表单。
+- 目的：对齐完整 PRD #5 “子女端 Web 能增删改画像字段”，避免子女端清空/删除画像字段后，后端已删除但当前输入框仍残留旧值，下一次保存又把旧值提交回去。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前实现只更新画像摘要，不会写回表单。
+- 验证：
+  - 初次运行 `npm test --prefix web` 意外通过，发现测试过宽，会匹配到刷新画像路径中的 `writeProfileForm(profile)`。
+  - 收窄测试范围到画像提交 handler 的成功分支后，重新运行 `npm test --prefix web` 得到有效 RED：37 个测试中 1 个失败，失败项为 `child web writes backend-normalized profile back after save`，原因是提交成功分支缺少 `writeProfileForm(profile)`。
