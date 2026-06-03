@@ -1230,3 +1230,17 @@
 - 目的：对齐完整 PRD #5 “单次 LLM 调用注入的记忆 token ≤ 1500”，避免子女端输入大量画像文本时把写入 xiaozhi agent 的 system prompt 撑爆。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `BuildPrompt` 仍会原样拼接全部字段，超出保守预算。
 - 验证：已运行 `go test ./internal/domains/profile`，得到有效 RED：`TestBuildPromptKeepsPromptWithinPRDBudget` 失败，当前 prompt 长度为 12728 个字符，超过 1500 字符预算。
+
+### 15:19 profile 画像 prompt 注入长度保护 GREEN 实现
+
+- 文件：`server/internal/domains/profile/service.go`
+- 内容：新增 `maxProfilePromptRunes=1500` 和 `maxProfilePromptLineRunes=160`，`BuildPrompt` 追加家庭画像行时先做单字段截断，再按总预算截断；新增 `appendPromptLine`、`promptRuneLen`、`truncateRunes` 辅助函数。
+- 目的：让家庭画像 prompt 的注入规模保持在 PRD #5 的保守预算内，同时避免某个超长字段挤掉姓名、称呼、子女、孙辈、喜好等高价值信息。
+- 功能：子女端可以继续保存较长画像，但写入 xiaozhi agent 的 prompt 会自动收敛到 1500 字符以内，并优先保留前序核心字段。
+- 验证：
+  - `go test ./internal/domains/profile` 通过。
+  - `go test -count=1 -cover ./internal/domains/profile` 通过，profile 包覆盖率 85.0%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，27 个测试全绿。

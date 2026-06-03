@@ -12,6 +12,11 @@ type Service struct {
 	xc    xiaozhiclient.Client
 }
 
+const (
+	maxProfilePromptRunes     = 1500
+	maxProfilePromptLineRunes = 160
+)
+
 func NewService(store *Store, xc xiaozhiclient.Client) *Service {
 	return &Service{store: store, xc: xc}
 }
@@ -53,7 +58,7 @@ func BuildPrompt(fields Fields) string {
 	}
 	addLine := func(label, value string) {
 		if value != "" {
-			lines = append(lines, label+"："+value)
+			lines = appendPromptLine(lines, label+"："+value)
 		}
 	}
 
@@ -66,6 +71,47 @@ func BuildPrompt(fields Fields) string {
 	addLine("健康背景", fields.Health)
 	addLine("忌口和禁忌", strings.Join(fields.Taboos, "、"))
 	return strings.Join(lines, "\n")
+}
+
+func appendPromptLine(lines []string, line string) []string {
+	line = truncateRunes(line, maxProfilePromptLineRunes)
+	available := maxProfilePromptRunes - promptRuneLen(lines)
+	if len(lines) > 0 {
+		available--
+	}
+	if available <= 0 {
+		return lines
+	}
+	line = truncateRunes(line, available)
+	if line == "" {
+		return lines
+	}
+	return append(lines, line)
+}
+
+func promptRuneLen(lines []string) int {
+	total := 0
+	for i, line := range lines {
+		if i > 0 {
+			total++
+		}
+		total += len([]rune(line))
+	}
+	return total
+}
+
+func truncateRunes(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	if limit <= 3 {
+		return string(runes[:limit])
+	}
+	return string(runes[:limit-3]) + "..."
 }
 
 func normalizeFields(fields Fields) Fields {
