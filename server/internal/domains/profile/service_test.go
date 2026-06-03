@@ -138,6 +138,27 @@ func TestBuildPromptKeepsPromptWithinPRDBudget(t *testing.T) {
 	}
 }
 
+func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
+	prompt := BuildPrompt(Fields{
+		Name:          "王秀英",
+		Nickname:      "妈",
+		Children:      []string{"小明"},
+		Grandchildren: []string{"小宝（7岁）"},
+		Hobbies:       []string{"豫剧"},
+		Health:        "高血压",
+	})
+
+	for _, want := range []string{
+		"问到子女或孙辈姓名",
+		"直接依据家庭画像回答名字",
+		"不知道再说明",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want recall guidance %q", prompt, want)
+		}
+	}
+}
+
 type profileClient struct {
 	xiaozhiclient.FakeClient
 	gotDeviceID string

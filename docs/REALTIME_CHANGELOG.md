@@ -1456,3 +1456,11 @@
   - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go build ./...` 通过。
   - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go vet ./...` 通过。
   - 已运行 `go clean -cache`，并删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。
+
+### 00:25 profile 画像召回提示词 RED 测试
+
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：新增 `TestBuildPromptGuidesFamilyProfileRecall`，要求 `BuildPrompt` 生成的 xiaozhi agent prompt 明确包含“问到子女或孙辈姓名”“直接依据家庭画像回答名字”“不知道再说明”等召回行为指令。
+- 目的：对齐完整 PRD #5 路演高光“老人问‘我孙子叫啥’→ AI 答出名字”，增强 Level 2“仅画像注入”时的可演示稳定性。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 prompt 只有泛化的“优先使用家庭画像”，缺少针对家庭成员姓名召回的明确行为约束。
+- 验证：已运行 `go test ./internal/domains/profile`，得到有效 RED：`TestBuildPromptGuidesFamilyProfileRecall` 失败，prompt 中缺少“问到子女或孙辈姓名”的明确召回指令。
