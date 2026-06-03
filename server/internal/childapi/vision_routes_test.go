@@ -40,6 +40,18 @@ func TestVisionRoutesAreRegisteredWhenDependencyProvided(t *testing.T) {
 	if !strings.Contains(presenceW.Body.String(), "stub-presence") {
 		t.Fatalf("body = %s, want stub response", presenceW.Body.String())
 	}
+
+	checkReq := httptest.NewRequest(http.MethodPost, "/api/vision/check-presence", strings.NewReader(`{"deviceId":"dev-001"}`))
+	checkReq.Header.Set("X-Access-Code", "demo")
+	checkW := httptest.NewRecorder()
+	r.ServeHTTP(checkW, checkReq)
+
+	if checkW.Code != http.StatusOK {
+		t.Fatalf("POST /api/vision/check-presence status = %d, want 200; body=%s", checkW.Code, checkW.Body.String())
+	}
+	if !strings.Contains(checkW.Body.String(), "stub-check-presence") {
+		t.Fatalf("body = %s, want stub response", checkW.Body.String())
+	}
 }
 
 func TestVisionRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
@@ -63,6 +75,15 @@ func TestVisionRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
 	if presenceW.Code != http.StatusNotImplemented {
 		t.Fatalf("POST /api/vision/presence status = %d, want 501", presenceW.Code)
 	}
+
+	checkReq := httptest.NewRequest(http.MethodPost, "/api/vision/check-presence", strings.NewReader(`{"deviceId":"dev-001"}`))
+	checkReq.Header.Set("X-Access-Code", "demo")
+	checkW := httptest.NewRecorder()
+	r.ServeHTTP(checkW, checkReq)
+
+	if checkW.Code != http.StatusNotImplemented {
+		t.Fatalf("POST /api/vision/check-presence status = %d, want 501", checkW.Code)
+	}
 }
 
 type visionRoutesStub struct{}
@@ -73,5 +94,8 @@ func (visionRoutesStub) RegisterRoutes(r gin.IRoutes) {
 	})
 	r.POST("/vision/presence", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"presenceId": "stub-presence"})
+	})
+	r.POST("/vision/check-presence", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"checkId": "stub-check-presence"})
 	})
 }

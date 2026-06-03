@@ -146,6 +146,18 @@
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
   - `npm test --prefix web` 通过，25 个测试全绿。
+
+### 12:45 vision 采帧结果桥接 PresenceState RED 测试
+
+- 文件：`server/internal/domains/vision/service_test.go`
+- 内容：新增 `CaptureAndObservePresence` RED 测试，要求调用 MCP 拍照后从 raw JSON 的 `presence` 字段读取 `no_one/someone`，喂给 PresenceState，并在 `no_one -> someone` 时触发问候；缺少 presence、非法 presence 或坏 JSON 返回 `ErrPresenceUnavailable`。
+- 文件：`server/internal/domains/vision/handler_test.go`
+- 内容：新增 `POST /api/vision/check-presence` handler RED 测试，覆盖采帧 + presence 观察 + 触发问候，以及缺少 presence 时返回 502。
+- 文件：`server/internal/childapi/vision_routes_test.go`
+- 内容：新增 childapi RED 断言，要求注入 vision 依赖时 `/api/vision/check-presence` 可注册为真路由，未注入时返回 501 占位。
+- 目的：对齐完整 PRD #7 “摄像头采帧 + VLM 判定 + 触发问候”的中间桥接；当前先接受 MCP/FakeClient raw JSON 中的 presence 结果，后续真实 VLM 只需产出同一 presence 语义。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `CaptureAndObservePresence`、`PresenceCheckResult`、`ErrPresenceUnavailable` 和 `/vision/check-presence` 路由尚未实现。
+- 验证：已运行 `go test ./internal/domains/vision ./internal/childapi`，得到有效 RED。失败原因是 `PresenceCheckResult`、`CaptureAndObservePresence`、`ErrPresenceUnavailable` 尚未实现，且 childapi 未注入 vision 依赖时 `/api/vision/check-presence` 当前返回 404 而非 501。
   - `go test -count=1 -cover ./internal/domains/message` 通过，message 覆盖率 92.1%。
   - `npm test --prefix web` 通过。
   - 已启动静态 web 服务：`http://127.0.0.1:5173/`，本地 HTTP 检查返回 200。

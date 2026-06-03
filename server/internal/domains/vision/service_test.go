@@ -66,6 +66,53 @@ func TestServiceCaptureRejectsMissingDeviceID(t *testing.T) {
 	}
 }
 
+func TestServiceCaptureAndObservePresenceUsesMCPPresenceSignal(t *testing.T) {
+	xc := &visionClient{raw: json.RawMessage(`{"imageUrl":"https://example.test/empty.jpg","presence":"no_one"}`)}
+	trigger := &fakeGreetingTrigger{result: sharedtypes.ProactiveGreetingResult{Status: "played", Text: "王阿姨，回来啦"}}
+	svc := NewService(xc, trigger)
+	ctx := context.Background()
+
+	empty, err := svc.CaptureAndObservePresence(ctx, CaptureRequest{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("CaptureAndObservePresence no_one: %v", err)
+	}
+	if empty.Observation.Presence != PresenceNoOne || empty.Observation.TriggeredGreeting {
+		t.Fatalf("empty observation = %+v, want no_one without greeting", empty.Observation)
+	}
+	if string(empty.Capture.Raw) != `{"imageUrl":"https://example.test/empty.jpg","presence":"no_one"}` {
+		t.Fatalf("capture raw = %s", empty.Capture.Raw)
+	}
+
+	xc.raw = json.RawMessage(`{"imageUrl":"https://example.test/return.jpg","presence":"someone"}`)
+	returned, err := svc.CaptureAndObservePresence(ctx, CaptureRequest{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("CaptureAndObservePresence someone: %v", err)
+	}
+	if !returned.Observation.TriggeredGreeting {
+		t.Fatalf("returned observation = %+v, want greeting triggered", returned.Observation)
+	}
+	if trigger.calls != 1 {
+		t.Fatalf("trigger calls = %d, want one return greeting", trigger.calls)
+	}
+}
+
+func TestServiceCaptureAndObservePresenceRequiresPresenceSignal(t *testing.T) {
+	tests := []json.RawMessage{
+		json.RawMessage(`{"imageUrl":"https://example.test/capture.jpg"}`),
+		json.RawMessage(`{"presence":"maybe"}`),
+		json.RawMessage(`not-json`),
+	}
+	for _, raw := range tests {
+		t.Run(string(raw), func(t *testing.T) {
+			svc := NewService(&visionClient{raw: raw}, &fakeGreetingTrigger{})
+			_, err := svc.CaptureAndObservePresence(context.Background(), CaptureRequest{DeviceID: "dev-001"})
+			if !errors.Is(err, ErrPresenceUnavailable) {
+				t.Fatalf("err = %v, want ErrPresenceUnavailable", err)
+			}
+		})
+	}
+}
+
 func TestServiceObservePresenceTriggersGreetingWhenSomeoneReturns(t *testing.T) {
 	trigger := &fakeGreetingTrigger{
 		result: sharedtypes.ProactiveGreetingResult{
