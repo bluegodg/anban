@@ -1,6 +1,7 @@
 import { ApiError, createAnbanClient } from './api/client.js';
 import { startMessageStatusPolling, stopMessageStatusPolling } from './message-status-polling.js';
 import { normalizeMessageDraft } from './message-input.js';
+import { writeProfileFormFields } from './profile-form.js';
 import { startReminderStatusPolling, stopReminderStatusPolling } from './reminder-status-polling.js';
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 
@@ -363,15 +364,7 @@ function renderProfile(profile) {
 }
 
 function writeProfileForm(profile) {
-  const fields = profile.fields || {};
-  writeFormValue('elderName', fields.name);
-  writeFormValue('nickname', fields.nickname);
-  writeFormValue('children', fields.children);
-  writeFormValue('grandchildren', fields.grandchildren);
-  writeFormValue('hobby', fields.hobbies);
-  writeFormValue('schedule', fields.schedule);
-  writeFormValue('health', fields.health);
-  writeFormValue('taboos', fields.taboos);
+  writeProfileFormFields(els.profileForm, profile.fields || {});
 }
 
 function renderGreetingSchedule(schedule) {
@@ -449,12 +442,6 @@ function writeGreetingSlot(label, slot) {
   els[`${label}GreetingTime`].value = slot.time || els[`${label}GreetingTime`].value;
   els[`${label}GreetingEnabled`].checked = Boolean(slot.enabled);
   els[`${label}GreetingTone`].value = slot.tonePreset || 'warm';
-}
-
-function writeFormValue(name, value) {
-  const input = els.profileForm.elements.namedItem(name);
-  if (!input || value === undefined || value === null) return;
-  input.value = Array.isArray(value) ? value.join(', ') : value;
 }
 
 function statusLabel(status) {

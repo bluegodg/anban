@@ -1291,14 +1291,6 @@
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
 
-### 19:06 子女端画像字段删除 RED 测试
-
-- 文件：`web/smoke.test.mjs`
-- 内容：新增画像表单 RED 测试，要求 `web/profile-form.js` 暴露 `writeProfileFormFields(form, fields)`，并在后端返回缺失字段时清空对应输入；同时更新页面集成断言，要求 `app.js` 使用 `writeProfileFormFields` 写回已保存画像。
-- 目的：对齐完整 PRD #5 “子女端 Web 能增删改画像字段”，避免字段被删除后前端仍保留旧值或默认值，下一次保存又把旧字段带回后端。
-- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `app.js` 内部 `writeFormValue` 会跳过 `undefined/null`，缺失字段不会被清空。
-- 验证：已运行 `npm test --prefix web`，得到有效 RED：34 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/profile-form.js`，以及 `app.js` 未包含 `writeProfileFormFields`。
-
 ### 18:58 子女端提醒状态 10 秒轮询 RED 测试
 
 - 文件：`web/smoke.test.mjs`
@@ -1318,6 +1310,29 @@
 - 验证：
   - `npm test --prefix web` 通过，33 个测试全绿。
   - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 86.54%、function 87.50%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。
+
+### 19:06 子女端画像字段删除 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增画像表单 RED 测试，要求 `web/profile-form.js` 暴露 `writeProfileFormFields(form, fields)`，并在后端返回缺失字段时清空对应输入；同时更新页面集成断言，要求 `app.js` 使用 `writeProfileFormFields` 写回已保存画像。
+- 目的：对齐完整 PRD #5 “子女端 Web 能增删改画像字段”，避免字段被删除后前端仍保留旧值或默认值，下一次保存又把旧字段带回后端。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `app.js` 内部 `writeFormValue` 会跳过 `undefined/null`，缺失字段不会被清空。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：34 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/profile-form.js`，以及 `app.js` 未包含 `writeProfileFormFields`。
+
+### 19:12 子女端画像字段删除 GREEN 实现
+
+- 文件：`web/profile-form.js`
+- 内容：新增 `writeProfileFormFields(form, fields)`，统一按 PRD 8 个画像字段写回表单；缺失、`null` 或 `undefined` 字段会清空输入，数组字段用逗号连接。
+- 文件：`web/app.js`
+- 内容：加载已保存画像后改用 `writeProfileFormFields(els.profileForm, profile.fields || {})`，删除原本会跳过空值的本地 `writeFormValue`。
+- 目的：让“删除画像字段”在子女端 Web 上可见，避免旧值残留后被下一次同步重新提交。
+- 功能：当其他端或后端清空某个画像字段后，当前子女端重新连接/刷新画像会同步清空对应输入框。
+- 验证：
+  - `npm test --prefix web` 通过，34 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 88.20%、function 88.46%。
   - 在 `server/` 运行 `go test -count=1 ./...` 通过。
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
