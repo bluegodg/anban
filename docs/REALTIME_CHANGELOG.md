@@ -1384,3 +1384,11 @@
   - 在 `server/` 运行 `go test -count=1 ./...` 通过。
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
+
+### 20:54 reminder 播报后应答超时恢复 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 `TestServiceRestoreScheduledRehydratesPlayedAckTimeouts`，模拟后端重启时 DB 里已有一条 `played` 且等待老人回应的提醒，要求 `RestoreScheduled` 重新安排 `playedAt + 30 分钟` 的未应答超时任务，并更新新的 `AckJobID`。
+- 目的：对齐完整 PRD #6 “30 分钟无应答 → 转未应答且子女端可见”和“后端重启后已排入提醒不丢”，避免已播报但未回应的提醒在重启后永远停留在 `played`。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `RestoreScheduled` 只恢复 `scheduled` 提醒，不会恢复 `played` 提醒的应答超时任务。
+- 验证：已运行 `go test ./internal/domains/reminder`，得到有效 RED：`TestServiceRestoreScheduledRehydratesPlayedAckTimeouts` 失败，`restored count = 0, want 1 played ack timeout`。

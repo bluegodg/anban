@@ -269,6 +269,58 @@ func TestServiceRestoreScheduledRehydratesPendingReminders(t *testing.T) {
 	}
 }
 
+func TestServiceRestoreScheduledRehydratesPlayedAckTimeouts(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	ctx := context.Background()
+	playedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
+
+	played := Reminder{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+		Text:        reminderText("测血压", CategoryMed),
+		Status:      StatusPlayed,
+		PlayedAt:    &playedAt,
+		AckJobID:    "stale-ack-job",
+	}
+	if err := svc.store.Create(ctx, &played); err != nil {
+		t.Fatalf("create played: %v", err)
+	}
+
+	count, err := svc.RestoreScheduled(ctx)
+	if err != nil {
+		t.Fatalf("RestoreScheduled: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("restored count = %d, want 1 played ack timeout", count)
+	}
+	if len(fakeSch.jobs) != 1 {
+		t.Fatalf("scheduled jobs = %d, want 1 ack timeout", len(fakeSch.jobs))
+	}
+	if want := playedAt.Add(defaultAckTimeout); !fakeSch.jobs[0].at.Equal(want) {
+		t.Fatalf("ack timeout at = %s, want %s", fakeSch.jobs[0].at, want)
+	}
+
+	list, err := svc.List(ctx, ListFilter{Status: StatusPlayed})
+	if err != nil {
+		t.Fatalf("List played: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != played.ID || list[0].AckJobID != "job-1" {
+		t.Fatalf("played list = %+v, want restored ack job ID on played reminder", list)
+	}
+
+	fakeSch.fire(0)
+	unanswered, err := svc.List(ctx, ListFilter{Status: StatusUnanswered})
+	if err != nil {
+		t.Fatalf("List unanswered: %v", err)
+	}
+	if len(unanswered) != 1 || unanswered[0].ID != played.ID || unanswered[0].AckKind != AckKindTimeout {
+		t.Fatalf("unanswered reminders = %+v, want restored timeout reminder", unanswered)
+	}
+}
+
 func TestServiceCancelScheduledReminder(t *testing.T) {
 	fakeSch := &fakeScheduler{}
 	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
