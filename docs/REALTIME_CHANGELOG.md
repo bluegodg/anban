@@ -1419,3 +1419,18 @@
 - 验证：
   - 初次运行 `npm test --prefix web` 意外通过，发现测试过宽，会匹配到刷新画像路径中的 `writeProfileForm(profile)`。
   - 收窄测试范围到画像提交 handler 的成功分支后，重新运行 `npm test --prefix web` 得到有效 RED：37 个测试中 1 个失败，失败项为 `child web writes backend-normalized profile back after save`，原因是提交成功分支缺少 `writeProfileForm(profile)`。
+
+### 00:07 子女端画像保存后表单归一化 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：在画像保存成功后，`renderProfile(profile)` 之后调用 `writeProfileForm(profile)`，复用已有 `writeProfileFormFields` 把后端返回的画像字段写回表单。
+- 目的：让子女端画像编辑形成完整增删改闭环，尤其是后端归一化或清空字段后，当前页面输入框立即反映真实保存结果。
+- 功能：用户保存画像后，摘要和表单都以服务端返回值为准；被删除的子女、孙辈、喜好、忌口等列表字段不会继续残留在当前表单里。
+- 验证：
+  - `npm test --prefix web` 通过，37 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 89.23%、function 89.66%。
+  - 首次并行运行后端 `go test/build/vet` 因 `C:\Users\12520\AppData\Local\Temp` 空间不足失败，错误为 `There is not enough space on the disk`，不是代码编译或测试断言失败。
+  - 将 `GOTMPDIR` 切到 `D:\Program\Project\anban-code\.gotmp-go` 后，在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在同一 D 盘临时目录下运行 `go build ./...` 通过。
+  - 在同一 D 盘临时目录下运行 `go vet ./...` 通过。
+  - 已运行 `go clean -cache`，并删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。

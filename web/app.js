@@ -234,6 +234,7 @@ els.profileForm.addEventListener('submit', async (event) => {
       fields,
     });
     renderProfile(profile);
+    writeProfileForm(profile);
     showNotice('画像已同步');
   } catch (error) {
     handleApiError(error, '画像同步失败');
