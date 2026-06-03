@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -126,6 +127,20 @@ func TestHandlerAcknowledgeReminder(t *testing.T) {
 	}
 }
 
+func TestHandlerCancelReturnsNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, &fakeScheduler{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/reminders/99", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("DELETE status = %d, want 404; body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandlerCancelRejectsBadID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := newTestService(t, &xiaozhiclient.FakeClient{}, &fakeScheduler{})
@@ -137,5 +152,44 @@ func TestHandlerCancelRejectsBadID(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("DELETE status = %d, want 400; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandlerAcknowledgeRejectsBadRequests(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, &fakeScheduler{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	scheduled, err := svc.Create(context.Background(), CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 10, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		path   string
+		body   string
+		status int
+	}{
+		{name: "bad id", path: "/api/reminders/not-a-number/ack", body: `{}`, status: http.StatusBadRequest},
+		{name: "invalid JSON", path: "/api/reminders/1/ack", body: `{not-json`, status: http.StatusBadRequest},
+		{name: "not found", path: "/api/reminders/99/ack", body: `{}`, status: http.StatusNotFound},
+		{name: "not yet played", path: "/api/reminders/" + strconv.Itoa(int(scheduled.ID)) + "/ack", body: `{}`, status: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != tt.status {
+				t.Fatalf("POST ack status = %d, want %d; body=%s", w.Code, tt.status, w.Body.String())
+			}
+		})
 	}
 }

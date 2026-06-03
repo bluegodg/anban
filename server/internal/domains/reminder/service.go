@@ -9,7 +9,11 @@ import (
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
-const defaultAckTimeout = 30 * time.Minute
+const (
+	defaultAckTimeout    = 30 * time.Minute
+	minReminderTextRunes = 30
+	maxReminderTextRunes = 60
+)
 
 type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
@@ -219,8 +223,45 @@ func normalizeCategory(category Category) Category {
 }
 
 func reminderText(content string, category Category) string {
+	content = strings.TrimSpace(content)
 	if category == CategoryMed {
-		return "王阿姨，该" + content + "啦~ 小宝昨天还问起您有没有按时测呢。"
+		return buildReminderText(
+			"王阿姨，该",
+			content,
+			"啦。小宝惦记着您，记得按时完成，安心一点哦。",
+		)
 	}
-	return "王阿姨，提醒您：" + content + "。记得照顾好自己呀。"
+	return buildReminderText(
+		"王阿姨，提醒您：",
+		content,
+		"。完成后跟安伴说一声好，我也放心。",
+	)
+}
+
+func buildReminderText(prefix, content, suffix string) string {
+	maxContentRunes := maxReminderTextRunes - runeLen(prefix) - runeLen(suffix)
+	if maxContentRunes < 0 {
+		return truncateRunes(prefix+suffix, maxReminderTextRunes)
+	}
+
+	text := prefix + truncateRunes(content, maxContentRunes) + suffix
+	if runeLen(text) < minReminderTextRunes {
+		text += "安伴会陪着您。"
+	}
+	return truncateRunes(text, maxReminderTextRunes)
+}
+
+func truncateRunes(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
+}
+
+func runeLen(value string) int {
+	return len([]rune(value))
 }

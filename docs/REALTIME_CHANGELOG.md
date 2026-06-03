@@ -1068,3 +1068,20 @@
 - 目的：对齐完整 PRD #6 “播报文本长度 30-60 字（短于 30 干瘪、长于 60 老人记不住）”，避免当前短提醒太干瘪、长提醒原样播报过长。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `reminderText` 尚未统一压到 30-60 字窗口。
 - 验证：已运行 `go test ./internal/domains/reminder`，得到有效 RED：短药品提醒长度 27，超长自定义提醒长度 118，均不满足 30-60 字窗口。
+
+### 11:35 reminder 播报文本 30-60 字 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：新增 `minReminderTextRunes/maxReminderTextRunes` 与 `buildReminderText/truncateRunes/runeLen`，药品提醒和自定义提醒统一通过 30-60 字窗口生成播报话术；短提醒补足自然关怀尾句，长内容按可用字数截断后保留固定结尾。
+- 目的：满足 PRD #6 播报文本长度验收，让提醒既不干瘪也不拖长，适合老人听完后记住。
+- 功能：`Create` 保存的 `Reminder.Text`、定时触发的 `InjectSpeak`、以及重启后恢复的提醒都会使用长度受控的播报文本；不改变 xiaozhi 调用边界，仍只通过 `xiaozhiclient.InjectSpeak`。
+- 文件：`server/internal/domains/reminder/handler_test.go`
+- 内容：补充撤销不存在提醒、ack 坏 ID、ack 坏 JSON、ack 不存在提醒、ack 尚未播报提醒的 HTTP 边界测试。
+- 目的：提高 reminder 域对真实子女端错误路径的覆盖，补足 TDD 技能要求的覆盖率门槛。
+- 验证：
+  - `go test ./internal/domains/reminder` 通过。
+  - `go test -count=1 -coverprofile=reminder.out ./internal/domains/reminder` 通过，reminder 包覆盖率 81.1%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，25 个测试全绿。
