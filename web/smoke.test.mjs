@@ -439,6 +439,46 @@ test('child web starts status polling after connect', async () => {
   assert.match(app, /refreshBackendStatus/);
 });
 
+test('message status polling schedules backend refresh every 10 seconds', async () => {
+  const {
+    MESSAGE_STATUS_REFRESH_INTERVAL_MS,
+    startMessageStatusPolling,
+    stopMessageStatusPolling,
+  } = await import('./message-status-polling.js');
+  let scheduledDelay;
+  let refreshCalls = 0;
+  let clearedTimer;
+
+  const timer = startMessageStatusPolling(() => {
+    refreshCalls += 1;
+  }, {
+    setIntervalImpl: (fn, delay) => {
+      scheduledDelay = delay;
+      fn();
+      return 24;
+    },
+  });
+  stopMessageStatusPolling(timer, {
+    clearIntervalImpl: (id) => {
+      clearedTimer = id;
+    },
+  });
+
+  assert.equal(MESSAGE_STATUS_REFRESH_INTERVAL_MS, 10_000);
+  assert.equal(scheduledDelay, 10_000);
+  assert.equal(refreshCalls, 1);
+  assert.equal(clearedTimer, 24);
+});
+
+test('child web starts message status polling after connect', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /startMessageStatusPolling/);
+  assert.match(app, /stopMessageStatusPolling/);
+  assert.match(app, /restartMessageStatusPolling/);
+  assert.match(app, /refreshBackendMessages/);
+});
+
 test('API client updates family profile with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;
