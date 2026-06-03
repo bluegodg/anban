@@ -313,6 +313,15 @@ test('child web lists and cancels backend reminders', async () => {
   assert.match(app, /提醒已撤销/);
 });
 
+test('child web can mark played reminders completed for demo ack flow', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /reminder\.status === 'played'/);
+  assert.match(app, /data-reminder-action="complete"/);
+  assert.match(app, /client\(\)\.ackReminder\(button\.dataset\.reminderId,\s*\{\s*ackKind: 'voice'\s*\}\)/);
+  assert.match(app, /提醒已完成：\$\{reminder\.content\}/);
+});
+
 test('child web labels reminder ack and timeout states', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 

@@ -1434,3 +1434,11 @@
   - 在同一 D 盘临时目录下运行 `go build ./...` 通过。
   - 在同一 D 盘临时目录下运行 `go vet ./...` 通过。
   - 已运行 `go clean -cache`，并删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。
+
+### 00:17 子女端提醒完成联调 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web can mark played reminders completed for demo ack flow`，要求子女端对 `played` 提醒渲染 `data-reminder-action="complete"` 操作，并在点击后调用 `client().ackReminder(..., { ackKind: 'voice' })`，成功后提示“提醒已完成”。
+- 目的：对齐完整 PRD #6 “老人答‘好的’→ 子女端那条提醒变已完成”，为路演/联调提供可手动触发的完成状态闭环，复用后端已有 `/api/reminders/:id/ack`。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前页面只支持撤销 scheduled 提醒，不支持 played 提醒的完成确认。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：38 个测试中 1 个失败，失败项为 `child web can mark played reminders completed for demo ack flow`，原因是 `app.js` 未针对 `played` 提醒渲染完成操作，也没有在提醒列表点击分支调用 `ackReminder`。
