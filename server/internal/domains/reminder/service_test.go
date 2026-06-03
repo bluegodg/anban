@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,9 +72,10 @@ func TestServiceCreateSchedulesAndFiresReminder(t *testing.T) {
 	if call.DeviceID != "dev-001" {
 		t.Fatalf("DeviceID = %q, want dev-001", call.DeviceID)
 	}
-	if call.Text != "王阿姨，该测血压啦~ 小宝昨天还问起您有没有按时测呢。" {
-		t.Fatalf("inject text = %q", call.Text)
+	if !strings.Contains(call.Text, "测血压") {
+		t.Fatalf("inject text = %q, want to include reminder content", call.Text)
 	}
+	assertReminderTextLength(t, call.Text)
 	if !call.Opts.SkipLLM {
 		t.Fatal("SkipLLM = false, want true for deterministic reminder playback")
 	}
@@ -121,6 +123,27 @@ func TestServiceCreateValidatesAndNormalizesInput(t *testing.T) {
 	}
 	if got.Content != "记得喝水" {
 		t.Fatalf("Content = %q, want trimmed content", got.Content)
+	}
+}
+
+func TestReminderTextFitsPRDLength(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		category Category
+	}{
+		{name: "short medicine reminder", content: "测血压", category: CategoryMed},
+		{name: "long custom reminder", content: strings.Repeat("记得测血压", 20), category: CategoryCustom},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text := reminderText(tt.content, tt.category)
+			assertReminderTextLength(t, text)
+			if !strings.Contains(text, "王阿姨") {
+				t.Fatalf("text = %q, want elder-facing salutation", text)
+			}
+		})
 	}
 }
 
@@ -363,6 +386,15 @@ func (f *fakeScheduler) fire(i int) {
 
 type failingClient struct {
 	err error
+}
+
+func assertReminderTextLength(t *testing.T, text string) {
+	t.Helper()
+
+	n := len([]rune(text))
+	if n < 30 || n > 60 {
+		t.Fatalf("reminder text length = %d, want 30..60, text=%q", n, text)
+	}
 }
 
 func (f failingClient) InjectSpeak(ctx context.Context, deviceID, text string, opts xiaozhiclient.InjectOptions) error {

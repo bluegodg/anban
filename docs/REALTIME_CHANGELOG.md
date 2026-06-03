@@ -1060,3 +1060,11 @@
   - `go test -count=1 ./...` 通过。
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
+
+### 11:32 reminder 播报文本 30-60 字 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：将提醒播报断言从固定字符串调整为 PRD 验收口径：播报必须包含提醒内容，且文本长度必须在 30-60 字；新增 `TestReminderTextFitsPRDLength` 覆盖短药品提醒与超长自定义提醒。
+- 目的：对齐完整 PRD #6 “播报文本长度 30-60 字（短于 30 干瘪、长于 60 老人记不住）”，避免当前短提醒太干瘪、长提醒原样播报过长。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `reminderText` 尚未统一压到 30-60 字窗口。
+- 验证：已运行 `go test ./internal/domains/reminder`，得到有效 RED：短药品提醒长度 27，超长自定义提醒长度 118，均不满足 30-60 字窗口。
