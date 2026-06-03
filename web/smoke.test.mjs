@@ -73,11 +73,43 @@ test('message draft normalizer keeps short text without notice', async () => {
   });
 });
 
+test('message state surfaces failed message returned by send API error', async () => {
+  const { upsertMessage, upsertMessageFromSendError } = await import('./message-state.js');
+  const pending = { messageId: 7, text: '妈，我下班路过老张家了', status: 'pending' };
+  const older = { messageId: 3, text: '早一点的留言', status: 'played' };
+  const failed = {
+    messageId: 7,
+    text: '妈，我下班路过老张家了',
+    status: 'failed',
+    errorMessage: 'manager unavailable',
+  };
+
+  const merged = upsertMessage([older, pending], { messageId: 9, text: '新留言', status: 'played' });
+  assert.deepEqual(merged.map((item) => item.messageId), [9, 3, 7]);
+
+  const surfaced = upsertMessageFromSendError([pending, older], {
+    payload: { message: failed },
+  });
+
+  assert.equal(surfaced[0].messageId, 7);
+  assert.equal(surfaced[0].status, 'failed');
+  assert.equal(surfaced[0].errorMessage, 'manager unavailable');
+  assert.deepEqual(surfaced.map((item) => item.messageId), [7, 3]);
+});
+
 test('child web applies message length notice before sending', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 
   assert.match(app, /normalizeMessageDraft/);
   assert.match(app, /draft\.notice/);
+});
+
+test('child web renders failed message returned by send error payload', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /upsertMessageFromSendError/);
+  assert.match(app, /error\.payload\?\.message/);
+  assert.match(app, /renderMessages\(\)/);
 });
 
 test('child web shows greeting text returned by backend', async () => {

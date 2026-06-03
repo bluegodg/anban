@@ -1359,3 +1359,11 @@
   - 在 `server/` 运行 `go test -count=1 ./...` 通过。
   - 在 `server/` 运行 `go build ./...` 通过。
   - 在 `server/` 运行 `go vet ./...` 通过。
+
+### 20:44 子女端留言失败状态可见 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增留言状态 RED 测试，要求 `web/message-state.js` 暴露 `upsertMessage` 与 `upsertMessageFromSendError`，能把后端 502 响应体里的 `payload.message` 合并到留言列表顶部；同时要求 `app.js` 在发送失败 catch 分支使用 `upsertMessageFromSendError` 并重新渲染留言列表。
+- 目的：对齐完整 PRD #3 “单条留言失败不会卡死后续留言”和 PRD #4 “子女端能看到自己刚发的留言播了没”，避免 manager 注入失败时子女端只看到错误提示、看不到该条失败状态。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 Web 没有 `message-state.js`，且 `app.js` 发送失败分支只调用 `handleApiError`。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：36 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/message-state.js`，以及 `app.js` 未包含 `upsertMessageFromSendError`。
