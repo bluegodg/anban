@@ -110,6 +110,18 @@
   - `go test -count=1 ./...` 通过。
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
+
+### 12:21 vision PresenceState 触发问候 RED 测试
+
+- 文件：`server/internal/domains/vision/service_test.go`
+- 内容：新增 vision presence 状态机 RED 测试，要求 `ObservePresence` 修剪 `deviceId`，记录 `someone/no_one` 状态，启动时 `unknown -> someone` 不触发，`someone -> no_one -> someone` 仅触发 1 次主动问候，并拒绝坏 presence。
+- 文件：`server/internal/domains/vision/handler_test.go`
+- 内容：新增 `POST /api/vision/presence` handler RED 测试，覆盖连续上报 `no_one`、`someone` 后触发问候，以及坏 JSON、缺少设备、非法 presence。
+- 文件：`server/internal/childapi/vision_routes_test.go`
+- 内容：新增 childapi RED 断言，要求注入 vision 依赖时 `/api/vision/presence` 可注册为真路由，未注入时返回 501 占位。
+- 目的：对齐完整 PRD #7 “有人 → 无人 → 有人状态变化触发 1 次问候”，先建立 VLM 结果进入后端后的 PresenceState 最小闭环；VLM 云调用和周期采帧留到后续切片。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `PresenceObservationRequest`、`ObservePresence`、`ProactiveGreetingResult`、`TriggerProactiveGreeting` 和 `/vision/presence` 路由尚未实现。
+- 验证：已运行 `go test ./internal/domains/vision ./internal/childapi`，得到有效 RED。失败原因是 vision 包缺少 `ProactiveGreetingResult`、`ObservePresence`、`PresenceObservationRequest`、`PresenceSomeone` 等类型/方法，且 childapi 未注入 vision 依赖时 `/api/vision/presence` 当前返回 404 而非 501。
   - `go test -count=1 -cover ./internal/domains/message` 通过，message 覆盖率 92.1%。
   - `npm test --prefix web` 通过。
   - 已启动静态 web 服务：`http://127.0.0.1:5173/`，本地 HTTP 检查返回 200。
