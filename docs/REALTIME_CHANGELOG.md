@@ -1205,3 +1205,20 @@
 - 目的：对齐完整 PRD #7 “有人 -> 无人 -> 有人”视觉触发问候，以及三周计划中子女端 Web 每完成一个能力要接入联调的要求；把已完成的后端 `CaptureAndObservePresence` 能力暴露到子女端演示骨架。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只有 `/api/vision/capture` 的“看一眼”入口，尚未封装 `/api/vision/check-presence`。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：27 个测试中 2 个失败，失败原因分别是 `TypeError: client.checkVisionPresence is not a function`，以及 `index.html` 缺少 `visionPresenceButton`/`visionPresenceResult` 页面节点。
+
+### 15:08 子女端视觉触发演示入口 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：新增 `checkVisionPresence(payload)`，封装 `POST /api/vision/check-presence`，沿用现有 `request` 逻辑自动带 `X-Access-Code` 和 JSON body。
+- 文件：`web/index.html`
+- 内容：在主动陪伴面板保留原“看一眼”按钮的同时，新增 `visionPresenceButton` “视觉触发”按钮和 `visionPresenceResult` 结果输出。
+- 文件：`web/app.js`
+- 内容：新增视觉触发点击处理，调用 `client().checkVisionPresence({ deviceId, tool: "camera.capture", args: { quality: "low" } })`，并把后端 observation 渲染成“视觉触发结果：有人/无人/未知 · 已触发问候/未触发问候”；触发后同步更新顶部状态和 notice。
+- 目的：让子女端 Web 骨架能直接演示后端视觉采帧 + presence 判定 + 主动问候触发链路，区别于只返回原始截图/识别结果的“看一眼”加分入口。
+- 功能：路演调试时可以从同一个主动陪伴面板分别验证 `/api/vision/capture` 和 `/api/vision/check-presence`；不改变后端 xiaozhi 调用边界。
+- 验证：
+  - `npm test --prefix web` 通过，27 个测试全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，web 整体行覆盖率 86.84%，函数覆盖率 83.33%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。

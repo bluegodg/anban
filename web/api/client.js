@@ -38,6 +38,9 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     captureVision(payload) {
       return request('/api/vision/capture', { method: 'POST', body: payload });
     },
+    checkVisionPresence(payload) {
+      return request('/api/vision/check-presence', { method: 'POST', body: payload });
+    },
     getGreetingSchedule({ deviceId } = {}) {
       const params = new URLSearchParams();
       if (deviceId) params.set('deviceId', deviceId);

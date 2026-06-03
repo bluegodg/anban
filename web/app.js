@@ -24,6 +24,8 @@ const els = {
   greetingButton: document.querySelector('#greetingButton'),
   visionButton: document.querySelector('#visionButton'),
   visionResult: document.querySelector('#visionResult'),
+  visionPresenceButton: document.querySelector('#visionPresenceButton'),
+  visionPresenceResult: document.querySelector('#visionPresenceResult'),
   greetingScheduleForm: document.querySelector('#greetingScheduleForm'),
   morningGreetingTime: document.querySelector('#morningGreetingTime'),
   morningGreetingEnabled: document.querySelector('#morningGreetingEnabled'),
@@ -119,6 +121,25 @@ els.visionButton.addEventListener('click', async () => {
     handleApiError(error, '看一眼失败');
   } finally {
     els.visionButton.disabled = false;
+  }
+});
+
+els.visionPresenceButton.addEventListener('click', async () => {
+  els.visionPresenceButton.disabled = true;
+  try {
+    const result = await client().checkVisionPresence({
+      deviceId: state.deviceId,
+      tool: 'camera.capture',
+      args: { quality: 'low' },
+    });
+    renderVisionPresence(result);
+    const observation = result.observation || {};
+    renderStatus('在线', observation.triggeredGreeting ? '视觉触发了一次主动问候' : '刚刚完成一次视觉判定');
+    showNotice(observation.triggeredGreeting ? '视觉触发已完成' : '视觉判定已返回');
+  } catch (error) {
+    handleApiError(error, '视觉触发失败');
+  } finally {
+    els.visionPresenceButton.disabled = false;
   }
 });
 
@@ -309,6 +330,13 @@ function renderVisionCapture(capture) {
   els.visionResult.textContent = `看一眼结果：${text || '暂无内容'}`;
 }
 
+function renderVisionPresence(result) {
+  const observation = result.observation || {};
+  const presence = presenceLabel(observation.presence);
+  const triggered = observation.triggeredGreeting ? '已触发问候' : '未触发问候';
+  els.visionPresenceResult.textContent = `视觉触发结果：${presence} · ${triggered}`;
+}
+
 function renderMessages() {
   if (!state.messages.length) {
     els.messageList.innerHTML = '<li class="empty">暂无留言</li>';
@@ -386,6 +414,12 @@ function reminderStatusLabel(status) {
   if (status === 'canceled') return '已撤销';
   if (status === 'skipped') return '已跳过';
   return '待提醒';
+}
+
+function presenceLabel(presence) {
+  if (presence === 'someone') return '有人';
+  if (presence === 'no_one') return '无人';
+  return '未知';
 }
 
 function formatTime(value) {
