@@ -1244,3 +1244,11 @@
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
   - `npm test --prefix web` 通过，27 个测试全绿。
+
+### 15:47 子女端状态 30 秒轮询 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增状态轮询 RED 测试，要求 `web/status-polling.js` 暴露 `STATUS_REFRESH_INTERVAL_MS=30000`、`startStatusPolling` 和 `stopStatusPolling`；新增页面集成断言，要求 `app.js` 在连接后通过 `restartStatusPolling` 启动 `refreshBackendStatus` 轮询。
+- 目的：对齐完整 PRD #4 “设备掉线后子女端 ≤ 30 秒内显示离线”和三周计划 W2 “子女端 Web 切到真后端，留言/状态/触发问候/触发提醒/编辑画像五件全通”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只在连接时读取一次状态，没有 30 秒轮询模块。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：29 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/status-polling.js`，以及 `app.js` 未包含 `startStatusPolling`/`restartStatusPolling`/`refreshBackendStatus`。
