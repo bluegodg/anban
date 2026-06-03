@@ -116,6 +116,27 @@ test('child web renders failed message returned by send error payload', async ()
   assert.match(app, /renderMessages\(\)/);
 });
 
+test('API error notice prefers backend reason over generic fallback', async () => {
+  const { ApiError } = await import('./api/client.js');
+  const { formatApiErrorNotice } = await import('./api-error-notice.js');
+
+  assert.equal(
+    formatApiErrorNotice(new ApiError('主动语音配额已用', 429, { error: '主动语音配额已用' }), '问候接口暂未接入'),
+    '主动语音配额已用（429）',
+  );
+  assert.equal(
+    formatApiErrorNotice(new Error('network down'), '问候接口暂未接入'),
+    '问候接口暂未接入',
+  );
+});
+
+test('child web uses API error notice formatter', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /formatApiErrorNotice/);
+  assert.match(app, /showNotice\(formatApiErrorNotice\(error, fallback\)\)/);
+});
+
 test('child web shows greeting text returned by backend', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 

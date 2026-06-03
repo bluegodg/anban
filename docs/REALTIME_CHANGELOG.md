@@ -1480,3 +1480,11 @@
   - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go build ./...` 通过。
   - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go vet ./...` 通过。
   - 已运行 `go clean -cache`，并删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。
+
+### 00:37 子女端 API 错误提示 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增错误提示 RED 测试，要求 `formatApiErrorNotice` 在遇到 `ApiError('主动语音配额已用', 429)` 时优先显示后端错误原因“主动语音配额已用（429）”，普通错误仍显示调用方 fallback；同时要求 `app.js` 的 `handleApiError` 使用该 formatter。
+- 目的：对齐完整 PRD #2/#6/#7 “同一 10 分钟窗口至多 1 条主动语音输出”的子女端可解释性，避免主动问候被配额挡住时页面误显示“问候接口暂未接入（429）”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 Web 没有 `api-error-notice.js`，且 `handleApiError` 只拼 fallback 与状态码。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：40 个测试中 2 个失败，失败原因分别是缺少 `web/api-error-notice.js`，以及 `app.js` 未接入 `formatApiErrorNotice`。
