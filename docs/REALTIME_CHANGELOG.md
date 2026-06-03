@@ -1275,3 +1275,18 @@
 - 目的：对齐完整 PRD #4 “留言状态从 pending -> played 延迟 ≤ 10 秒”，补上上一轮 30 秒设备状态轮询之外的留言列表状态刷新。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只在连接时读取一次消息列表，没有 10 秒留言状态轮询模块。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：31 个测试中 2 个失败，失败原因分别是 `ERR_MODULE_NOT_FOUND: web/message-status-polling.js`，以及 `app.js` 未包含 `startMessageStatusPolling`/`restartMessageStatusPolling`/`refreshBackendMessages`。
+
+### 18:50 子女端留言状态 10 秒轮询 GREEN 实现
+
+- 文件：`web/message-status-polling.js`
+- 内容：新增 `MESSAGE_STATUS_REFRESH_INTERVAL_MS=10000`、`startMessageStatusPolling` 和 `stopMessageStatusPolling`，将留言状态刷新间隔封装成可测试模块。
+- 文件：`web/app.js`
+- 内容：连接成功后调用 `restartMessageStatusPolling`，先停止旧轮询再启动 `refreshBackendMessages`；轮询只请求 `/api/messages?deviceId=...` 并重绘留言列表，501 占位静默忽略，其他错误显示“留言状态刷新失败”。
+- 目的：对齐 PRD #4 “留言状态从 pending -> played 延迟 ≤ 10 秒”，和 30 秒设备状态轮询分离，避免高频刷新拖动提醒、问候和画像。
+- 功能：子女端保持连接后会每 10 秒刷新一次留言状态；切换设备或后端地址后不会叠加多个留言状态轮询。
+- 验证：
+  - `npm test --prefix web` 通过，31 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 86.62%、function 86.36%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。

@@ -1,4 +1,5 @@
 import { ApiError, createAnbanClient } from './api/client.js';
+import { startMessageStatusPolling, stopMessageStatusPolling } from './message-status-polling.js';
 import { normalizeMessageDraft } from './message-input.js';
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 
@@ -9,6 +10,7 @@ const state = {
   messages: [],
   reminders: [],
   statusPoller: null,
+  messageStatusPoller: null,
 };
 
 const els = {
@@ -73,6 +75,7 @@ els.connectForm.addEventListener('submit', async (event) => {
   localStorage.setItem('anban.apiBaseURL', state.apiBaseURL);
   await refreshMessages();
   restartStatusPolling();
+  restartMessageStatusPolling();
 });
 
 els.messageForm.addEventListener('submit', async (event) => {
@@ -265,6 +268,24 @@ async function refreshBackendStatus() {
 function restartStatusPolling() {
   stopStatusPolling(state.statusPoller);
   state.statusPoller = startStatusPolling(refreshBackendStatus);
+}
+
+async function refreshBackendMessages() {
+  try {
+    const payload = await client().listMessages({ deviceId: state.deviceId });
+    state.messages = payload.messages || [];
+    renderMessages();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 501) {
+      return;
+    }
+    showNotice('留言状态刷新失败');
+  }
+}
+
+function restartMessageStatusPolling() {
+  stopMessageStatusPolling(state.messageStatusPoller);
+  state.messageStatusPoller = startMessageStatusPolling(refreshBackendMessages);
 }
 
 async function refreshReminders() {
