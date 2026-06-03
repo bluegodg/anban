@@ -2,7 +2,6 @@ package status
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -51,12 +50,10 @@ func (s *Service) Get(ctx context.Context, req GetRequest) (Snapshot, error) {
 	lastSeen := timePtr(status.LastActiveAt)
 	lastInteraction := lastSeen
 	history, err := s.xc.GetHistory(ctx, deviceID, defaultHistoryLimit)
-	if err != nil {
-		if !errors.Is(err, sharedtypes.ErrNotImplemented) {
-			return Snapshot{}, err
+	if err == nil {
+		if at := latestHistoryAt(history); at != nil {
+			lastInteraction = at
 		}
-	} else if at := latestHistoryAt(history); at != nil {
-		lastInteraction = at
 	}
 
 	return Snapshot{

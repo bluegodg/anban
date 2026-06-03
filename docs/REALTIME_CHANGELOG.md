@@ -1344,3 +1344,18 @@
 - 目的：对齐完整 PRD #4 “子女端能看到设备在线/最近互动”和“设备掉线后 ≤30 秒显示离线”，避免可选的历史消息读取失败拖垮核心状态接口。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前实现会把非 `ErrNotImplemented` 的 history 错误直接返回，导致 `/api/device/status` 失败。
 - 验证：已运行 `go test ./internal/domains/status`，得到有效 RED：`TestServiceGetKeepsDeviceStatusWhenHistoryReadFails` 失败，错误为 `Get: history api timeout`，说明当前实现仍会把 history 临时失败冒泡为整个状态接口失败。
+
+### 20:35 status 历史接口失败降级 GREEN 实现
+
+- 文件：`server/internal/domains/status/service.go`
+- 内容：调整 `Service.Get` 中的 history 读取逻辑：只有 `GetHistory` 成功时才用历史消息更新时间；history 失败时保留 `GetDeviceStatus` 返回的 `last_active_at` 作为 `lastInteractionAt` 兜底。
+- 目的：让 PRD #4 的核心状态能力优先可用，避免可选历史接口抖动导致子女端看不到在线/离线和最近在线时间。
+- 功能：`/api/device/status` 在 manager 设备状态可读、history 临时失败时仍返回 200 和设备快照；历史成功时仍使用最新历史时间提高“最近互动”准确度。
+- 验证：
+  - `go test ./internal/domains/status` 通过。
+  - `go test -count=1 -cover ./internal/domains/status` 通过，status 包覆盖率 87.2%。
+  - `npm test --prefix web` 通过，34 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 88.20%、function 88.46%。
+  - 在 `server/` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 运行 `go build ./...` 通过。
+  - 在 `server/` 运行 `go vet ./...` 通过。
