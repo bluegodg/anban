@@ -328,6 +328,51 @@ test('child web exposes vision capture action', async () => {
   assert.match(app, /看一眼结果/);
 });
 
+test('API client checks vision presence with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({
+        capture: { raw: { presence: 'someone' } },
+        observation: { presence: 'someone', triggeredGreeting: true },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.checkVisionPresence({
+    deviceId: 'dev-001',
+    tool: 'camera.capture',
+    args: { quality: 'low' },
+  });
+
+  assert.equal(request.url, 'http://anban.local/api/vision/check-presence');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    deviceId: 'dev-001',
+    tool: 'camera.capture',
+    args: { quality: 'low' },
+  });
+  assert.equal(result.observation.triggeredGreeting, true);
+});
+
+test('child web exposes vision presence trigger action', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(html, /visionPresenceButton/);
+  assert.match(html, /visionPresenceResult/);
+  assert.match(app, /client\(\)\.checkVisionPresence/);
+  assert.match(app, /视觉触发结果/);
+});
+
 test('API client fetches device status with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;

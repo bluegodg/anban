@@ -1197,3 +1197,11 @@
   - `go test -count=1 ./...` 通过。
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
+
+### 15:05 子女端视觉触发演示入口 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 API client RED 测试，要求 `checkVisionPresence` 带 `X-Access-Code` 调用 `POST /api/vision/check-presence`，并提交 `deviceId/tool/args`；新增页面集成断言，要求页面提供 `visionPresenceButton`、`visionPresenceResult`，并由 `app.js` 调用 `client().checkVisionPresence` 展示“视觉触发结果”。
+- 目的：对齐完整 PRD #7 “有人 -> 无人 -> 有人”视觉触发问候，以及三周计划中子女端 Web 每完成一个能力要接入联调的要求；把已完成的后端 `CaptureAndObservePresence` 能力暴露到子女端演示骨架。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 web 只有 `/api/vision/capture` 的“看一眼”入口，尚未封装 `/api/vision/check-presence`。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：27 个测试中 2 个失败，失败原因分别是 `TypeError: client.checkVisionPresence is not a function`，以及 `index.html` 缺少 `visionPresenceButton`/`visionPresenceResult` 页面节点。
