@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
+	"github.com/gin-gonic/gin"
 )
 
 func newTestService(t *testing.T, xc xiaozhiclient.Client) *Service {
@@ -269,6 +274,49 @@ func TestServiceTriggerMarksFailedWhenInjectFails(t *testing.T) {
 	}
 }
 
+func TestServiceTriggerSkipsWhenProactiveVoiceQuotaUsed(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	svc.UseProactiveVoiceGate(throttledVoiceGate{})
+
+	got, err := svc.Trigger(context.Background(), TriggerRequest{DeviceID: "dev-001", TonePreset: ToneWarm})
+	if !errors.Is(err, sharedtypes.ErrProactiveVoiceThrottled) {
+		t.Fatalf("Trigger err = %v, want ErrProactiveVoiceThrottled", err)
+	}
+	if got.Status != StatusSkipped {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusSkipped)
+	}
+	if len(fake.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want no xiaozhi injection when quota is used", len(fake.InjectCalls))
+	}
+
+	list, err := svc.List(context.Background(), ListFilter{Status: StatusSkipped})
+	if err != nil {
+		t.Fatalf("List skipped: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != got.ID || list[0].ErrorMessage == "" {
+		t.Fatalf("skipped greetings = %+v, want persisted skipped greeting", list)
+	}
+}
+
+func TestHandlerTriggerGreetingReturnsTooManyRequestsWhenQuotaUsed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &xiaozhiclient.FakeClient{})
+	svc.UseProactiveVoiceGate(throttledVoiceGate{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/greetings/trigger", strings.NewReader(`{"deviceId":"dev-001"}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"status":"skipped"`) {
+		t.Fatalf("body = %s, want skipped greeting payload", w.Body.String())
+	}
+}
+
 type fakeCronScheduler struct {
 	jobs     []fakeCronJob
 	canceled []scheduler.JobID
@@ -314,4 +362,10 @@ func (f failingClient) SetRolePrompt(ctx context.Context, deviceID, prompt strin
 
 func (f failingClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
 	return json.RawMessage(`{}`), nil
+}
+
+type throttledVoiceGate struct{}
+
+func (throttledVoiceGate) TryAcquireProactiveVoice(context.Context, string, time.Time) (sharedtypes.ProactiveVoiceLease, error) {
+	return nil, sharedtypes.ErrProactiveVoiceThrottled
 }

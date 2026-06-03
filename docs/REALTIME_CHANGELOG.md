@@ -1085,3 +1085,21 @@
   - `go build ./...` 通过。
   - `go vet ./...` 通过。
   - `npm test --prefix web` 通过，25 个测试全绿。
+
+### 11:52 主动语音 10 分钟共享频控 RED 测试
+
+- 文件：`server/internal/proactive/voice_gate_test.go`
+- 内容：新增主动语音共享 gate 的 RED 测试，要求同一设备 10 分钟窗口内第二次主动语音返回 `ErrProactiveVoiceThrottled`，窗口后可再次放行，并支持失败尝试回滚。
+- 文件：`server/internal/proactive/voice_gate_integration_test.go`
+- 内容：新增跨域集成 RED 测试，要求 greeting 和 reminder 注入同一个 gate 后，同一设备先问候再触发提醒时，提醒落为 skipped 且不再调用 xiaozhi `InjectSpeak`。
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增 greeting service/handler RED 测试，要求主动语音配额已用时问候落库为 skipped、不注入 xiaozhi，HTTP 返回 429 并带 skipped payload。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 reminder RED 测试，要求提醒到点但配额已用时落为 skipped、清空 `jobId`、不创建 30 分钟 ack timeout、不调用 xiaozhi。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增子女端 RED 断言，要求 reminder 的 `skipped` 状态展示为“已跳过”。
+- 目的：对齐完整 PRD #2/#6/#7 “同一 10 分钟窗口至多 1 条主动语音输出/视觉触发，三者共配额”，先锁住公共规则与 greeting/reminder 的最小接入行为。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `internal/proactive`、共享 gate 接口、`StatusSkipped` 和 service 注入方法尚未实现。
+- 验证：
+  - 已运行 `go test ./internal/proactive ./internal/domains/greeting ./internal/domains/reminder`，得到有效 RED。失败原因是 `NewVoiceGate`、`ErrProactiveVoiceThrottled`、`ProactiveVoiceLease`、`UseProactiveVoiceGate` 和 `StatusSkipped` 尚未实现。
+  - 已运行 `npm test --prefix web`，得到有效 RED：25 个测试中 1 个失败，失败原因是 reminder `skipped` 状态尚未展示为“已跳过”。

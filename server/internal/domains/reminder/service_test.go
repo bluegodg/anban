@@ -11,6 +11,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
 func newTestService(t *testing.T, xc xiaozhiclient.Client, sch *fakeScheduler) *Service {
@@ -168,6 +169,44 @@ func TestServiceCreateMarksFailedWhenInjectFailsOnFire(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].ID != got.ID || list[0].ErrorMessage == "" {
 		t.Fatalf("failed reminders = %+v, want failed reminder with error", list)
+	}
+}
+
+func TestServiceSkipsReminderWhenProactiveVoiceQuotaUsed(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, fakeXC, fakeSch)
+	svc.UseProactiveVoiceGate(throttledVoiceGate{})
+
+	got, err := svc.Create(context.Background(), CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 1, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	fakeSch.fire(0)
+	list, err := svc.List(context.Background(), ListFilter{Status: StatusSkipped})
+	if err != nil {
+		t.Fatalf("List skipped: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != got.ID {
+		t.Fatalf("skipped reminders = %+v, want skipped reminder %d", list, got.ID)
+	}
+	if list[0].JobID != "" {
+		t.Fatalf("JobID = %q, want cleared after skipped proactive voice", list[0].JobID)
+	}
+	if list[0].ErrorMessage == "" {
+		t.Fatal("ErrorMessage is empty")
+	}
+	if len(fakeXC.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want no xiaozhi injection when quota is used", len(fakeXC.InjectCalls))
+	}
+	if len(fakeSch.jobs) != 1 {
+		t.Fatalf("scheduled jobs = %d, want no ack timeout job after skipped reminder", len(fakeSch.jobs))
 	}
 }
 
@@ -415,4 +454,10 @@ func (f failingClient) SetRolePrompt(ctx context.Context, deviceID, prompt strin
 
 func (f failingClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
 	return json.RawMessage(`{}`), nil
+}
+
+type throttledVoiceGate struct{}
+
+func (throttledVoiceGate) TryAcquireProactiveVoice(context.Context, string, time.Time) (sharedtypes.ProactiveVoiceLease, error) {
+	return nil, sharedtypes.ErrProactiveVoiceThrottled
 }

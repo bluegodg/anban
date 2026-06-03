@@ -283,6 +283,7 @@ test('child web labels reminder ack and timeout states', async () => {
   assert.match(app, /status === 'played'\) return '已播报'/);
   assert.match(app, /status === 'completed'\) return '已完成'/);
   assert.match(app, /status === 'unanswered'\) return '未应答'/);
+  assert.match(app, /status === 'skipped'\) return '已跳过'/);
 });
 
 test('API client captures vision frame with access code', async () => {
