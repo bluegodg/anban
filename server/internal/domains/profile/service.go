@@ -55,6 +55,7 @@ func BuildPrompt(fields Fields) string {
 	lines := []string{
 		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
 		"请优先使用下面的家庭画像理解老人，不要生硬复述画像内容，回答要自然、简短、关心当下。",
+		"老人问到子女或孙辈姓名、称呼、喜好、健康或忌口时，直接依据家庭画像回答名字或事实；不知道再说明。",
 	}
 	addLine := func(label, value string) {
 		if value != "" {

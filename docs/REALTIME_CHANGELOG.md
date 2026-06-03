@@ -1464,3 +1464,19 @@
 - 目的：对齐完整 PRD #5 路演高光“老人问‘我孙子叫啥’→ AI 答出名字”，增强 Level 2“仅画像注入”时的可演示稳定性。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 prompt 只有泛化的“优先使用家庭画像”，缺少针对家庭成员姓名召回的明确行为约束。
 - 验证：已运行 `go test ./internal/domains/profile`，得到有效 RED：`TestBuildPromptGuidesFamilyProfileRecall` 失败，prompt 中缺少“问到子女或孙辈姓名”的明确召回指令。
+
+### 00:30 profile 画像召回提示词 GREEN 实现
+
+- 文件：`server/internal/domains/profile/service.go`
+- 内容：在 `BuildPrompt` 的静态提示词中新增一条召回指令：老人问到子女/孙辈姓名、称呼、喜好、健康或忌口时，直接依据家庭画像回答名字或事实，不知道再说明。
+- 目的：提升 PRD #5 “我孙子叫啥”这类画像召回高光的稳定性，让 xiaozhi agent 不只是“理解画像”，而是明确知道该如何回答画像事实问题。
+- 功能：子女端保存画像后写入 xiaozhi 的角色 prompt 会携带更明确的家庭画像召回行为约束；仍走原有 1500 rune 上限裁剪。
+- 验证：
+  - `go test ./internal/domains/profile` 通过。
+  - `go test -count=1 -cover ./internal/domains/profile` 通过，profile 包覆盖率 85.0%。
+  - `npm test --prefix web` 通过，38 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 89.23%、function 89.66%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go build ./...` 通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go vet ./...` 通过。
+  - 已运行 `go clean -cache`，并删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。
