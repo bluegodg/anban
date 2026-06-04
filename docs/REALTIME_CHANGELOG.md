@@ -1488,3 +1488,19 @@
 - 目的：对齐完整 PRD #2/#6/#7 “同一 10 分钟窗口至多 1 条主动语音输出”的子女端可解释性，避免主动问候被配额挡住时页面误显示“问候接口暂未接入（429）”。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 Web 没有 `api-error-notice.js`，且 `handleApiError` 只拼 fallback 与状态码。
 - 验证：已运行 `npm test --prefix web`，得到有效 RED：40 个测试中 2 个失败，失败原因分别是缺少 `web/api-error-notice.js`，以及 `app.js` 未接入 `formatApiErrorNotice`。
+
+### 00:41 子女端 API 错误提示 GREEN 实现
+
+- 文件：`web/api-error-notice.js`
+- 内容：新增 `formatApiErrorNotice(error, fallback)`，对 `ApiError` 优先展示后端错误消息并追加状态码；非 API 错误保持调用方 fallback。
+- 文件：`web/app.js`
+- 内容：导入 `formatApiErrorNotice`，并让 `handleApiError` 统一调用该 formatter 后再 `showNotice`。
+- 目的：让主动语音配额、manager 注入失败等后端明确错误在子女端可读，减少联调时把业务限制误判成接口未接入。
+- 功能：例如后端返回 429 `{error:"主动语音配额已用"}` 时，页面提示“主动语音配额已用（429）”；普通网络异常仍显示原 fallback。
+- 验证：
+  - `npm test --prefix web` 通过，40 个测试全绿。
+  - 在 `web/` 运行 `node --test --experimental-test-coverage smoke.test.mjs` 通过，整体 line 92.20%、function 93.33%；`web/api-error-notice.js` line/function 100%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go test -count=1 ./...` 通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go build ./...` 通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go vet ./...` 通过。
+  - 首次 `go clean -cache` 有一个缓存文件被短暂占用，等待 2 秒后重试成功；已删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。

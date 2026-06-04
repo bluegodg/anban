@@ -1,4 +1,5 @@
 import { ApiError, createAnbanClient } from './api/client.js';
+import { formatApiErrorNotice } from './api-error-notice.js';
 import { startMessageStatusPolling, stopMessageStatusPolling } from './message-status-polling.js';
 import { normalizeMessageDraft } from './message-input.js';
 import { upsertMessage, upsertMessageFromSendError } from './message-state.js';
@@ -524,8 +525,7 @@ function showNotice(text) {
 }
 
 function handleApiError(error, fallback) {
-  const detail = error instanceof ApiError && error.status ? `${fallback}（${error.status}）` : fallback;
-  showNotice(detail);
+  showNotice(formatApiErrorNotice(error, fallback));
 }
 
 boot();
