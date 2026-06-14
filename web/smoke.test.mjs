@@ -795,6 +795,24 @@ test('status detail surfaces latest message playback state', async () => {
   assert.equal(messageStatusLabel('pending'), '排队中');
 });
 
+test('status detail formats recent interaction as roadshow-friendly relative time', async () => {
+  const { formatRelativeInteractionTime, formatStatusDetail } = await import('./status-summary.js');
+  const now = new Date('2026-06-01T08:33:30.000Z');
+  const formatDateTime = () => '06/01 08:30';
+
+  assert.equal(formatRelativeInteractionTime('2026-06-01T08:33:10.000Z', { now, formatDateTime }), '刚刚');
+  assert.equal(formatRelativeInteractionTime('2026-06-01T08:30:00.000Z', { now, formatDateTime }), '3 分钟前');
+  assert.equal(formatRelativeInteractionTime('2026-06-01T06:30:00.000Z', { now, formatDateTime }), '2 小时前');
+  assert.equal(formatRelativeInteractionTime('2026-05-31T08:30:00.000Z', { now, formatDateTime }), '06/01 08:30');
+  assert.equal(
+    formatStatusDetail(
+      { lastInteractionAt: '2026-06-01T08:30:00.000Z' },
+      { formatInteractionTime: (value) => formatRelativeInteractionTime(value, { now, formatDateTime }) },
+    ),
+    '最近互动：3 分钟前',
+  );
+});
+
 test('status detail keeps fallback when there is no message summary', async () => {
   const { formatStatusDetail } = await import('./status-summary.js');
 
@@ -839,6 +857,16 @@ test('child web refreshes backend status before listing messages', async () => {
 
   assert.match(app, /client\(\)\.getStatus/);
   assert.match(app, /renderBackendStatus/);
+});
+
+test('child web renders backend interaction time through the relative formatter', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const startIndex = app.indexOf('function renderBackendStatus');
+  const endIndex = app.indexOf('\n}\n', startIndex);
+  const renderBackendStatus = app.slice(startIndex, endIndex);
+
+  assert.match(renderBackendStatus, /formatStatusDetail\(snapshot\)/);
+  assert.doesNotMatch(renderBackendStatus, /formatDateTime/);
 });
 
 test('child web status polling refreshes conversation history', async () => {

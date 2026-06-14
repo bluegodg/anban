@@ -4,6 +4,13 @@
 
 ## 2026-06-15
 
+### PRD #4 最近互动相对时间展示
+
+- 文件：`web/status-summary.js`、`web/app.js`、`web/smoke.test.mjs`
+- 内容：状态卡默认把最近互动时间展示为“刚刚 / N 分钟前 / N 小时前”，超过 24 小时回退为原日期时间；最新留言状态拼接和显式格式器兼容行为保持不变。
+- 目的：补齐 PRD #4 路演展示中的“最近互动：3 分钟前”，让子女端状态信息更易扫读，不改变后端接口或轮询频率。
+- 验证：TDD RED 阶段确认缺少相对时间函数且页面仍强制绝对日期；实现后 `npm test --prefix web` 通过，73 个 smoke tests 全绿；`server/` 下 `go build ./...`、`go vet ./...`、`go test ./...` 全部通过（含架构守护测试）；`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过；`git diff --check` 通过，仅有既有 Windows LF/CRLF 提示。
+
 ### PRD #6 语音确认轮询 RED 测试
 
 - 文件：`server/internal/domains/reminder/service_test.go`

@@ -433,7 +433,7 @@ function clearProfile() {
 
 function renderBackendStatus(snapshot) {
   const label = snapshot.online ? '在线' : '离线';
-  const detail = formatStatusDetail(snapshot, { formatDateTime });
+  const detail = formatStatusDetail(snapshot);
   renderStatus(label, detail);
 }
 

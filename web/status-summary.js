@@ -1,6 +1,11 @@
-export function formatStatusDetail(snapshot = {}, { formatDateTime = defaultFormatDateTime } = {}) {
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+export function formatStatusDetail(snapshot = {}, { formatInteractionTime, formatDateTime } = {}) {
   const at = snapshot.lastInteractionAt || snapshot.lastSeenAt;
-  const parts = [at ? `最近互动：${formatDateTime(at)}` : '暂无最近互动'];
+  const formatter = formatInteractionTime || formatDateTime || formatRelativeInteractionTime;
+  const parts = [at ? `最近互动：${formatter(at)}` : '暂无最近互动'];
   const latestMessage = Array.isArray(snapshot.messages) ? snapshot.messages[0] : null;
 
   if (latestMessage?.status) {
@@ -8,6 +13,18 @@ export function formatStatusDetail(snapshot = {}, { formatDateTime = defaultForm
   }
 
   return parts.join(' · ');
+}
+
+export function formatRelativeInteractionTime(
+  value,
+  { now = new Date(), formatDateTime = defaultFormatDateTime } = {},
+) {
+  const elapsedMs = Math.max(0, new Date(now).getTime() - new Date(value).getTime());
+
+  if (elapsedMs < MINUTE_MS) return '刚刚';
+  if (elapsedMs < HOUR_MS) return `${Math.floor(elapsedMs / MINUTE_MS)} 分钟前`;
+  if (elapsedMs < DAY_MS) return `${Math.floor(elapsedMs / HOUR_MS)} 小时前`;
+  return formatDateTime(value);
 }
 
 export function buildStatusSnapshotForDisplay(statusSnapshot, messages = []) {
