@@ -42,8 +42,8 @@ func main() {
 	if err := messageStore.AutoMigrate(); err != nil {
 		log.Fatalf("message 表迁移失败: %v", err)
 	}
-	messageService := message.NewService(messageStore, xc, sch)
-	messageService.UseProactiveVoiceGate(voiceGate)
+	// 留言是子女主动发的点对点消息，不走"主动语音10分钟配额"（配额只给问候/提醒/视觉等自主播报防聒噪），发了就直接播。
+	messageService := message.NewService(messageStore, xc)
 	messageHandler := message.NewHandler(messageService)
 
 	greetingStore := greeting.NewStore(st.DB)
