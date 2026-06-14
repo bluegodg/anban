@@ -133,7 +133,7 @@ func TestServiceMarksMessageFailedWhenInjectFails(t *testing.T) {
 	}
 }
 
-func TestServiceQueuesMessageWhenProactiveVoiceQuotaUsed(t *testing.T) {
+func TestServiceBypassesProactiveVoiceQuota(t *testing.T) {
 	fake := &xiaozhiclient.FakeClient{}
 	fakeSch := &fakeOneShotScheduler{}
 	svc := newTestServiceWithScheduler(t, fake, fakeSch)
@@ -145,30 +145,30 @@ func TestServiceQueuesMessageWhenProactiveVoiceQuotaUsed(t *testing.T) {
 		FromName: "小明",
 	})
 	if err != nil {
-		t.Fatalf("Send err = %v, want queued message without surfacing throttle", err)
+		t.Fatalf("Send err = %v, want child message to bypass proactive voice quota", err)
 	}
-	if msg.Status != StatusPending {
-		t.Fatalf("Status = %q, want %q", msg.Status, StatusPending)
+	if msg.Status != StatusPlayed {
+		t.Fatalf("Status = %q, want %q", msg.Status, StatusPlayed)
 	}
-	if msg.ErrorMessage == "" {
-		t.Fatal("ErrorMessage is empty")
+	if msg.ErrorMessage != "" {
+		t.Fatalf("ErrorMessage = %q, want empty", msg.ErrorMessage)
 	}
-	if len(fake.InjectCalls) != 0 {
-		t.Fatalf("InjectCalls = %d, want no xiaozhi injection while voice gate is throttled", len(fake.InjectCalls))
+	if len(fake.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want direct xiaozhi injection despite throttled proactive voice gate", len(fake.InjectCalls))
 	}
-	if len(fakeSch.jobs) != 1 {
-		t.Fatalf("one-shot jobs = %d, want 1 retry job", len(fakeSch.jobs))
+	if fake.InjectCalls[0].Text != "刚才小明发来留言：妈，我下班路过老张家了" {
+		t.Fatalf("inject text = %q", fake.InjectCalls[0].Text)
 	}
-	if want := svc.now().UTC().Add(messageRetryDelay); !fakeSch.jobs[0].at.Equal(want) {
-		t.Fatalf("retry scheduled at = %s, want %s", fakeSch.jobs[0].at, want)
+	if len(fakeSch.jobs) != 0 {
+		t.Fatalf("one-shot jobs = %d, want no proactive quota retry for child messages", len(fakeSch.jobs))
 	}
 
-	list, err := svc.List(context.Background(), ListFilter{Status: StatusPending})
+	list, err := svc.List(context.Background(), ListFilter{Status: StatusPlayed})
 	if err != nil {
-		t.Fatalf("List pending: %v", err)
+		t.Fatalf("List played: %v", err)
 	}
 	if len(list) != 1 || list[0].ID != msg.ID {
-		t.Fatalf("pending messages = %+v, want queued message %d", list, msg.ID)
+		t.Fatalf("played messages = %+v, want played message %d", list, msg.ID)
 	}
 }
 

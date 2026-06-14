@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #3 留言绕过主动语音配额 RED 测试
+
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：将 message 域的配额测试改为 `TestServiceBypassesProactiveVoiceQuota`，要求即使误给留言服务挂上主动语音 gate 且 gate 返回 throttled，子女留言也仍直接调用 `InjectSpeak` 播报，不进入主动语音重试队列。
+- 目的：落实真机交接“留言不走主动语音配额”的硬约束，防止未来把 `main.go` 已经绕开的 10 分钟主动配额重新接回留言链路，破坏已验证的子女留言 → 设备开口闭环。
+- 边界：仅锁住 message 域对主动语音配额的免疫；不改变问候/提醒/视觉共享配额，不改变留言长度、状态摘要或 `xiaozhiclient` 契约。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/message`，按预期失败于 `Status = "pending", want "played"`。
+
 ### PRD #2 问候触发 5 秒下发边界 RED 测试
 
 - 文件：`server/internal/domains/greeting/service_test.go`
