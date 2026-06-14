@@ -159,6 +159,15 @@ func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
 	}
 }
 
+func TestBuildPromptGuardsDeviceSettingsUnlessElderAsks(t *testing.T) {
+	prompt := BuildPrompt(Fields{Nickname: "妈"})
+
+	want := "非老人明确要求，不要更改设备设置/音量/屏幕主题/字体"
+	if !strings.Contains(prompt, want) {
+		t.Fatalf("prompt = %q, want device settings guard %q", prompt, want)
+	}
+}
+
 type profileClient struct {
 	xiaozhiclient.FakeClient
 	gotDeviceID string

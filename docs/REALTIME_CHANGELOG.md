@@ -4,6 +4,28 @@
 
 ## 2026-06-12
 
+### profile BuildPrompt 设备设置约束 RED 测试
+
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：新增 `TestBuildPromptGuardsDeviceSettingsUnlessElderAsks`，断言 `BuildPrompt` 包含“非老人明确要求，不要更改设备设置/音量/屏幕主题/字体”。
+- 目的：落实 2026-06-14 真机交接里的人设约束，防止豆包在老人未明确要求时主动调用固件自带的音量、屏幕主题、字体等设备设置工具。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/domains/profile`（`server/`，含 `GOPROXY=https://goproxy.cn,direct`、`GOSUMDB=off`、`CGO_ENABLED=0`），得到有效 RED：`TestBuildPromptGuardsDeviceSettingsUnlessElderAsks` 失败，当前 prompt 尚不包含设备设置保护语。
+
+### profile BuildPrompt 设备设置约束 GREEN 实现
+
+- 文件：`server/internal/domains/profile/service.go`
+- 内容：`BuildPrompt` 固定系统指令新增“非老人明确要求，不要更改设备设置/音量/屏幕主题/字体；日常陪伴中不要主动调用设备设置工具。”。
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：保留设备设置保护语断言，防止后续改 prompt 时回退。
+- 目的：抑制真机上豆包在老人未明确要求时主动调用 `self.audio_speaker.set_volume`、`self.screen.set_theme` 等固件工具，保护已通的原版小智/设备体验。
+- 功能影响：仅改变同步到 xiaozhi manager 的 profile role prompt；不改 manager OpenAPI 调用契约，不改留言/问候/提醒主动播报链路。
+- 验证：
+  - `go test ./internal/domains/profile`（`server/`，含 `GOPROXY=https://goproxy.cn,direct`、`GOSUMDB=off`、`CGO_ENABLED=0`）通过。
+  - 切片后 `go build ./... && go vet ./... && go test ./...`（`server/`，同上环境）通过，含 `internal/architecture` 守护测试。
+  - `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`（`server/`，同上 GOPROXY/GOSUMDB）通过。
+  - `npm test --prefix web` 通过，66 个 smoke tests 全绿。
+
 ### 子女端默认后端地址对齐本地 anban RED 测试
 
 - 文件：`web/smoke.test.mjs`
