@@ -780,6 +780,52 @@ test('child web shows backend conversation history on connect', async () => {
   assert.match(app, /function renderHistory/);
 });
 
+test('conversation history refresh preserves the last successful result on transient failure', async () => {
+  const { loadConversationHistory } = await import('./history-refresh.js');
+  const currentMessages = [{ role: 'user', text: '今天腰有点酸' }];
+
+  const result = await loadConversationHistory({
+    currentMessages,
+    fetchHistory: async () => {
+      throw new Error('manager temporarily unavailable');
+    },
+  });
+
+  assert.equal(result.loaded, false);
+  assert.deepEqual(result.messages, currentMessages);
+});
+
+test('conversation history initial load failure does not reuse another device history', async () => {
+  const { loadConversationHistory } = await import('./history-refresh.js');
+
+  const result = await loadConversationHistory({
+    currentMessages: [{ role: 'assistant', text: '上一台设备的对话' }],
+    preserveOnFailure: false,
+    fetchHistory: async () => {
+      throw new Error('history unavailable');
+    },
+  });
+
+  assert.equal(result.loaded, false);
+  assert.deepEqual(result.messages, []);
+});
+
+test('child web keeps optional history failures out of the core connection path', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const refreshMessages = app.slice(
+    app.indexOf('async function refreshMessages'),
+    app.indexOf('async function refreshBackendStatus'),
+  );
+  const refreshHistory = app.slice(
+    app.indexOf('async function refreshHistory'),
+    app.indexOf('async function refreshGreetingSchedule'),
+  );
+
+  assert.match(app, /loadConversationHistory/);
+  assert.match(refreshMessages, /refreshHistory\(\{ preserveOnFailure: false \}\)/);
+  assert.doesNotMatch(refreshHistory, /throw error/);
+});
+
 test('status detail surfaces latest message playback state', async () => {
   const { formatStatusDetail, messageStatusLabel } = await import('./status-summary.js');
 
