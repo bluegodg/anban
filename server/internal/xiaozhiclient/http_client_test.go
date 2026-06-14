@@ -444,13 +444,16 @@ func TestDecodeManagerAgentParsesNestedAgentPayload(t *testing.T) {
 func TestGetHistoryReadsManagerHistoryEndpoint(t *testing.T) {
 	firstAt := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
 	secondAt := time.Date(2026, 6, 1, 8, 30, 5, 0, time.UTC)
-	var gotPath, gotToken, gotDeviceID, gotLimit string
+	var gotPath, gotToken, gotDeviceID, gotPageSize string
+	var gotLegacyDeviceID, gotLegacyLimit string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotToken = r.Header.Get("X-API-Token")
-		gotDeviceID = r.URL.Query().Get("deviceId")
-		gotLimit = r.URL.Query().Get("limit")
+		gotDeviceID = r.URL.Query().Get("device_id")
+		gotPageSize = r.URL.Query().Get("page_size")
+		gotLegacyDeviceID = r.URL.Query().Get("deviceId")
+		gotLegacyLimit = r.URL.Query().Get("limit")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"success": true,
@@ -483,8 +486,11 @@ func TestGetHistoryReadsManagerHistoryEndpoint(t *testing.T) {
 	if gotToken != "tok_abc" {
 		t.Fatalf("X-API-Token = %q", gotToken)
 	}
-	if gotDeviceID != "dev-001" || gotLimit != "2" {
-		t.Fatalf("query deviceId=%q limit=%q, want dev-001/2", gotDeviceID, gotLimit)
+	if gotDeviceID != "dev-001" || gotPageSize != "2" {
+		t.Fatalf("query device_id=%q page_size=%q, want dev-001/2", gotDeviceID, gotPageSize)
+	}
+	if gotLegacyDeviceID != "" || gotLegacyLimit != "" {
+		t.Fatalf("legacy query deviceId=%q limit=%q, want both empty", gotLegacyDeviceID, gotLegacyLimit)
 	}
 	if len(history) != 2 {
 		t.Fatalf("history = %+v, want 2 messages", history)
