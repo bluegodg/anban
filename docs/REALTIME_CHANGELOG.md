@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 方案 C 仓库边界与部署入口
+
+- 文件：`docs/deployment/方案C仓库边界与部署总纲.md`、`README.md`、`docs/README.md`
+- 内容：新增一份面向当前阶段的方案 C 总纲，集中说明 `anban-code` 仓库定位、`xiaozhi-esp32-server-golang + anban` 两服务拓扑、设备到手后的 Gate A/B/C/D 部署顺序、服务器部署口径和真实设备联调坑位。
+- 目的：把“先跑原版小智，再接安伴增强”的可插拔边界写成入口文档，避免继续向大产品扩散或误把本仓当成 xiaozhi fork。
+- 边界：只补文档入口和 README 指针；不改代码、不改部署脚本、不写任何 token/key。
+- 验证：`git diff --check` 仅有既有 Windows 换行提示；`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译、`npm test --prefix web` 77/77 全部通过。
+
 ### PRD #4 对话记录缺失时间展示
 
 - 文件：`web/history-view.js`、`web/app.js`、`web/smoke.test.mjs`
