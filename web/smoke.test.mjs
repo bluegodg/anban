@@ -776,7 +776,7 @@ test('child web shows backend conversation history on connect', async () => {
   assert.match(html, /historyList/);
   assert.match(app, /history:/);
   assert.match(app, /client\(\)\.getHistory/);
-  assert.match(refreshBlock, /await refreshHistory\(\)/);
+  assert.match(refreshBlock, /await refreshHistory\(\{ preserveOnFailure: false \}\)/);
   assert.match(app, /function renderHistory/);
 });
 

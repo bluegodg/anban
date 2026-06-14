@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 对话历史读取失败降级
+
+- 文件：`web/history-refresh.js`、`web/app.js`、`web/smoke.test.mjs`
+- 内容：新增可测试的对话历史加载器；初次连接或切换连接时若历史读取失败，清空旧设备历史但继续加载状态/留言等核心数据；后续状态轮询中历史读取短暂失败时，保留最后一次成功记录。
+- 目的：完整对话记录是开发期附加能力，不应因 manager history 暂时不可用而阻断子女端 Gate C 主链路，也不应让路演页面上已展示的对话突然消失。
+- 边界：不缓存或复制 manager 历史到 anban DB；成功读取时仍以 manager 为真相源，失败仅保留当前浏览器内已有展示数据。
+- 验证：切片前服务端 build/vet/test、Linux 交叉编译与 73 个 Web smoke tests 全绿；RED 阶段新增 3 个测试按预期失败，原因是历史加载器不存在且 `refreshHistory` 仍会抛错；实现后 `npm test --prefix web` 76/76 通过；`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过（含架构守护测试），Linux 交叉编译通过。
+
 ### PRD #4 对话记录内容边界
 
 - 文件：`server/internal/domains/status/service.go`、`server/internal/domains/status/service_test.go`

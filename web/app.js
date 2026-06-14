@@ -10,6 +10,7 @@ import { startReminderStatusPolling, stopReminderStatusPolling } from './reminde
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 import { buildStatusSnapshotForDisplay, formatStatusDetail, messageStatusLabel } from './status-summary.js';
 import { formatGreetingTriggerResult } from './greeting-result.js';
+import { loadConversationHistory } from './history-refresh.js';
 import { formatVisionPresenceResult } from './vision-presence-result.js';
 
 const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
@@ -280,7 +281,7 @@ async function refreshMessages() {
   try {
     const snapshot = await client().getStatus({ deviceId: state.deviceId });
     updateStatusSnapshot(snapshot);
-    await refreshHistory();
+    await refreshHistory({ preserveOnFailure: false });
 
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
@@ -386,19 +387,15 @@ async function refreshReminders() {
   }
 }
 
-async function refreshHistory() {
-  try {
-    const payload = await client().getHistory({ deviceId: state.deviceId, limit: 50 });
-    state.history = payload.messages || [];
-    renderHistory();
-  } catch (error) {
-    if (error instanceof ApiError && (error.status === 501 || error.status === 502)) {
-      state.history = [];
-      renderHistory();
-      return;
-    }
-    throw error;
-  }
+async function refreshHistory({ preserveOnFailure = true } = {}) {
+  const result = await loadConversationHistory({
+    currentMessages: state.history,
+    preserveOnFailure,
+    fetchHistory: () => client().getHistory({ deviceId: state.deviceId, limit: 50 }),
+  });
+  state.history = result.messages;
+  renderHistory();
+  return result.loaded;
 }
 
 async function refreshGreetingSchedule() {
