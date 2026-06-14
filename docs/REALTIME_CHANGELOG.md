@@ -2,6 +2,39 @@
 
 > 目的：记录本轮代码编写中每一批改动的文件、内容、目的、功能和验证方式。后续每次代码改动都要同步更新本文件。
 
+## 2026-06-15
+
+### PRD #6 语音确认轮询 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增语音确认历史轮询测试，要求提醒播报后同时保留 30 分钟超时任务和 10 秒历史轮询任务；历史中播报后的老人“好的”应自动完成提醒，旧确认词和“我不好”不得误判，无命中时继续轮询，重启恢复 `played` 提醒时也恢复轮询。
+- 内容：新增确认词表测试，覆盖 PRD 明确的“好 / 知道了 / 收到”及常见“好的”，并拒绝“不好 / 我不知道 / 没收到”等反例。
+- 目的：补齐 PRD #6 “老人语音回复后状态自动转已完成”的关键闭环，同时遵守方案 C 单向数据纪律，以 anban 主动轮询现有 `xiaozhiclient.GetHistory` 实现，不要求 xiaozhi 推送事件。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/domains/reminder`，得到有效编译期 RED：缺少 `voiceAckPollInterval`、`voiceAckHistoryLimit` 及对应轮询行为。
+
+### PRD #6 语音确认轮询 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：提醒成功播报后每 10 秒经 `xiaozhiclient.GetHistory(deviceID, 20)` 只读轮询对话历史；发现播报时间之后的老人确认短句时，复用现有 `acknowledge` 状态机转为 `completed/voice` 并取消 30 分钟超时任务。
+- 内容：确认词按去空白/标点后的短语白名单识别，支持“好、好的、知道了、收到”等，避免把“不好、没收到”等否定表达误判；历史读取失败或未命中时继续轮询，达到 30 分钟仍由既有超时任务转 `unanswered`。
+- 内容：`RestoreScheduled` 恢复尚未超时的 `played` 提醒时，除恢复超时任务外立即执行一次语音确认轮询，避免临近 30 分钟超时时先被标记未应答；轮询任务不新增 DB 字段，`AckJobID` 继续只保存可取消的超时任务。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：保留自动完成、反例防误判、继续轮询、确认词表、重启恢复及原有手动确认/超时回归测试。
+- 目的：让路演中“提醒播报 → 老人说好的 → 子女端状态变已完成”具备真实后端闭环，不改 xiaozhi 上游、不复制 manager 历史、不新增跨域依赖。
+- 功能影响：仅为 `played` 提醒增加 manager 历史只读轮询；不改变留言配额、主动语音 gate、提醒下发参数、childapi 契约或 Web 轮询周期。
+- 验证：
+  - 切片前 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片前 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片前 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
+  - RED 后 `go test ./internal/domains/reminder` 得到有效编译失败：缺少语音确认轮询常量与行为。
+  - GREEN 与 `gofmt` 后 `go test ./internal/domains/reminder` 通过，RED 用例已转绿。
+  - 恢复边界 RED：`TestServiceRestoreScheduledRehydratesPlayedAckTimeouts` 显示轮询被排到启动后 10 秒；改为启动时立即轮询后该用例转绿。
+  - 切片后 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，含 `internal/architecture` 守护测试。
+  - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片后 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
 ## 2026-06-14
 
 ### PRD #4 对话记录后端 RED 测试

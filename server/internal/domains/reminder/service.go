@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -12,11 +13,31 @@ import (
 )
 
 const (
-	defaultAckTimeout    = 30 * time.Minute
-	proactiveRetryDelay  = time.Minute
-	minReminderTextRunes = 30
-	maxReminderTextRunes = 60
+	defaultAckTimeout     = 30 * time.Minute
+	proactiveRetryDelay   = time.Minute
+	voiceAckPollInterval  = 10 * time.Second
+	voiceAckHistoryLimit  = 20
+	voiceAckTimestampSkew = 2 * time.Second
+	minReminderTextRunes  = 30
+	maxReminderTextRunes  = 60
 )
+
+var voiceAcknowledgementPhrases = map[string]struct{}{
+	"好":    {},
+	"好的":   {},
+	"好啊":   {},
+	"好呀":   {},
+	"好嘞":   {},
+	"嗯好":   {},
+	"嗯好的":  {},
+	"嗯嗯好":  {},
+	"知道了":  {},
+	"知道啦":  {},
+	"我知道了": {},
+	"收到":   {},
+	"收到了":  {},
+	"我收到了": {},
+}
 
 type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
@@ -171,6 +192,7 @@ func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 		if err := s.store.Update(ctx, &rem); err != nil {
 			return restored, err
 		}
+		s.scheduleVoiceAckPoll(rem.ID, s.now().UTC())
 		restored++
 	}
 	return restored, nil
@@ -229,7 +251,10 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 		return
 	}
 	rem.AckJobID = string(jobID)
-	_ = s.store.Update(ctx, rem)
+	if err := s.store.Update(ctx, rem); err != nil {
+		return
+	}
+	s.scheduleVoiceAckPoll(rem.ID, playedAt.Add(voiceAckPollInterval))
 }
 
 func (s *Service) requeueProactiveVoice(ctx context.Context, rem *Reminder, at time.Time, cause error) {
@@ -274,6 +299,62 @@ func proactiveSpeakOptions() xiaozhiclient.InjectOptions {
 
 func (s *Service) markUnanswered(id uint) {
 	_, _ = s.acknowledge(context.Background(), id, AckKindTimeout, false)
+}
+
+func (s *Service) scheduleVoiceAckPoll(id uint, at time.Time) {
+	if s.sch == nil {
+		return
+	}
+	_, _ = s.sch.ScheduleAt(at, func() {
+		s.pollVoiceAck(id)
+	})
+}
+
+func (s *Service) pollVoiceAck(id uint) {
+	ctx := context.Background()
+	rem, err := s.store.Get(ctx, id)
+	if err != nil || rem.Status != StatusPlayed || rem.PlayedAt == nil {
+		return
+	}
+
+	history, historyErr := s.xc.GetHistory(ctx, rem.DeviceID, voiceAckHistoryLimit)
+	if historyErr == nil && historyContainsVoiceAcknowledgement(history, rem.PlayedAt.UTC()) {
+		if _, err := s.acknowledge(ctx, rem.ID, AckKindVoice, true); err == nil {
+			return
+		}
+	}
+
+	nextPollAt := s.now().UTC().Add(voiceAckPollInterval)
+	if nextPollAt.Before(rem.PlayedAt.UTC().Add(defaultAckTimeout)) {
+		s.scheduleVoiceAckPoll(rem.ID, nextPollAt)
+	}
+}
+
+func historyContainsVoiceAcknowledgement(history []xiaozhiclient.HistoryMessage, playedAt time.Time) bool {
+	cutoff := playedAt.UTC().Add(-voiceAckTimestampSkew)
+	for _, message := range history {
+		if !strings.EqualFold(strings.TrimSpace(message.Role), "user") || message.At.IsZero() {
+			continue
+		}
+		if message.At.UTC().Before(cutoff) {
+			continue
+		}
+		if isVoiceAcknowledgement(message.Text) {
+			return true
+		}
+	}
+	return false
+}
+
+func isVoiceAcknowledgement(text string) bool {
+	normalized := strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || unicode.IsPunct(r) {
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(text))
+	_, ok := voiceAcknowledgementPhrases[normalized]
+	return ok
 }
 
 func (s *Service) acknowledge(ctx context.Context, id uint, kind AckKind, cancelJob bool) (Reminder, error) {

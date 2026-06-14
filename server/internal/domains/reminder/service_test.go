@@ -313,7 +313,7 @@ func TestServiceRestoreScheduledRehydratesPlayedAckTimeouts(t *testing.T) {
 	fakeSch := &fakeScheduler{}
 	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
 	ctx := context.Background()
-	playedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
+	playedAt := svc.now().UTC().Add(-5 * time.Minute)
 
 	played := Reminder{
 		DeviceID:    "dev-001",
@@ -336,11 +336,14 @@ func TestServiceRestoreScheduledRehydratesPlayedAckTimeouts(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("restored count = %d, want 1 played ack timeout", count)
 	}
-	if len(fakeSch.jobs) != 1 {
-		t.Fatalf("scheduled jobs = %d, want 1 ack timeout", len(fakeSch.jobs))
+	if len(fakeSch.jobs) != 2 {
+		t.Fatalf("scheduled jobs = %d, want ack timeout plus voice ack poll", len(fakeSch.jobs))
 	}
 	if want := playedAt.Add(defaultAckTimeout); !fakeSch.jobs[0].at.Equal(want) {
 		t.Fatalf("ack timeout at = %s, want %s", fakeSch.jobs[0].at, want)
+	}
+	if want := svc.now().UTC(); !fakeSch.jobs[1].at.Equal(want) {
+		t.Fatalf("voice ack poll at = %s, want %s", fakeSch.jobs[1].at, want)
 	}
 
 	list, err := svc.List(ctx, ListFilter{Status: StatusPlayed})
@@ -471,12 +474,15 @@ func TestServiceMarksReminderUnansweredAfterAckTimeout(t *testing.T) {
 	if played.AckJobID != "job-2" {
 		t.Fatalf("AckJobID = %q, want job-2", played.AckJobID)
 	}
-	if len(fakeSch.jobs) != 2 {
-		t.Fatalf("scheduled jobs = %d, want reminder + ack timeout", len(fakeSch.jobs))
+	if len(fakeSch.jobs) != 3 {
+		t.Fatalf("scheduled jobs = %d, want reminder + ack timeout + voice ack poll", len(fakeSch.jobs))
 	}
 	wantTimeoutAt := svc.now().UTC().Add(30 * time.Minute)
 	if !fakeSch.jobs[1].at.Equal(wantTimeoutAt) {
 		t.Fatalf("ack timeout at = %s, want %s", fakeSch.jobs[1].at, wantTimeoutAt)
+	}
+	if want := svc.now().UTC().Add(voiceAckPollInterval); !fakeSch.jobs[2].at.Equal(want) {
+		t.Fatalf("voice ack poll at = %s, want %s", fakeSch.jobs[2].at, want)
 	}
 
 	fakeSch.fire(1)
@@ -538,6 +544,114 @@ func TestServiceAcknowledgePlayedReminderCompletesAndCancelsTimeout(t *testing.T
 	}
 }
 
+func TestServiceCompletesReminderFromVoiceAcknowledgementHistory(t *testing.T) {
+	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	xc := &historyClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, xc, fakeSch)
+	svc.now = func() time.Time { return now }
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: now.Add(time.Minute),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	fakeSch.fire(0)
+
+	if len(fakeSch.jobs) != 3 {
+		t.Fatalf("scheduled jobs = %d, want reminder + ack timeout + voice ack poll", len(fakeSch.jobs))
+	}
+	if want := now.Add(voiceAckPollInterval); !fakeSch.jobs[2].at.Equal(want) {
+		t.Fatalf("voice ack poll at = %s, want %s", fakeSch.jobs[2].at, want)
+	}
+
+	xc.history = []xiaozhiclient.HistoryMessage{
+		{Role: "assistant", Text: "您该测血压啦", At: now},
+		{Role: "user", Text: "好的", At: now.Add(5 * time.Second)},
+	}
+	now = now.Add(voiceAckPollInterval)
+	fakeSch.fire(2)
+
+	completed, err := svc.store.Get(ctx, got.ID)
+	if err != nil {
+		t.Fatalf("Get completed: %v", err)
+	}
+	if completed.Status != StatusCompleted || completed.AckKind != AckKindVoice {
+		t.Fatalf("completed reminder = %+v, want voice-completed", completed)
+	}
+	if completed.AcknowledgedAt == nil || !completed.AcknowledgedAt.Equal(now) {
+		t.Fatalf("AcknowledgedAt = %v, want %s", completed.AcknowledgedAt, now)
+	}
+	if xc.gotDeviceID != "dev-001" || xc.gotLimit != voiceAckHistoryLimit {
+		t.Fatalf("GetHistory device=%q limit=%d, want dev-001 limit=%d", xc.gotDeviceID, xc.gotLimit, voiceAckHistoryLimit)
+	}
+	if len(fakeSch.canceled) != 1 || fakeSch.canceled[0] != "job-2" {
+		t.Fatalf("canceled jobs = %+v, want ack timeout job-2", fakeSch.canceled)
+	}
+}
+
+func TestServiceIgnoresOldOrNegativeVoiceHistoryAndKeepsPolling(t *testing.T) {
+	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	xc := &historyClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, xc, fakeSch)
+	svc.now = func() time.Time { return now }
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: now.Add(time.Minute),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	fakeSch.fire(0)
+	if len(fakeSch.jobs) != 3 {
+		t.Fatalf("scheduled jobs = %d, want reminder + ack timeout + voice ack poll", len(fakeSch.jobs))
+	}
+
+	xc.history = []xiaozhiclient.HistoryMessage{
+		{Role: "user", Text: "好的", At: now.Add(-time.Minute)},
+		{Role: "user", Text: "我不好", At: now.Add(5 * time.Second)},
+	}
+	now = now.Add(voiceAckPollInterval)
+	fakeSch.fire(2)
+
+	played, err := svc.store.Get(ctx, got.ID)
+	if err != nil {
+		t.Fatalf("Get played: %v", err)
+	}
+	if played.Status != StatusPlayed {
+		t.Fatalf("Status = %q, want %q", played.Status, StatusPlayed)
+	}
+	if len(fakeSch.jobs) != 4 {
+		t.Fatalf("scheduled jobs = %d, want next voice ack poll", len(fakeSch.jobs))
+	}
+	if want := now.Add(voiceAckPollInterval); !fakeSch.jobs[3].at.Equal(want) {
+		t.Fatalf("next voice ack poll at = %s, want %s", fakeSch.jobs[3].at, want)
+	}
+}
+
+func TestVoiceAcknowledgementPhraseRecognition(t *testing.T) {
+	for _, text := range []string{"好", "好的", "知道了", "收到", "嗯，好的！"} {
+		if !isVoiceAcknowledgement(text) {
+			t.Fatalf("isVoiceAcknowledgement(%q) = false, want true", text)
+		}
+	}
+	for _, text := range []string{"不好", "我不知道", "没收到", "好像还没完成"} {
+		if isVoiceAcknowledgement(text) {
+			t.Fatalf("isVoiceAcknowledgement(%q) = true, want false", text)
+		}
+	}
+}
+
 type fakeScheduler struct {
 	jobs     []fakeJob
 	canceled []scheduler.JobID
@@ -559,6 +673,20 @@ func (f *fakeScheduler) Cancel(id scheduler.JobID) {
 
 func (f *fakeScheduler) fire(i int) {
 	f.jobs[i].fn()
+}
+
+type historyClient struct {
+	xiaozhiclient.FakeClient
+	history     []xiaozhiclient.HistoryMessage
+	err         error
+	gotDeviceID string
+	gotLimit    int
+}
+
+func (c *historyClient) GetHistory(_ context.Context, deviceID string, limit int) ([]xiaozhiclient.HistoryMessage, error) {
+	c.gotDeviceID = deviceID
+	c.gotLimit = limit
+	return c.history, c.err
 }
 
 type failingClient struct {
