@@ -829,6 +829,17 @@ test('child web refreshes backend status before listing messages', async () => {
   assert.match(app, /renderBackendStatus/);
 });
 
+test('child web status polling refreshes conversation history', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const statusRefresh = app.slice(
+    app.indexOf('async function refreshBackendStatus'),
+    app.indexOf('function restartStatusPolling'),
+  );
+
+  assert.match(statusRefresh, /const snapshot = await client\(\)\.getStatus\(\{ deviceId: state\.deviceId \}\);/);
+  assert.match(statusRefresh, /updateStatusSnapshot\(snapshot\);[\s\S]*await refreshHistory\(\);/);
+});
+
 test('status polling schedules backend refresh every 30 seconds', async () => {
   const { STATUS_REFRESH_INTERVAL_MS, startStatusPolling, stopStatusPolling } = await import('./status-polling.js');
   let scheduledDelay;

@@ -82,6 +82,28 @@
   - 切片后 `npm test --prefix web` 通过，69 个 smoke tests 全绿。
   - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
 
+### 对话记录随状态轮询刷新 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web status polling refreshes conversation history`，要求 `refreshBackendStatus()` 成功刷新设备状态后也调用 `refreshHistory()`。
+- 目的：补齐 PRD #4 “设备状态/最近互动/开发期对话记录”在子女端持续可见的细节，避免对话记录只在连接时拉取一次，老人后续对话需要重新连接才显示。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：70 个 smoke tests 中新增用例失败，失败点显示 `refreshBackendStatus()` 只调用 `updateStatusSnapshot(snapshot)`，未调用 `refreshHistory()`。
+
+### 对话记录随状态轮询刷新 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：`refreshBackendStatus()` 在成功刷新设备状态后调用 `await refreshHistory()`，让 30 秒状态轮询同时更新开发期对话记录。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留状态轮询刷新对话记录的 smoke 守护测试。
+- 目的：让子女端打开后能持续看到新的老人 ↔ 设备对话记录，支撑 PRD #4 的“最近互动/对话记录”安心感。
+- 功能影响：仅新增只读 history 刷新；不改变留言、问候、提醒、画像、视觉或 xiaozhi manager 客户端契约。
+- 验证：
+  - 切片后 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片后 `npm test --prefix web` 通过，70 个 smoke tests 全绿。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
 ### 真机后阶段对齐文档
 
 - 文件：`docs/plans/2026-06-14-真机后阶段对齐与方案C部署说明.md`

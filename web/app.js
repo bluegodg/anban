@@ -305,6 +305,7 @@ async function refreshBackendStatus() {
   try {
     const snapshot = await client().getStatus({ deviceId: state.deviceId });
     updateStatusSnapshot(snapshot);
+    await refreshHistory();
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
       return;
