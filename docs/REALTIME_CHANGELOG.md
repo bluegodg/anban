@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #3 留言下发 60 秒边界 RED 测试
+
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：新增 `TestServiceSendBoundsInjectForPRDDeliveryWindow`，要求 message 域调用 `InjectSpeak` 时 context 带有不超过 60 秒的 deadline。
+- 目的：对齐 PRD #3 “子女端发送到设备播报完毕端到端 ≤ 60 秒”，在服务层锁住留言下发调用的最长等待窗口，同时保留留言点对点必达、不走主动语音配额的硬约束。
+- 边界：仅约束 message 下发调用耗时；不改变留言状态机、AutoListen、长度截断、失败落库、问候/提醒/视觉主动配额或 `xiaozhiclient` 契约。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/message`，按预期失败于 `InjectSpeak context has no deadline`。
+
 ### PRD #3 留言绕过主动语音配额 RED 测试
 
 - 文件：`server/internal/domains/message/service_test.go`

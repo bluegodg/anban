@@ -87,6 +87,25 @@ func TestServiceSendMessageInjectsAndPersistsPlayed(t *testing.T) {
 	}
 }
 
+func TestServiceSendBoundsInjectForPRDDeliveryWindow(t *testing.T) {
+	xc := &deadlineMessageClient{}
+	svc := newTestService(t, xc)
+
+	if _, err := svc.Send(context.Background(), SendRequest{
+		DeviceID: "dev-001",
+		Text:     "妈，我下班路过老张家了",
+		FromName: "小明",
+	}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if !xc.gotDeadline {
+		t.Fatal("InjectSpeak context has no deadline; PRD #3 requires child message delivery within 60s")
+	}
+	if remaining := time.Until(xc.deadline); remaining <= 0 || remaining > 60*time.Second {
+		t.Fatalf("InjectSpeak deadline remaining = %s, want within 60s", remaining)
+	}
+}
+
 func TestServiceSendMessageValidatesAndTruncatesText(t *testing.T) {
 	svc := newTestService(t, &xiaozhiclient.FakeClient{})
 
@@ -289,6 +308,17 @@ func (c *recoveringClient) InjectSpeak(ctx context.Context, deviceID, text strin
 		return err
 	}
 	c.successfulCalls = append(c.successfulCalls, xiaozhiclient.InjectCall{DeviceID: deviceID, Text: text, Opts: opts})
+	return nil
+}
+
+type deadlineMessageClient struct {
+	xiaozhiclient.FakeClient
+	gotDeadline bool
+	deadline    time.Time
+}
+
+func (c *deadlineMessageClient) InjectSpeak(ctx context.Context, deviceID, text string, opts xiaozhiclient.InjectOptions) error {
+	c.deadline, c.gotDeadline = ctx.Deadline()
 	return nil
 }
 
