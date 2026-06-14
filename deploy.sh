@@ -15,8 +15,8 @@ echo "[1/3] 交叉编译 linux/amd64 ..."
      GOCACHE="$REPO/.gocache-go" GOTMPDIR="$REPO/.gotmp-go" \
      go build -trimpath -o "$OUT" ./cmd/anban )
 
-echo "[2/3] 上传二进制 -> $SERVER ..."
-scp -o StrictHostKeyChecking=accept-new "$OUT" "$SERVER:/home/ubuntu/anban/anban"
+echo "[2/3] 上传二进制 -> $SERVER（临时名 anban.new，避免覆盖运行中的文件）..."
+scp -o StrictHostKeyChecking=accept-new "$OUT" "$SERVER:/home/ubuntu/anban/anban.new"
 
 echo "[3/3] 重启 anban（服务器执行 ~/anban/start.sh）..."
 ssh -o StrictHostKeyChecking=accept-new "$SERVER" 'bash ~/anban/start.sh'
