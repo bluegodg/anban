@@ -90,6 +90,22 @@ func TestServiceTriggerInjectsGreetingAndPersistsPlayed(t *testing.T) {
 	}
 }
 
+func TestServiceTriggerBoundsInjectForPRDClickLatency(t *testing.T) {
+	xc := &deadlineGreetingClient{}
+	svc := newTestService(t, xc)
+
+	if _, err := svc.Trigger(context.Background(), TriggerRequest{DeviceID: "dev-001", TonePreset: ToneWarm}); err != nil {
+		t.Fatalf("Trigger: %v", err)
+	}
+	if !xc.gotDeadline {
+		t.Fatal("InjectSpeak context has no deadline; PRD #2 requires child click to device speech <= 5s")
+	}
+	remaining := time.Until(xc.deadline)
+	if remaining <= 0 || remaining > 5*time.Second {
+		t.Fatalf("InjectSpeak deadline remaining = %s, want within 5s", remaining)
+	}
+}
+
 func TestServiceTriggerWarmGreetingIsTimeOfDayAware(t *testing.T) {
 	fake := &xiaozhiclient.FakeClient{}
 	svc := newTestService(t, fake)
@@ -441,4 +457,15 @@ type throttledVoiceGate struct{}
 
 func (throttledVoiceGate) TryAcquireProactiveVoice(context.Context, string, time.Time) (sharedtypes.ProactiveVoiceLease, error) {
 	return nil, sharedtypes.ErrProactiveVoiceThrottled
+}
+
+type deadlineGreetingClient struct {
+	xiaozhiclient.FakeClient
+	gotDeadline bool
+	deadline    time.Time
+}
+
+func (c *deadlineGreetingClient) InjectSpeak(ctx context.Context, deviceID, text string, opts xiaozhiclient.InjectOptions) error {
+	c.deadline, c.gotDeadline = ctx.Deadline()
+	return c.FakeClient.InjectSpeak(ctx, deviceID, text, opts)
 }

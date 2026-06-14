@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #2 问候触发 5 秒下发边界 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增 `TestServiceTriggerBoundsInjectForPRDClickLatency`，要求子女端触发问候时，greeting 域调用 `InjectSpeak` 的 context 带有不超过 5 秒的 deadline。
+- 目的：对齐 PRD #2 “子女端点击按钮到设备开口播报 ≤ 5 秒”，避免 manager/OpenAPI 慢请求把问候按钮长时间拖住。
+- 边界：仅约束问候下发调用；不改变问候文案、主动语音配额、留言必达链路或 xiaozhi manager 契约。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/greeting`，按预期失败于 `InjectSpeak context has no deadline`。
+
 ### PRD #7 视觉 MCP 调用 8 秒边界 RED 测试
 
 - 文件：`server/internal/domains/vision/service_test.go`
