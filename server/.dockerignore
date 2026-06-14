@@ -1,0 +1,8 @@
+.gotmp-go/
+.gocache-go/
+tmp/
+*.db
+*.db-*
+anban.db
+coverage.out
+*.test

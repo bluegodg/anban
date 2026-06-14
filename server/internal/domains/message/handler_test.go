@@ -51,6 +51,37 @@ func TestHandlerCreateAndListMessages(t *testing.T) {
 	}
 }
 
+func TestHandlerListMessagesTrimsDeviceIDQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestService(t, &xiaozhiclient.FakeClient{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/messages", strings.NewReader(`{"deviceId":"dev-001","text":"晚饭吃了吗"}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("POST status = %d, want 201; body=%s", w.Code, w.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/messages?deviceId=%20dev-001%20", nil)
+	listW := httptest.NewRecorder()
+	r.ServeHTTP(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, want 200; body=%s", listW.Code, listW.Body.String())
+	}
+
+	var payload struct {
+		Messages []Message `json:"messages"`
+	}
+	if err := json.Unmarshal(listW.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal list: %v", err)
+	}
+	if len(payload.Messages) != 1 {
+		t.Fatalf("messages = %+v, want query deviceId to be trimmed", payload.Messages)
+	}
+}
+
 func TestHandlerCreateRejectsBadRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := newTestService(t, &xiaozhiclient.FakeClient{})
@@ -91,5 +122,23 @@ func TestHandlerCreateReturnsBadGatewayWhenInjectFails(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `"status":"failed"`) {
 		t.Fatalf("body = %s, want failed message payload", w.Body.String())
+	}
+}
+
+func TestHandlerCreateReturnsAcceptedWhenMessageIsQueued(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newTestServiceWithScheduler(t, &xiaozhiclient.FakeClient{}, &fakeOneShotScheduler{})
+	svc.UseProactiveVoiceGate(throttledVoiceGate{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/messages", strings.NewReader(`{"deviceId":"dev-001","text":"今晚记得吃饭"}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"status":"pending"`) {
+		t.Fatalf("body = %s, want pending message payload", w.Body.String())
 	}
 }

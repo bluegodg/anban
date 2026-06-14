@@ -22,7 +22,7 @@ type HTTPClient struct {
 
 func NewHTTPClient(baseURL, token string) *HTTPClient {
 	return &HTTPClient{
-		baseURL: baseURL,
+		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
 		hc:      &http.Client{Timeout: 10 * time.Second},
 	}
@@ -76,6 +76,15 @@ func (c *HTTPClient) InjectSpeak(ctx context.Context, deviceID, text string, opt
 		return err
 	}
 	_, err = c.do(ctx, http.MethodPost, "/api/open/v1/devices/inject-message", body)
+	return err
+}
+
+func (c *HTTPClient) CheckManagerAccess(ctx context.Context) error {
+	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices", nil)
+	if err != nil {
+		return err
+	}
+	_, err = decodeManagerDevices(body)
 	return err
 }
 
@@ -232,6 +241,10 @@ func (d managerDevicePayload) toDeviceStatus(fallbackDeviceID string) (DeviceSta
 
 func decodeManagerDevices(body []byte) ([]managerDevicePayload, error) {
 	raw := unwrapData(body)
+	// 设备表为空时 manager 会返回 null / {"data":null} / {"data":[]}，统一当作空列表，而非报错。
+	if isJSONNullOrEmpty(raw) {
+		return nil, nil
+	}
 	if devices, err := unmarshalManagerDeviceArray(raw); err == nil {
 		return devices, nil
 	}
@@ -240,10 +253,16 @@ func decodeManagerDevices(body []byte) ([]managerDevicePayload, error) {
 	if err := json.Unmarshal(raw, &object); err != nil {
 		return nil, err
 	}
+	if dataField, ok := object["data"]; ok && isJSONNullOrEmpty(dataField) {
+		return nil, nil
+	}
 	for _, key := range []string{"devices", "items", "list", "records", "rows"} {
 		nested, ok := object[key]
-		if !ok || len(nested) == 0 || string(nested) == "null" {
+		if !ok || len(nested) == 0 {
 			continue
+		}
+		if isJSONNullOrEmpty(nested) {
+			return nil, nil
 		}
 		if devices, err := unmarshalManagerDeviceArray(nested); err == nil {
 			return devices, nil
@@ -258,6 +277,12 @@ func unmarshalManagerDeviceArray(raw json.RawMessage) ([]managerDevicePayload, e
 		return nil, err
 	}
 	return devices, nil
+}
+
+// isJSONNullOrEmpty 判断一段原始 JSON 是否为空或显式 null。
+func isJSONNullOrEmpty(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s == "" || s == "null"
 }
 
 func decodeManagerAgent(body []byte) (map[string]any, error) {
@@ -302,6 +327,7 @@ func rawJSONIDString(raw json.RawMessage) string {
 }
 
 func parseOptionalTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
 	if value == "" {
 		return time.Time{}, nil
 	}
@@ -342,13 +368,25 @@ func decodeHistoryMessages(body []byte) ([]HistoryMessage, error) {
 			return nil, err
 		}
 	} else {
-		var list struct {
-			Messages []historyMessagePayload `json:"messages"`
-		}
-		if err := json.Unmarshal(raw, &list); err != nil {
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &object); err != nil {
 			return nil, err
 		}
-		payloads = list.Messages
+		foundList := false
+		for _, key := range []string{"messages", "items", "list", "records", "rows"} {
+			nested, ok := object[key]
+			if !ok || len(nested) == 0 || string(nested) == "null" {
+				continue
+			}
+			foundList = true
+			if err := json.Unmarshal(nested, &payloads); err != nil {
+				return nil, err
+			}
+			break
+		}
+		if !foundList {
+			return nil, fmt.Errorf("xiaozhi manager history response does not contain a message list")
+		}
 	}
 
 	messages := make([]HistoryMessage, 0, len(payloads))

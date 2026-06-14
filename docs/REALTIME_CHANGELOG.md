@@ -2,6 +2,1592 @@
 
 > 目的：记录本轮代码编写中每一批改动的文件、内容、目的、功能和验证方式。后续每次代码改动都要同步更新本文件。
 
+## 2026-06-12
+
+### 子女端默认后端地址对齐本地 anban RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web defaults backend address to local anban server for Gate C`，要求 `state.apiBaseURL` 在没有 localStorage 覆盖时默认使用 `http://localhost:8090`。
+- 目的：对齐首日执行单和 Gate C 静态部署方式，减少子女端首次打开后还需要手填后端地址的联调摩擦。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test`（`web/`），得到有效 RED：66 个 smoke tests 中 1 个失败，失败点显示 `apiBaseURL` 仍为 `localStorage.getItem('anban.apiBaseURL') || ''`。
+
+### 子女端默认后端地址对齐本地 anban GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：`state.apiBaseURL` 在 localStorage 没有保存值时默认填入 `http://localhost:8090`。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留默认后端地址测试，确保首屏连接表单和首日 Gate C 部署说明一致。
+- 目的：让子女端首次打开时直接指向本地 anban 后端默认端口，降低设备到手联调的手工配置成本。
+- 功能影响：仅调整子女端默认表单值；用户已有 localStorage 配置优先，不改变 API client、后端或 xiaozhi 原版链路。
+- 验证：
+  - `npm test`（`web/`）通过，66 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，66 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端后端地址占位提示对齐必填行为 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web backend address placeholder matches required static deployment`，要求 `apiBaseURL` 输入框占位提示为 `http://localhost:8090`，且页面不再出现“同源留空”。
+- 目的：上一个切片已经让后端地址成为 Gate C 静态联调必填项；这里防止 UI 继续提示“可留空”，避免设备到手现场误配置。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test`（`web/`），得到有效 RED：65 个 smoke tests 中 1 个失败，失败点显示 `index.html` 仍包含 `placeholder="同源留空"`，不符合后端地址必填行为。
+
+### 子女端后端地址占位提示对齐必填行为 GREEN 实现
+
+- 文件：`web/index.html`
+- 内容：将后端地址输入框占位提示从“同源留空”改为 `http://localhost:8090`。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留占位提示测试，确保页面提示和 Gate C 静态部署步骤一致。
+- 目的：让子女端首屏直接给出本地 anban 后端默认地址，减少设备到手现场联调时的错误输入。
+- 功能影响：仅调整子女端 UI 提示；不改变 API 调用路径、后端行为或 xiaozhi 原版能力。
+- 验证：
+  - `npm test`（`web/`）通过，65 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，65 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端连接要求填写后端地址 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：将连接设置校验测试改为要求 `state.apiBaseURL`、`state.accessCode`、`state.deviceId` 三项都在 `refreshMessages()` 前完成校验，并把无效连接提示调整为“后端地址、访问码和设备 ID 必填”。
+- 目的：对齐设备到手后的 Gate C 联调方式：子女端静态页通常跑在 `http://127.0.0.1:5173`，后端跑在 `http://localhost:8090`，必须显式填写后端地址，避免误向静态页自身发 API 请求导致排查混乱。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test`（`web/`），得到有效 RED：64 个 smoke tests 中 3 个失败，失败点均为当前 `app.js` 找不到“后端地址、访问码和设备 ID 必填”校验，说明生产代码仍只校验访问码和设备 ID。
+
+### 子女端连接要求填写后端地址 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：连接表单提交时将 `state.apiBaseURL` 纳入必填校验；缺少后端地址、访问码或设备 ID 时停止轮询、清空旧数据，并显示“请填写后端地址、访问码和设备 ID”。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 RED 阶段新增的连接校验断言，确保后端地址校验发生在任何 `refreshMessages()` 调用前。
+- 目的：让 Gate C 子女端联调失败更早、更清楚，避免静态页面在未填写后端地址时向自身 origin 发起 `/api/*` 请求。
+- 功能影响：子女端静态页现在要求显式填写后端地址；对 anban 后端和 xiaozhi 原版语音链路无影响。
+- 验证：
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 新增设备到手方案 C 首日执行单
+
+- 文件：`docs/deployment/设备到手方案C首日执行单.md`
+- 内容：新增一份面向现场联调的短执行单，明确三个仓库边界、方案 C 两进程拓扑、Gate A/B/C/D 顺序、PowerShell 命令、可插拔验证和首日记录模板。
+- 文件：`docs/README.md`
+- 内容：把首日执行单加入文档索引。
+- 文件：`README.md`
+- 内容：在仓库入口补充首日执行单链接。
+- 目的：回应“设备到了后按方案 C 怎么部署、这个仓库是什么”的对齐需求，避免继续向大产品发散，先围绕基础语音闭环和最小安伴增强做真设备验证。
+- 功能影响：仅文档变更，不改变后端、前端、预检工具或 xiaozhi 上游。
+- 验证：
+  - `Test-Path docs\deployment\设备到手方案C首日执行单.md` 返回 `True`。
+  - `Select-String -Path README.md,docs\README.md -Pattern '设备到手方案C首日执行单|设备到手：方案 C 首日执行单'` 命中文档入口链接。
+  - `Select-String -Path docs\deployment\设备到手方案C首日执行单.md -Pattern 'Gate A|Gate B|Gate C|Gate D|xiaozhi-esp32-server-golang|anban-code|ANBAN_MANAGER_API_TOKEN|--xiaozhi-gate-passed'` 命中关键部署与架构约束。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### anban-preflight 拒绝 manager token 占位符 RED 测试
+
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增 `TestLoadPreflightConfigRejectsExampleManagerTokenPlaceholder`，要求 `anban-preflight` 的配置加载同样拒绝 `.env.example` 里的 `ANBAN_MANAGER_API_TOKEN=请填_manager签发的APIToken`。
+- 目的：让预检工具和主服务在 Gate B 前置配置门禁上保持一致，避免复制 `.env.example` 后忘填真实 token 时，preflight 继续向 manager 发出无意义请求。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./cmd/anban-preflight`，得到有效 RED：`TestLoadPreflightConfigRejectsExampleManagerTokenPlaceholder` 失败，说明当前 preflight 配置层仍接受 `.env.example` 占位 token。
+
+### anban-preflight 拒绝 manager token 占位符 GREEN 实现
+
+- 文件：`server/internal/config/config.go`
+- 内容：将占位值判断 helper 导出为 `IsPlaceholderValue`，供主服务和 preflight 复用同一套示例占位判断。
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：`loadPreflightConfig()` 增加 `config.IsPlaceholderValue(cfg.ManagerAPIToken)` 校验，遇到 `.env.example` 占位 token 时直接返回配置错误。
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：保留 preflight 占位 token 拒绝测试。
+- 目的：让 Gate B 预检在发起 manager 请求前就拦住“复制示例配置但未填写真实 token”的常见错误，并与主服务配置规则保持一致。
+- 功能影响：`anban-preflight` 对明显占位 token 更严格；真实 manager token 不受影响。不改变 xiaozhi 上游，也不改变 anban 运行时业务逻辑。
+- 验证：
+  - `go test -count=1 ./cmd/anban-preflight ./internal/config` 通过。
+  - `go test -count=1 ./...`（`server/`）通过。
+  - `go build ./...`（`server/`）通过。
+  - `go vet ./...`（`server/`）通过。
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### config 拒绝 manager token 占位符 RED 测试
+
+- 文件：`server/internal/config/config_test.go`
+- 内容：新增 `TestLoadRejectsExampleManagerTokenPlaceholder`，要求 `ANBAN_MANAGER_API_TOKEN=请填_manager签发的APIToken` 这类 `.env.example` 占位值不能通过配置加载。
+- 目的：避免复制 `.env.example` 后忘记填写真实 xiaozhi manager token 时，`anban` 服务仍然启动，导致 Gate B 联调时才暴露 token 错误。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/config`，得到有效 RED：`TestLoadRejectsExampleManagerTokenPlaceholder` 失败，说明当前配置层仍接受 `.env.example` 占位 token。
+
+### config 拒绝 manager token 占位符 GREEN 实现
+
+- 文件：`server/internal/config/config.go`
+- 内容：新增 `isPlaceholderValue` 校验，并在 `Load()` 中拒绝 `ANBAN_MANAGER_API_TOKEN` 使用包含 `请填` 或尖括号的示例占位值。
+- 文件：`server/internal/config/config_test.go`
+- 内容：保留占位 token 拒绝测试，确保复制 `.env.example` 后未填写真实 token 时服务启动配置会失败。
+- 目的：把 xiaozhi manager token 的配置错误前移到启动阶段，减少 Gate B 设备联调时才发现 token 未填写的情况。
+- 功能影响：真实 manager token 不受影响；明显占位 token 会导致 `config.Load()` 返回错误。
+- 验证：
+  - `go test -count=1 ./internal/config` 通过。
+  - `go test -count=1 ./...`（`server/`）通过。
+  - `go build ./...`（`server/`）通过；首次并行验证时遇到 Windows 沙箱 `apply deny-read ACLs` 工具层异常，单独重跑后通过，非 Go 编译错误。
+  - `go vet ./...`（`server/`）通过。
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### anban-preflight 默认要求设备 ID RED 测试
+
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增 `TestRunCommandRequiresDeviceIDByDefault`，要求预检 CLI 在未提供 `-device-id` / `ANBAN_PREFLIGHT_DEVICE_ID` 时默认返回非 0，并提示可用 `--allow-missing-device-id` 做 manager-only 排查；同时把原 manager-only 成功测试改为显式传入 `--allow-missing-device-id`。
+- 目的：设备已到手后，预检默认应证明“manager 能看到这台真实设备”，避免只验证 manager token 可用就误以为方案 C 联调准备完成。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./cmd/anban-preflight`，得到有效 RED：`--allow-missing-device-id` 尚未定义，且默认缺设备 ID 时 exit code 仍为 0。
+
+### anban-preflight 默认要求设备 ID GREEN 实现
+
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：新增 `--allow-missing-device-id` flag 和 `ANBAN_PREFLIGHT_ALLOW_MISSING_DEVICE_ID` 环境变量；预检在 Gate A 已确认但未提供设备 ID 时默认返回非 0，并提示提供 `-device-id`，只有显式允许时才作为 manager-only 检查通过。
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：将原先只依赖 Gate A 环境变量的 manager-only 成功用例改为同时设置 `ANBAN_PREFLIGHT_ALLOW_MISSING_DEVICE_ID`，并覆盖带空格的环境变量解析；新增 `TestRunCommandPassesWithConfirmedGateAndOnlineDevice`，验证提供设备 ID 且 manager 返回在线设备时 CLI 正常退出 0。
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：同步更新 Gate B 判据和缺设备 ID 的排查命令，明确缺设备 ID 时必须显式加 `--allow-missing-device-id`，且该模式只代表 manager-only 网络/token 检查通过。
+- 目的：把方案 C 的设备到手联调顺序落到 CLI 默认行为里，避免“只验证 manager token”被误读成“真实设备 manager 接入已通过”。
+- 功能影响：`anban-preflight` 默认更严格；缺设备 ID 的临时网络/token 排查需要显式加 `--allow-missing-device-id`。不改变 xiaozhi 上游，也不影响 anban 服务运行时。
+- 验证：
+  - `go test -count=1 ./cmd/anban-preflight` 通过。
+  - `go test -count=1 ./...`（`server/`）通过。
+  - `go build ./...`（`server/`）通过。
+  - `go vet ./...`（`server/`）通过。
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### greeting 三时段日程契约 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：扩展 `TestServiceGreetingScheduleValidatesInput`，要求主动问候日程必须保持 PRD 的早 / 午 / 晚 3 个预设时段；缺少 `noon`、重复 `morning`、未知 `bedtime` 或空 label 都应返回 `ErrInvalidInput`。
+- 目的：对齐 PRD #2 “每天预设 3 个时间段（早 / 午 / 晚），可在子女端配置”，避免基础子女端骨架漂成任意复杂日程系统。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/greeting`，得到有效 RED：`missing_noon_slot`、`duplicate_morning_slot`、`unknown_slot_label`、`blank_slot_label` 均返回 `nil`，说明当前实现仍接受任意 slot。
+
+### greeting 三时段日程契约 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：新增 `requiredScheduleSlotLabels` 校验，`UpdateSchedule` 现在要求日程 slots 必须且只能包含 `morning`、`noon`、`evening` 三个 label，缺失、重复、额外或空 label 都返回 `ErrInvalidInput`；每个固定时段仍可配置时间、启用状态和语气。
+- 目的：把 PRD #2 的早 / 午 / 晚三时段基础契约落到后端服务层，保持子女端骨架和路演脚本简单稳定。
+- 功能影响：主动问候日程更新不再接受自定义 slot label；默认日程和现有早 / 午 / 晚配置不受影响，不改变 xiaozhi 调用路径。
+- 验证：
+  - `go test -count=1 ./internal/domains/greeting` 通过。
+  - `go test -count=1 ./...`（`server/`）通过。
+  - `go build ./...`（`server/`）通过。
+  - `go vet ./...`（`server/`）通过。
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 当前阶段对齐文档
+
+- 文件：`docs/plans/2026-06-12-phase-alignment-scheme-c.md`
+- 内容：新增当前阶段对齐说明，明确现在应回到“基础框架 + 基本功能 + 真设备联调”的阶段；解释方案 C 的两进程可插拔架构、`anban-code` 仓库边界、设备到手后的 Gate A/B/C/D 部署顺序，以及基础目标何时才算真正实现。
+- 文件：`README.md`、`docs/README.md`
+- 内容：新增该阶段对齐文档入口，避免只看部署命令时忽略“先纯 xiaozhi、再接安伴”的阶段纪律。
+- 目的：回应“现在是什么阶段、是否按 PRD、这个仓库是什么、方案 C 怎么部署”的对齐要求，防止继续向大产品范围扩张。
+- 功能影响：仅文档变更；不改变后端、前端、部署编排或 xiaozhi 上游。
+- 验证：已运行 `git diff --check`，通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### Compose anban Dockerfile 守护测试
+
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：新增 `TestDockerComposeAnbanBuildContextHasDockerfile`，要求 `docker-compose.yml` 中 `anban` 服务从 `./server` 构建时，`server/Dockerfile` 必须存在，并包含 `go build`、`./cmd/anban` 和 `CGO_ENABLED=0`。
+- 目的：守住方案 C 的 Compose 部署骨架，避免 `docker compose --profile anban up` 因后端 Dockerfile 缺失或构建入口漂移而失败。
+- 功能影响：仅新增架构守护测试；不改变运行时代码，不影响只部署原版 xiaozhi。
+- 验证：已运行 `go test -count=1 ./internal/architecture`，测试通过，确认当前 `server/Dockerfile` 已满足该守护条件。
+
+### Compose anban 构建上下文清理 RED 测试
+
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：新增 `TestAnbanDockerBuildContextIgnoresLocalArtifacts`，要求 `server/.dockerignore` 排除 `.gotmp-go/`、`.gocache-go/`、`*.db` 和 `anban.db`。
+- 目的：对齐方案 C 的 Compose 部署骨架，避免 `docker compose --profile anban up` 构建安伴后端时把本地 Go 缓存或 Demo DB 一起复制进镜像上下文。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/architecture`，得到有效 RED：`server/.dockerignore` 不存在。
+
+### Compose anban 构建上下文清理 GREEN 实现
+
+- 文件：`server/.dockerignore`
+- 内容：新增 Docker 构建上下文忽略规则，排除 `.gotmp-go/`、`.gocache-go/`、`tmp/`、本地 sqlite DB、覆盖率和测试二进制产物。
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：保留 Dockerfile 和 `.dockerignore` 两个 Compose 构建守护测试；同时将 `mustServerRoot` 改为优先从测试工作目录向上查找 `go.mod`，再用 `runtime.Caller` 兜底，避免 Go/sandbox 源码路径映射到临时 cwd 时误找仓库根。
+- 目的：让 `docker compose --profile anban up` 的安伴后端构建更接近干净部署环境，同时保持方案 C 可选增强服务的部署护栏稳定可跑。
+- 功能影响：仅影响 Docker 构建上下文和架构测试；不改变运行时代码，不修改 xiaozhi 上游，也不影响只部署原版 xiaozhi。
+- 验证：
+  - `go test -count=1 ./internal/architecture` 通过。过程中发现 `runtime.Caller` 在当前沙箱下会指向 `C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd`，已改为以测试工作目录定位真实 server root。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端留言排队提示 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `message send result formatter distinguishes queued messages`，要求发送留言后根据后端返回的 `status=played|pending` 区分“留言已播报”和“留言已排队等待设备空闲”；新增 `child web uses message send result formatter`，要求 `app.js` 接入该格式化器并使用格式化后的通知。
+- 目的：承接后端 message `pending/202` 语义，对齐 PRD #3“老人正在对话时排队，不强行打断”和“子女端可见留言状态”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test`（`web/`），得到有效 RED：`web/message-result.js` 尚未实现，且 `app.js` 尚未接入 `formatMessageSendResult`；64 个测试中 2 个按预期失败。
+
+### 子女端留言排队提示 GREEN 实现
+
+- 文件：`web/message-result.js`
+- 内容：新增 `formatMessageSendResult`，根据后端留言状态输出子女端通知文案；`pending` 显示“留言已排队等待设备空闲”，`played` 显示“留言已播报”，并可合并 100 字截断提示。
+- 文件：`web/app.js`
+- 内容：发送留言成功后改用 `formatMessageSendResult(message, { draftNotice: draft.notice })` 渲染通知，不再把所有成功响应统一显示为“留言已发送”。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 played/pending 两类留言发送结果格式化测试，并验证 app 接入 `formatMessageSendResult`。
+- 目的：承接后端 message `pending/202` 语义，让子女端基础骨架在路演联调时能明确提示“已排队等待设备空闲”。
+- 功能影响：仅改变子女端发送留言后的提示文案；无后端 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test`（`web/`）通过，64 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，64 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.78%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### message 留言主动语音等待 RED 测试
+
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：新增 `TestServiceQueuesMessageWhenProactiveVoiceQuotaUsed`，要求子女留言遇到主动语音窗口冲突时保持 `pending`、注册一次性 retry job、不调用 xiaozhi 注入。
+- 文件：`server/internal/domains/message/handler_test.go`
+- 内容：新增 `TestHandlerCreateReturnsAcceptedWhenMessageIsQueued`，要求 HTTP 创建留言在排队时返回 `202 Accepted` 和 `pending` message payload。
+- 目的：对齐 PRD #3“老人正在对话时排队，不强行打断”，让留言链路具备与问候/提醒一致的基础等待语义。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/message`，得到有效 RED：`UseProactiveVoiceGate`、可选 scheduler 和 `messageRetryDelay` 尚未实现。
+
+### message 留言主动语音等待 GREEN 实现
+
+- 文件：`server/internal/domains/message/service.go`
+- 内容：新增 `OneShotScheduler`、`messageRetryDelay`、主动语音 gate 接入、`queueRetry` 和 `retryQueuedMessage`；留言遇到主动语音窗口冲突时保持 `pending`，注册一次性重试任务，后续从数据库重新读取同一条留言再尝试播放。
+- 文件：`server/internal/domains/message/store.go`
+- 内容：新增 `Get(ctx, id)`，用于重试任务按留言 ID 重新读取持久化消息。
+- 文件：`server/internal/domains/message/types.go`
+- 内容：新增 `ErrNotFound`，为 message store 的未找到结果提供域内错误。
+- 文件：`server/internal/domains/message/handler.go`
+- 内容：创建留言成功但状态为 `pending` 时返回 `202 Accepted`，已播报仍返回 `201 Created`。
+- 文件：`server/cmd/anban/main.go`
+- 内容：把共享 scheduler 和主动语音 gate 注入 message service，使留言与问候/提醒共用主动语音等待语义。
+- 目的：对齐 PRD #3“老人正在对话时排队，不强行打断”，并保持 xiaozhi 调用仍只通过 `xiaozhiclient`。
+- 功能影响：子女留言在设备主动语音窗口忙时不再立即失败，而是进入 pending 并等待重试；未部署 anban 时不影响原始 xiaozhi 对话服务。
+- 验证：
+  - `go test -count=1 ./internal/domains/message` 通过，message 域测试全绿。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test`（`web/`）通过，62 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs`（`web/`）通过，62 个测试全绿；all files 行覆盖率 96.88%、函数覆盖率 97.62%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端视觉触发排队提示 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `vision presence result formatter distinguishes queued greeting`，要求视觉触发结果根据 `observation.greeting.status` 区分“已触发问候”和“问候已排队”；同时要求 `app.js` 接入 `formatVisionPresenceResult`。
+- 目的：承接主动问候 `pending/202` 排队语义，避免视觉触发复用问候服务时，把“问候已排队等待设备空闲”误显示成“视觉触发已完成”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：`web/vision-presence-result.js` 尚未实现，且 `app.js` 尚未接入 `formatVisionPresenceResult`。
+
+### 子女端视觉触发排队提示 GREEN 实现
+
+- 文件：`web/vision-presence-result.js`
+- 内容：新增 `formatVisionPresenceResult`，根据 `observation.presence`、`observation.triggeredGreeting` 和 `observation.greeting.status` 生成视觉触发结果、状态卡详情和通知文案；当问候为 `pending` 时显示“视觉触发已排队 / 问候已排队”。
+- 文件：`web/app.js`
+- 内容：视觉触发按钮点击后改用 `formatVisionPresenceResult(result)` 渲染结果输出、状态卡和通知；移除旧的本地 `presenceLabel` 死代码。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 played/pending 视觉触发格式化测试，并验证 app 接入 `formatVisionPresenceResult`。
+- 目的：承接视觉触发复用主动问候服务后的 `pending` 排队语义，让子女端基础骨架诚实展示“视觉触发已排队等待设备空闲”。
+- 功能影响：仅改变子女端视觉触发显示文案；无后端 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，62 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，62 个测试全绿；all files 行覆盖率 96.88%、函数覆盖率 97.62%，`vision-presence-result.js` 行覆盖率 100%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端问候排队提示 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `greeting trigger result formatter distinguishes queued greetings` 和 `child web uses greeting trigger result formatter`，要求子女端区分后端返回的 `played` 与 `pending` 问候：已播报显示“问候已触发”，排队中显示“问候已排队”。
+- 目的：承接后端 `pending/202` 排队语义，避免子女端把“主动问候已排队等待”误显示成“刚刚触发一次主动问候”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：`web/greeting-result.js` 尚未实现，且 `app.js` 尚未接入 `formatGreetingTriggerResult`。
+
+### 子女端问候排队提示 GREEN 实现
+
+- 文件：`web/greeting-result.js`
+- 内容：新增 `formatGreetingTriggerResult`，将后端问候结果规整为子女端状态卡标题、状态详情和通知文案；`status=pending` 显示“主动问候已排队 / 问候已排队”，其他成功结果显示“刚刚触发一次主动问候 / 问候已触发”。
+- 文件：`web/app.js`
+- 内容：问候按钮点击后改用 `formatGreetingTriggerResult(greeting)` 渲染状态卡和通知，不再把所有成功响应都写成“刚刚触发”。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 played/pending 两类问候结果格式化测试，并验证 app 接入 `formatGreetingTriggerResult`。
+- 目的：承接后端 `pending/202` 排队语义，让子女端基础骨架在路演联调时能诚实展示“已排队等待设备空闲”，而不是误报已播报。
+- 功能影响：仅改变子女端问候按钮的显示文案；无后端 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，61 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，61 个测试全绿；all files 行覆盖率 96.52%、函数覆盖率 97.50%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### greeting 主动语音配额等待 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：将主动问候遇到主动语音配额冲突时的期望从 `skipped/429` 改为 `pending/202`，并要求注册一次性 retry job，不调用 xiaozhi 注入。
+- 目的：对齐 PRD #2“老人正在和 AI 对话时，主动问候应排队等待，不强行打断”，避免子女端点击问候按钮时因为 10 分钟主动语音窗口已用而直接失败。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/greeting`，得到有效 RED：`Trigger` 仍返回 `ErrProactiveVoiceThrottled`，handler 仍返回 429 且 payload 为 `skipped`。
+
+### greeting 主动语音配额等待 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：新增 `OneShotScheduler`、`greetingRetryDelay`、`queueRetry` 和 `retryQueuedGreeting`；当主动语音 gate 返回 `ErrProactiveVoiceThrottled` 时，主动问候保持 `pending`，注册一次性重试任务，后续从数据库重新读取同一条问候再尝试播放。
+- 文件：`server/internal/domains/greeting/store.go`
+- 内容：新增 `Get(ctx, id)`，让重试闭包按 ID 读取最新问候状态，避免重复播放已终结的记录。
+- 文件：`server/internal/domains/greeting/handler.go`
+- 内容：当 `Trigger` 返回 `pending` 问候时，HTTP 返回 `202 Accepted`，让子女端知道问候已排队而不是失败。
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：保留 `TestServiceTriggerQueuesWhenProactiveVoiceQuotaUsed` 和 `TestHandlerTriggerGreetingReturnsAcceptedWhenQuotaUsed`，覆盖 service/HTTP 两层排队语义。
+- 目的：补齐 PRD #2“主动问候排队等待，不强行打断”的基础能力；与 reminder 的等待语义保持一致。
+- 功能影响：只改变主动问候遇到主动语音配额冲突时的状态流转；xiaozhi manager 注入失败仍然标记 `failed`；不修改 xiaozhi 上游代码。
+- 验证：
+  - `go test -count=1 ./internal/domains/greeting` 通过。
+  - `go test -count=1 ./internal/proactive` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，59 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，59 个测试全绿；all files 行覆盖率 96.28%、函数覆盖率 97.37%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### reminder 主动语音配额等待 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：将主动语音配额被占用时的提醒行为从“标记 skipped”改为期望“保持 scheduled 并重新排队”；新增对 retry job、下一次尝试时间和不调用 xiaozhi 注入的断言。
+- 文件：`server/internal/proactive/voice_gate_integration_test.go`
+- 内容：同步跨域集成测试期望，要求 greeting 已占用同设备主动语音配额后，reminder 不丢弃，而是继续留在调度队列中等待下一次尝试。
+- 目的：对齐 PRD #2/#6 的共同纪律：同一 10 分钟窗口至多 1 条主动语音输出，老人正在对话或主动语音配额暂不可用时应排队等待，不应直接跳过提醒。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/reminder ./internal/proactive`，得到有效 RED：`proactiveRetryDelay` 尚未实现，且集成测试显示当前提醒未保持 `scheduled`。
+
+### reminder 主动语音配额等待 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：新增 `proactiveRetryDelay` 和 `requeueProactiveVoice`；当主动语音 gate 返回 `ErrProactiveVoiceThrottled` 时，不再把提醒标为 `skipped`，而是保持 `scheduled`，写入下一次重试时间和 retry job，等待后续调度再次尝试。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：保留 `TestServiceRequeuesReminderWhenProactiveVoiceQuotaUsed`，验证配额占用时不会调用 xiaozhi 注入、提醒仍在队列里、并产生 retry job。
+- 文件：`server/internal/proactive/voice_gate_integration_test.go`
+- 内容：保留跨域集成断言，验证 greeting 占用同设备主动语音窗口后，reminder 会重新排队而不是丢弃。
+- 目的：让主动提醒符合 PRD “同一 10 分钟窗口至多 1 条主动语音输出，老人正在对话时排队等待”的路演基本纪律。
+- 功能影响：只改变提醒遇到主动语音配额冲突时的状态流转；xiaozhi manager 注入失败仍然标记 `failed`，不掩盖真实设备/manager 故障；不修改 xiaozhi 上游代码。
+- 验证：
+  - `go test -count=1 ./internal/domains/reminder ./internal/proactive` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，59 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，59 个测试全绿；all files 行覆盖率 96.28%、函数覆盖率 97.37%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### docker-compose 可插拔部署 RED 架构测试
+
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：新增 `TestDockerComposeKeepsAnbanOptionalByProfile`，要求 `docker-compose.yml` 中 `xiaozhi` 服务不能依赖 `anban`，且 `anban` 服务必须挂显式 profile，避免默认 `docker compose up` 把安伴当成必启服务。
+- 目的：把方案 C“只部署 xiaozhi 也能正常对话，anban 是可选增强进程”的架构铁律落实到部署编排测试里。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/architecture`，得到有效 RED：`anban service must be behind an explicit profile`。
+
+### docker-compose 可插拔部署 GREEN 实现
+
+- 文件：`docker-compose.yml`
+- 内容：为 `anban` 服务增加 `profiles: ["anban"]`，并补充注释说明默认 `docker compose up` 只启动 `xiaozhi`；需要联调安伴增强能力时显式运行 `docker compose --profile anban up`。
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：保留 `TestDockerComposeKeepsAnbanOptionalByProfile`，并新增 `composeServiceBlock` 辅助函数，持续约束 `xiaozhi` 不依赖 `anban`、`anban` 必须挂显式 profile。
+- 目的：把方案 C 的“两进程、可拔插”部署形态落到仓库默认编排，避免设备基础小智对话能力被安伴服务可用性绑定。
+- 功能影响：默认 Compose 启动行为变为只启动 xiaozhi；安伴后端作为可选增强进程启动。未修改 xiaozhi 代码，未改变所有 xiaozhi 调用必须经过 `internal/xiaozhiclient` 的边界。
+- 验证：
+  - `go test -count=1 ./internal/architecture` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，59 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，59 个测试全绿；all files 行覆盖率 96.28%、函数覆盖率 97.37%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### status 快照缓存兜底 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 `TestServiceGetFallsBackToCachedSnapshotWhenDeviceStatusFails`，要求 status 域先把一次成功读取到的设备状态/最近互动写入本地缓存；当 xiaozhi manager 后续不可用时，仍能返回同设备最近快照，并把在线状态标成离线，同时继续带上 message 域持久化的留言状态摘要。
+- 目的：对齐 PRD #4“后端重启后状态信息不丢”和子女端状态兜底诉求，避免 manager 短暂不可用时子女端只看到 502。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/status`，得到有效 RED：编译失败点为 `UseStore`、`Store`、`NewStore` 尚未实现。
+
+### status 快照缓存兜底 GREEN 实现
+
+- 文件：`server/internal/domains/status/types.go`
+- 内容：新增 `SnapshotCache` 持久化模型和 `ErrNotFound`。
+- 文件：`server/internal/domains/status/store.go`
+- 内容：新增 status 域 Store，支持 `AutoMigrate`、按 `device_id` upsert 最近快照、读取最近快照。
+- 文件：`server/internal/domains/status/service.go`
+- 内容：`Service` 新增 `UseStore`；`Get` 成功读取 xiaozhi manager 状态后缓存 `lastSeenAt/lastInteractionAt`；当 `GetDeviceStatus` 失败且存在缓存时，返回缓存快照并将 `online=false`，同时继续读取 message 域留言状态摘要。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动时迁移 status 表，并把 status Store 注入 status Service。
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：保留 `TestServiceGetFallsBackToCachedSnapshotWhenDeviceStatusFails` 回归测试。
+- 目的：让子女端状态在 manager 短暂不可用或 anban 重启后仍有最近一次可用状态，不把“妈还好”的信息链路退化成 502。
+- 功能影响：不改变 xiaozhi 调用边界；不影响只部署 xiaozhi 的原始对话能力；anban 状态接口在有缓存时具备离线兜底。
+- 验证：
+  - `go test -count=1 ./internal/domains/status` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `npm test --prefix web` 通过，59 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，59 个测试全绿；all files 行覆盖率 96.28%、函数覆盖率 97.37%。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端提醒草稿未来时间校验 GREEN 实现
+
+- 文件：`web/reminder-input.js`
+- 内容：新增 `normalizeReminderDraft`，统一规整提醒内容和本地时间；空内容/空时间、无效时间、过去或当前时间都会返回不可提交状态和子女端提示。
+- 目的：把“提醒只能创建在未来”这条规则前移到子女端，和后端 reminder 域的 `scheduledAt > now` 校验保持一致。
+- 功能：子女端创建提醒时，过去/当前时间会先提示 `提醒时间要晚于现在`，不会调用后端；未来提醒会把时间转换为 ISO 字符串后提交。
+- 文件：`web/app.js`
+- 内容：提醒表单提交改为调用 `normalizeReminderDraft`，并使用规整后的 `draft.content` 和 `draft.scheduledAt` 创建提醒。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 `reminder draft normalizer rejects non-future times` 和 `reminder draft normalizer returns ISO time for future reminders` 回归测试；追加 `reminder draft normalizer rejects incomplete or invalid time input`，覆盖空内容/无效时间边界。
+- 功能影响：仅增强子女端提醒创建输入校验；无后端 API 变更，无数据库结构变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，59 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，59 个测试全绿；all files 行覆盖率 96.28%、函数覆盖率 97.37%，`reminder-input.js` 行覆盖率 100%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+
+### 子女端提醒草稿未来时间校验 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `reminder draft normalizer rejects non-future times` 和 `reminder draft normalizer returns ISO time for future reminders`，要求 `normalizeReminderDraft` 拒绝过去/当前时间，并为未来提醒返回规整后的内容和 ISO 时间。
+- 目的：后端已拒绝 `scheduledAt <= now`；子女端也应先拦住明显无效的提醒时间，避免现场创建提醒时只看到后端 400。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：两个新增测试失败，原因是 `web/reminder-input.js` 尚未实现。
+
+### reminder 创建过去/当前时间 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：在 `TestServiceCreateValidatesAndNormalizesInput` 中新增 `past time` 和 `current time` 用例，要求 `scheduledAt <= now` 返回 `ErrInvalidInput`。
+- 目的：`scheduler.ScheduleAt` 对过去时间会立即触发，`reminder.Create` 随后仍可能写回旧的 scheduled 状态；提醒应只接受未来时间，避免现场创建提醒时出现立即触发/状态回写竞态。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/reminder`，得到有效 RED：新增 `past time` 和 `current time` 用例返回 `nil` 错误。
+
+### reminder 创建未来时间校验 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：`Create` 新增 `scheduledAt := req.ScheduledAt.UTC()`，并要求 `scheduledAt` 非零且必须晚于 `s.now().UTC()`；保存时复用规整后的 UTC 时间。
+- 目的：把“提醒是未来调度任务”的约束前移到 reminder 域入口，避免过去/当前时间进入 `scheduler.ScheduleAt` 后立即触发，造成创建流程与触发流程竞态。
+- 功能：`scheduledAt <= now` 的提醒创建会返回 `ErrInvalidInput`，不会入库、不会创建一次性定时器、不会调用 xiaozhi 注入。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：保留 `past time` 和 `current time` 回归测试。
+- 功能影响：提醒创建现在只接受未来时间；无数据库结构变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `go test -count=1 ./internal/domains/reminder` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `npm test --prefix web` 通过，56 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，56 个测试全绿；all files 行覆盖率 95.75%、函数覆盖率 97.22%。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端画像同步失败保留后端 profile RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web keeps backend-persisted profile when xiaozhi profile sync fails`，要求画像提交失败分支识别 `error.payload.profile`，并在显示错误前 `renderProfile` + `writeProfileForm`。
+- 目的：profile 后端在 xiaozhi role prompt 同步失败时仍会返回已落库画像；子女端应展示这份已保存数据，避免 W2 编辑画像联调时误以为保存失败。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，当前 catch 分支只调用 `handleApiError(error, '画像同步失败')`。
+
+### 子女端画像同步失败保留后端 profile GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：画像提交 catch 分支新增 `ApiError` payload 处理；当后端返回 `error.payload.profile` 时，先 `renderProfile(error.payload.profile)` 并 `writeProfileForm(error.payload.profile)`，再展示同步失败提示。
+- 目的：让“编辑画像”在 xiaozhi manager role prompt 同步失败但 anban 已落库时仍有可见反馈，符合方案 C 的可插拔思路：anban 自身数据不因下游同步失败而在子女端消失。
+- 功能：子女端同步画像遇到 `502 { error: "画像同步失败", profile: ... }` 时，页面会显示并回填后端已保存/规整后的画像，同时保留错误提示。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 `child web keeps backend-persisted profile when xiaozhi profile sync fails` 回归测试。
+- 功能影响：仅增强子女端画像保存错误态体验；无后端 API 变更，无数据库结构变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，56 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，56 个测试全绿；all files 行覆盖率 95.75%、函数覆盖率 97.22%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### greeting 列表过滤规整 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增 `TestServiceListNormalizesFilters`，要求 `svc.List` 对 `ListFilter{DeviceID: "  dev-001  ", Status: "  played  "}` 仍能查到已触发并播报的问候。
+- 目的：PRD #2 主动问候和 W2 子女端真后端联调会依赖问候触发结果；调试/后续列表入口不应因复制粘贴空白导致查空。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/greeting`，得到有效 RED：新增测试失败，`List` 返回空列表。
+
+### greeting 列表过滤规整 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：`Service.List` 在调用 store 前对 `ListFilter.DeviceID` 和 `ListFilter.Status` 执行 `strings.TrimSpace` 规整。
+- 目的：让主动问候列表过滤和 message/reminder 域保持一致的输入容错，便于 W2 联调时排查某设备问候触发结果。
+- 功能：后续若暴露问候历史列表或调试入口，即使 `deviceId/status` 带前后空白，也会按规整后的设备和状态查询。
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：保留 `TestServiceListNormalizesFilters` 回归测试。
+- 功能影响：仅增强 greeting 域列表过滤容错；无数据库结构变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `go test -count=1 ./internal/domains/greeting` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `npm test --prefix web` 通过，55 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，55 个测试全绿；all files 行覆盖率 95.75%、函数覆盖率 97.22%。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### reminder 列表过滤规整 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 `TestServiceListNormalizesFilters`，要求 `svc.List` 对 `ListFilter{DeviceID: "  dev-001  ", Status: "  scheduled  "}` 仍能查到已创建的提醒。
+- 目的：PRD #6 主动提醒和 W2 子女端联调都依赖提醒列表；现场复制粘贴设备 ID 或状态过滤值带空白时，后端不应返回空列表。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/reminder`，得到有效 RED：新增测试失败，`List` 返回空列表。
+
+### reminder 列表过滤规整 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：`Service.List` 在调用 store 前对 `ListFilter.DeviceID` 和 `ListFilter.Status` 执行 `strings.TrimSpace` 规整。
+- 目的：让提醒列表过滤和 message/status/greeting 域保持一致的输入容错，避免子女端或手工 API 联调时因为复制粘贴空白看不到提醒。
+- 功能：`GET /api/reminders?deviceId=dev-001&status=scheduled` 经 handler/service 时，即使 filter 值带前后空白，也会按 `dev-001` 和 `scheduled` 查询。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：保留 `TestServiceListNormalizesFilters` 回归测试。
+- 功能影响：仅增强 reminder 域列表过滤容错；无数据库结构变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `go test -count=1 ./internal/domains/reminder` 通过。
+  - `npm test --prefix web` 通过，55 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，55 个测试全绿；all files 行覆盖率 95.75%、函数覆盖率 97.22%。
+  - 首次并行运行 `go test -count=1 ./...` 时，`internal/architecture` 曾因 sandbox 源码路径映射到 `C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\docker-compose.yml` 而无法读取 repo 根 `docker-compose.yml`；随后单独运行 `go test -count=1 .` 于 `server/internal/architecture` 通过，再次运行 `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端 API client reminderId path 规整 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `API client normalizes pasted reminder id path values`，要求 `client.deleteReminder(" 9 ")` 请求 URL 为 `/api/reminders/9`。
+- 目的：子女端提醒撤销/确认属于最小提醒闭环；path 参数如果带复制粘贴空白，会让后端收到错误 ID，基础容错应在 API client 层统一处理。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，实际 URL 为 `http://anban.local/api/reminders/%209%20`。
+
+### 子女端 API client reminderId path 规整 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：新增 `encodePathSegment(value)`，对 path 参数执行 `String(value ?? "").trim()` 后再 `encodeURIComponent`；`deleteReminder` 和 `ackReminder` 统一使用该 helper。
+- 目的：让提醒撤销/确认接口在 API client 层具备复制粘贴容错，减少最小提醒闭环现场联调时的错误 ID 噪音。
+- 功能：`client.deleteReminder(" 9 ")` 现在请求 `/api/reminders/9`；`ackReminder` 也会使用同样的 path 参数规整。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 `API client normalizes pasted reminder id path values` 回归测试。
+- 功能影响：仅增强子女端 API client 输入容错；无后端 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，55 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，55 个测试全绿；all files 行覆盖率 95.75%、函数覆盖率 97.22%，`api/client.js` 行覆盖率 95.19%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### 子女端 API client 设备 ID query 规整 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `API client normalizes pasted device id query values`，要求 `client.getStatus({ deviceId: "  dev-001  " })` 请求 URL 为 `/api/device/status?deviceId=dev-001`。
+- 目的：PRD #3/#4/#6 的基础接口都依赖 `deviceId`；现场从 manager 复制设备 ID 时前后带空白，不应让子女端请求打到错误设备 ID。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，实际 URL 为 `http://anban.local/api/device/status?deviceId=++dev-001++`。
+
+### 子女端 API client query 参数规整 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：新增 `setQueryParam(params, name, value)`，对 query 参数执行 `String(value ?? "").trim()` 后再写入 `URLSearchParams`；`listMessages`、`getGreetingSchedule`、`listReminders`、`getStatus`、`getProfile` 统一使用该 helper。
+- 目的：让 `deviceId/status` 等基础查询参数在 API client 层具备一致复制粘贴容错，减少子女端连接 manager 设备 ID 时的现场联调噪音。
+- 功能：`client.getStatus({ deviceId: "  dev-001  " })` 现在请求 `/api/device/status?deviceId=dev-001`；空白 query 参数会被忽略。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 `API client normalizes pasted device id query values` 回归测试。
+- 功能影响：仅增强子女端 API client 输入容错；无后端 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，54 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，54 个测试全绿；all files 行覆盖率 95.69%、函数覆盖率 97.14%，`api/client.js` 行覆盖率 95.00%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+
+### 子女端 API client 访问码规整 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `API client normalizes pasted child access code`，要求 `createAnbanClient({ accessCode: "  demo-code  " })` 发起请求时，`X-Access-Code` 请求头为 `demo-code`。
+- 目的：子女端最小联调常见输入来自复制粘贴；访问码前后带空白不应导致后端 401，基础容错应在 API client 层兜住。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，实际请求头仍为 `  demo-code  `。
+
+### 子女端 API client 访问码规整 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：`createAnbanClient` 初始化时新增 `childAccessCode = String(accessCode || "").trim()`，所有请求的 `X-Access-Code` 使用规整后的访问码。
+- 目的：让子女端和后端 `childapi` 访问码 trim 行为保持一致，降低现场复制粘贴访问码导致 401 的基础联调风险。
+- 功能：用户在子女端后端连接表单里粘贴 ` demo-code ` 时，API client 仍会发送 `X-Access-Code: demo-code`。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 `API client normalizes pasted child access code` 回归测试。
+- 功能影响：仅增强子女端 API client 输入容错；无后端 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `npm test --prefix web` 通过，53 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，53 个测试全绿；all files 行覆盖率 95.60%、函数覆盖率 97.06%，`api/client.js` 行覆盖率 94.74%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+
+### preflight Gate D 可插拔性手工项 RED 测试
+
+- 文件：`server/internal/preflight/preflight_test.go`
+- 内容：新增/扩展 preflight 报告测试，要求 `Run` 输出 `anban optionality smoke` 手工检查项，并在格式化报告中提示 `Gate D`、停掉 `anban` 后原版小智仍应能对话。
+- 目的：把方案 C 的“安伴是可选增强进程，停掉它不应影响原版 xiaozhi”从部署文档推进到可执行预检报告，避免只验证 Gate A 后忘记做可插拔性复核。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/preflight`，得到有效 RED：报告中缺少 `anban optionality smoke` 检查项。
+
+### preflight Gate D 可插拔性手工项 GREEN 实现
+
+- 文件：`server/internal/preflight/preflight.go`
+- 内容：`Run` 的初始手工检查项中新增 `anban optionality smoke`，提示完成安伴最小联调后停掉 `anban`，再确认设备仍可继续原版小智对话。
+- 目的：让预检报告同时提醒 Gate A 和 Gate D，守住方案 C 的可插拔边界：xiaozhi 独立可用，anban 只是可选增强。
+- 功能：`anban-preflight` 输出会多一条 `[MANUAL] anban optionality smoke - Gate D: ...`；该项不调用、不修改 xiaozhi，也不改变命令退出码。
+- 文件：`server/internal/preflight/preflight_test.go`
+- 内容：保留 Gate D 手工项和格式化文案的回归测试。
+- 功能影响：仅增强预检报告；无业务 API 变更，无 xiaozhi 上游代码变化。
+- 验证：
+  - `go test -count=1 ./internal/preflight` 通过。
+  - `go test -count=1 -cover ./internal/preflight` 通过，覆盖率 97.0%。
+  - `go test -count=1 ./cmd/anban-preflight` 通过。
+  - `go test -count=1 ./...` 通过。
+  - `npm test --prefix web` 通过，52 个 smoke tests 全绿。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 无空白错误，仅提示既有 LF/CRLF 换行警告。
+
+### preflight Gate A 环境变量空白容错 RED 测试
+
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增 `TestRunCommandAcceptsTrimmedGateConfirmationFromEnv`，把 `ANBAN_PREFLIGHT_XIAOZHI_GATE_PASSED` 设置为 ` true `，要求预检命令仍视为 Gate A 已人工确认。
+- 目的：方案 C 联调前必须先确认原版小智唤醒、回应、打断；现场 `.env` 复制粘贴带空白时，不应让已经确认的 Gate A 被误判为未确认。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./cmd/anban-preflight`，得到有效 RED：新增测试失败，stderr 提示 Gate A not confirmed。
+
+### preflight Gate A 环境变量空白容错 GREEN 实现
+
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：`envBool` 读取 `ANBAN_PREFLIGHT_XIAOZHI_GATE_PASSED` 时先执行 `strings.TrimSpace`，再匹配 `true/yes/1` 等确认值。
+- 目的：和已有 manager URL/token trim 行为保持一致，减少方案 C 现场预检时因 `.env` 空白字符造成的误失败。
+- 功能：`ANBAN_PREFLIGHT_XIAOZHI_GATE_PASSED=" true "` 现在会被识别为 Gate A 已确认；原有 `true`、`yes`、`1` 行为不变。
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：保留 `TestRunCommandAcceptsTrimmedGateConfirmationFromEnv` 回归测试。
+- 功能影响：仅增强 anban 预检命令的配置容错；不调用、不修改 xiaozhi 原版语音链路。
+- 验证：
+  - `go test -count=1 ./cmd/anban-preflight` 通过。
+  - `go test -count=1 -cover ./cmd/anban-preflight` 通过，覆盖率 86.2%。
+  - `npm test --prefix web` 通过，52 个 smoke tests 全绿。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+
+### 可选运行配置规整 RED 测试
+
+- 文件：`server/internal/config/config_test.go`
+- 内容：新增 `TestLoadTrimsOptionalEnvValues`，要求 `ANBAN_DB_DSN`、`ANBAN_LISTEN_ADDR`、`ANBAN_ALLOWED_ORIGINS` 这类可选配置在读取时规整首尾空白。
+- 目的：降低现场 `.env` 复制粘贴导致监听地址或 sqlite 路径带空格的部署风险，服务于方案 C 本地/路演联调。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/config`，得到有效 RED：新增测试失败，原因是 `ANBAN_DB_DSN` 仍保留首尾空白。
+
+### 可选运行配置规整 GREEN 实现
+
+- 文件：`server/internal/config/config.go`
+- 内容：`envOr` 读取可选环境变量时先执行 `strings.TrimSpace`；规整后为空仍返回默认值。
+- 目的：让可选配置与必填配置的复制粘贴容错一致，避免 `.env` 里的空白字符变成真实监听地址或 sqlite 文件路径。
+- 功能：`ANBAN_DB_DSN=" ./data/anban.db "` 会按 `./data/anban.db` 使用；`ANBAN_LISTEN_ADDR=" :8091 "` 会按 `:8091` 使用；纯空白仍走默认值。
+- 文件：`server/internal/config/config_test.go`
+- 内容：保留 `TestLoadTrimsOptionalEnvValues` 回归测试。
+- 功能影响：仅增强 anban 自身配置读取容错；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - `go test -count=1 ./internal/config` 通过。
+  - `go test -count=1 -cover ./internal/config` 通过，覆盖率 90.0%。
+  - `npm test --prefix web` 通过，52 个 smoke tests 全绿。
+  - `node --test --experimental-test-coverage smoke.test.mjs` 通过，52 个测试全绿；all files 行覆盖率 95.58%、函数覆盖率 97.06%，`status-summary.js` 行覆盖率 100%。
+  - `go test -count=1 ./...` 通过。
+  - `go build ./...` 通过。
+  - `go vet ./...` 通过。
+  - `git diff --check` 无空白错误，仅提示既有 LF/CRLF 换行警告。
+
+### 子女端无状态快照时本地留言构造状态卡片 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `status display can be built from local messages before backend status exists`，要求 `status-summary.js` 导出 `buildStatusSnapshotForDisplay`，在没有后端状态快照但已有本地留言结果时，也能生成可展示的状态快照。
+- 目的：补齐子女端基础闭环的边角场景；如果用户未先刷新设备状态就发送留言，顶部状态卡片也应能立即显示“最新留言：已播报”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，原因是 `buildStatusSnapshotForDisplay` 还不存在。
+
+### 子女端无状态快照时本地留言构造状态卡片 GREEN 实现
+
+- 文件：`web/status-summary.js`
+- 内容：新增 `buildStatusSnapshotForDisplay`，优先合并后端状态快照和本地消息列表；没有后端快照但有本地消息时，生成可展示的最小状态快照。
+- 目的：把状态卡片的数据合成逻辑收口在可单测模块里，避免 `app.js` 各路径重复判断。
+- 功能：未先拿到后端状态快照时，发送留言成功后也能显示“最新留言：已播报”；失败 message 会被合成为离线/失败状态。
+- 文件：`web/app.js`
+- 内容：`renderCurrentBackendStatus` 改为调用 `buildStatusSnapshotForDisplay`，统一处理有/无后端状态快照两类场景。
+- 目的：让发送结果、消息轮询和设备状态轮询共用同一套状态卡片合成逻辑。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留无状态快照时由本地消息构造状态卡片的回归测试，并补充有后端快照时本地消息覆盖摘要、无消息返回空状态的覆盖。
+- 功能影响：仅增强子女端 web 状态展示；无后端 API 变更，无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，52 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，52 个 smoke 测试通过；all files line 95.58%，funcs 97.06%，`status-summary.js` line 100%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端发送结果立即刷新状态卡片 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web refreshes status card immediately after send result changes messages`，并限定检查 `messageForm` handler 内部，要求发送成功和后端返回失败 message payload 两条路径都在 `renderMessages()` 后调用 `renderCurrentBackendStatus()`。
+- 目的：对齐 PRD #4 的留言状态可见性；子女点击发送后应立即看到顶部“最新留言：已播报/失败”，不必等待下一次留言轮询。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，原因是发送分支仍使用临时状态文案且没有重绘当前后端状态卡片。
+
+### 子女端发送结果立即刷新状态卡片 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：留言发送成功后、以及发送失败但后端返回失败 message payload 后，均在 `renderMessages()` 后调用 `renderCurrentBackendStatus()`。
+- 目的：让子女端“发送留言”这条最核心操作立即同步顶部状态卡片，不依赖后续 10 秒轮询。
+- 功能：发送成功时顶部状态卡片会立刻按当前消息列表显示“最新留言：已播报”；发送失败且后端返回失败 message 时会立刻显示“最新留言：失败”。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留发送成功/失败 payload 后刷新状态卡片的回归测试。
+- 功能影响：仅增强子女端 web 状态展示；无后端 API 变更，无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，50 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，50 个 smoke 测试通过；all files line 95.24%，funcs 96.97%，`status-summary.js` line 100%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端消息轮询刷新状态卡片 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web refreshes status card after message status polling updates`，要求 `app.js` 保存后端状态快照，并在 `refreshBackendMessages` 的 10 秒留言状态轮询更新消息列表后重渲染状态卡片。
+- 目的：对齐 PRD #4“留言状态 pending → played 延迟 ≤ 10 秒”，避免顶部“最新留言”只跟随 30 秒设备状态轮询而滞后。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，原因是 `app.js` 还没有 `statusSnapshot` 和 `renderCurrentBackendStatus`。
+
+### 子女端消息轮询刷新状态卡片 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：新增 `state.statusSnapshot`、`updateStatusSnapshot` 和 `renderCurrentBackendStatus`；设备状态轮询更新快照，留言状态轮询更新 `state.messages` 后同步重渲染顶部状态卡片。
+- 目的：让子女端顶部状态卡片里的“最新留言”跟随 10 秒留言状态轮询刷新，避免等待 30 秒设备状态轮询。
+- 功能：留言列表从 `pending` 更新为 `played/failed` 后，状态卡片也会同步显示最新留言状态；连接信息失效时会清空缓存快照。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留消息轮询刷新状态卡片的回归测试。
+- 功能影响：仅增强子女端 web 状态刷新；无后端 API 变更，无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，49 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，49 个 smoke 测试通过；all files line 95.24%，funcs 96.97%，`status-summary.js` line 100%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端状态卡片展示最新留言状态 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `status detail surfaces latest message playback state`，要求状态详情格式化函数把后端 `snapshot.messages[0].status` 显示为“最新留言：已播报”。
+- 目的：对齐 PRD #4“设备在线 + 最近互动 + 自己刚发的留言播了没”的子女端状态卡片基础体验，让连接后第一眼就能看到最新留言播报状态。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，原因是 `web/status-summary.js` 尚不存在。
+
+### 子女端状态卡片展示最新留言状态 GREEN 实现
+
+- 文件：`web/status-summary.js`
+- 内容：新增 `formatStatusDetail` 和 `messageStatusLabel`，把 `lastInteractionAt/lastSeenAt` 与最新留言状态组合成状态卡片详情。
+- 目的：把 PRD #4 的状态摘要文案做成可独立测试的前端小模块，避免状态卡片逻辑散在 `app.js` 里。
+- 功能：状态卡片现在会显示类似 `最近互动：06/01 08:30 · 最新留言：已播报`；没有留言时仍显示原来的最近互动/暂无最近互动。
+- 文件：`web/app.js`
+- 内容：`renderBackendStatus` 改为调用 `formatStatusDetail`，留言列表状态标签复用 `messageStatusLabel`。
+- 目的：让顶部状态卡片和留言列表的状态文案保持一致。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留最新留言状态展示回归测试，并补充无留言 fallback、失败/排队状态标签覆盖。
+- 功能影响：仅增强子女端 web 状态展示；无后端 API 变更，无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，48 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，48 个 smoke 测试通过；all files line 95.24%，funcs 96.97%，`status-summary.js` line 100%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+## 2026-06-10
+
+### 留言列表 deviceId query 规整 RED 测试
+
+- 文件：`server/internal/domains/message/handler_test.go`
+- 内容：新增 `TestHandlerListMessagesTrimsDeviceIDQuery`，先创建一条 `dev-001` 留言，再用 `GET /api/messages?deviceId=%20dev-001%20` 查询，要求仍能查到该留言。
+- 目的：现场联调和子女端手工输入设备 ID 时，复制粘贴首尾空白不应导致留言列表误判为空；这是 PRD #3/#4 的基础闭环稳定性。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test -count=1 ./internal/domains/message`，得到有效 RED：新增测试失败，原因是列表查询过滤条件未规整 `deviceId`。
+
+### 留言列表 deviceId/status 规整 GREEN 实现
+
+- 文件：`server/internal/domains/message/service.go`
+- 内容：`Service.List` 在进入 store 查询前，对 `filter.DeviceID` 和 `filter.Status` 执行 `strings.TrimSpace`。
+- 目的：把留言域的输入规整收口在 service 边界，保证 handler query、未来 childapi 编排或其他调用路径都得到一致行为。
+- 功能：`GET /api/messages?deviceId=%20dev-001%20` 现在能返回 `dev-001` 留言；`status` 查询同样容忍首尾空白。
+- 文件：`server/internal/domains/message/handler_test.go`
+- 内容：保留 `TestHandlerListMessagesTrimsDeviceIDQuery` 回归测试。
+- 功能影响：仅增强 anban 留言列表查询容错；无上游 xiaozhi 代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/domains/message`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/domains/message`，message 包覆盖率 91.1%。
+  - 已运行 `npm test --prefix web`，46 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，46 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### xiaozhi 设备状态时间规整 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `TestGetDeviceStatusTrimsManagerTimeFields`，模拟 manager 设备列表返回 `last_active_at` 带首尾空白，要求 `GetDeviceStatus` 仍能解析出最近活跃时间。
+- 目的：设备联调时 manager 响应字段若带格式空白，不应让状态页整体失败；规整应收口在 `xiaozhiclient` 边界。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED：新增测试失败，原因是 `time.Parse` 未 trim 时间字符串。
+
+### xiaozhi 设备状态时间规整 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：`parseOptionalTime` 在解析 RFC3339 时间前先执行 `strings.TrimSpace`。
+- 目的：把 manager OpenAPI 返回字段的首尾空白容错收口在 xiaozhi 适配器边界，避免状态域和 childapi 处理格式细节。
+- 功能：`GetDeviceStatus` 和 `GetHistory` 解析时间字段时可接受首尾空白；非法时间仍返回错误。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：保留 `TestGetDeviceStatusTrimsManagerTimeFields` 回归测试。
+- 功能影响：仅增强 anban 读取 xiaozhi manager 响应的容错；无上游 xiaozhi 代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/xiaozhiclient`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/xiaozhiclient`，xiaozhiclient 包覆盖率 87.5%。
+  - 已运行 `npm test --prefix web`，46 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，46 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### childapi 空访问码配置拒绝 RED 测试
+
+- 文件：`server/internal/childapi/accesscode_test.go`
+- 内容：新增 `TestAccessCodeMiddlewareRejectsEmptyConfiguredCode`，要求 `RequireAccessCode("")` 不因为请求头同样为空而放行 API。
+- 目的：虽然主配置层已要求 `ANBAN_ACCESS_CODE` 必填，但 childapi 中间件自身也要守住空配置不放行的安全边界，避免测试或未来装配路径误传空访问码。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/childapi`，得到有效 RED：新增测试失败，空配置下请求返回 200。
+
+### childapi 空访问码配置拒绝 GREEN 实现
+
+- 文件：`server/internal/childapi/accesscode.go`
+- 内容：`RequireAccessCode` 初始化时 trim 配置访问码；如果配置访问码为空，所有受保护 API 均返回 401。
+- 目的：让 childapi 中间件自身具备安全默认值，避免未来测试装配或替代启动路径误传空访问码导致 API 无保护。
+- 功能：正常配置访问码不变；配置码带首尾空白会被规整；配置码为空时不再放行空 header。
+- 文件：`server/internal/childapi/accesscode_test.go`
+- 内容：新增空配置拒绝回归测试。
+- 目的：防止访问码中间件后续重构时再次出现空配置放行。
+- 功能影响：仅后端 childapi 访问码安全边界变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/childapi`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/childapi`，childapi 包覆盖率 93.0%。
+  - 已运行 `npm test --prefix web`，46 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，46 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+## 2026-06-09
+
+### childapi 访问码 header 规整 RED 测试
+
+- 文件：`server/internal/childapi/accesscode_test.go`
+- 内容：新增 `TestAccessCodeMiddlewareTrimsHeaderValue`，要求 `X-Access-Code` 请求头带首尾空白时也能通过访问码校验。
+- 目的：与配置加载和子女端连接表单的 trim 行为保持一致，减少设备联调时复制粘贴访问码导致的 401。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/childapi`，得到有效 RED：新增测试失败，返回 401。
+
+### childapi 访问码 header 规整 GREEN 实现
+
+- 文件：`server/internal/childapi/accesscode.go`
+- 内容：`RequireAccessCode` 比较访问码前对 `X-Access-Code` 请求头执行 `strings.TrimSpace`。
+- 目的：让后端访问码入口与配置加载、子女端表单 trim 行为一致，降低复制粘贴访问码造成的联调摩擦。
+- 功能：`X-Access-Code: " secret "` 现在会按 `secret` 校验；错误访问码仍返回 401。
+- 文件：`server/internal/childapi/accesscode_test.go`
+- 内容：新增访问码 header 规整回归测试。
+- 目的：防止后续中间件重构时重新对首尾空白敏感。
+- 功能影响：仅后端 childapi 访问码容错变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/childapi`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/childapi`，childapi 包覆盖率 92.9%。
+  - 已运行 `npm test --prefix web`，46 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，46 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端连接成功后才启动轮询 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web starts polling only after a successful backend refresh`，要求连接表单只有在 `await refreshMessages()` 返回成功后才启动状态、留言、提醒轮询，并要求 `refreshMessages` 明确返回 `true/false`。
+- 目的：访问码错误、后端不可达或业务域占位时，不应继续启动三类轮询反复请求后端；这会干扰设备现场联调。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，失败点为连接流程仍无条件 `await refreshMessages()` 后启动轮询。
+
+### 子女端连接成功后才启动轮询 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：`refreshMessages()` 成功完成状态、留言、提醒、问候时段和画像刷新后返回 `true`；业务域占位或连接失败时返回 `false`。连接表单提交后如果 `await refreshMessages()` 为 false，直接返回，不启动三类轮询。
+- 目的：访问码错误、后端不可达或骨架占位时，让子女端停在明确失败状态，避免后台轮询持续打无效请求。
+- 功能：连接成功才进入持续刷新；连接失败仍会显示原有错误提示，但不会开启状态/留言/提醒轮询。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增连接成功后才启动轮询的回归测试。
+- 目的：防止后续连接流程重构时重新在失败后启动轮询。
+- 功能影响：仅子女端连接状态管理变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，46 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，46 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端无效连接清旧数据 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web clears stale device data when connection settings become invalid`，要求无效连接分支调用 `clearConnectionData()`，并要求该 helper 清空 messages/reminders、重新渲染列表、清空画像。
+- 目的：用户切换或清空设备 ID 后，页面不应一边显示“未连接”，一边保留上一台设备的留言、提醒或画像示例，避免现场联调误判。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，失败点为无效连接分支缺少 `clearConnectionData()`。
+
+### 子女端无效连接清旧数据 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：新增 `clearConnectionData()`，清空 `state.messages` 和 `state.reminders`，重新渲染留言/提醒空列表，并复用 `clearProfile()` 清空画像；无效连接分支在停止轮询后调用该 helper。
+- 目的：用户清空访问码或设备 ID 后，页面立即清掉上一台设备的业务数据，避免“未连接”状态下仍展示旧留言、旧提醒或旧画像。
+- 功能：有效连接流程不变；无效连接现在会同时停止轮询、清旧数据、显示未连接提示。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增无效连接清旧数据回归测试。
+- 目的：防止连接入口后续重构时保留上一台设备的数据。
+- 功能影响：仅子女端本地显示状态变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，45 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，45 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端无效连接停止轮询 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web stops existing polling when connection settings become invalid`，要求连接表单变成无效配置时，在提示“访问码和设备 ID 必填”前调用 `stopConnectionPolling()`，并存在统一停止轮询 helper。
+- 目的：用户曾经连接成功后，如果现场把访问码或设备 ID 清空再点连接，旧轮询不应继续用空配置请求后端。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，失败点为无效连接分支缺少 `stopConnectionPolling()`。
+
+### 子女端无效连接停止轮询 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：新增 `stopConnectionPolling()`，统一停止设备状态、留言状态、提醒状态三个轮询，并把对应 timer ID 清为 `null`；连接表单无效配置分支在提示前调用该 helper。
+- 目的：用户曾经连接成功后再清空访问码或设备 ID 时，前端立即停止旧轮询，避免继续产生无效后端请求。
+- 功能：有效连接流程不变；无效连接会停掉旧轮询并停留在“未连接”状态。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增无效连接停止轮询回归测试。
+- 目的：防止后续重构连接入口时遗漏旧轮询清理。
+- 功能影响：仅子女端本地连接状态管理变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，44 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，44 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端连接必填校验 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web validates connection settings before backend calls`，要求连接表单在 `refreshMessages()` 前先检查 `state.accessCode` 和 `state.deviceId`，并显示“访问码和设备 ID 必填”。
+- 目的：设备现场联调时，避免子女端把空访问码或空设备 ID 写入 localStorage 后再请求后端，导致一串 400/401 错误不易定位。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，失败点为本地连接校验提示缺失。
+
+### 子女端连接必填校验 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：连接表单提交时，在 trim 访问码、设备 ID、后端地址后，先检查访问码和设备 ID；缺失则显示“访问码和设备 ID 必填”，状态停在“未连接”，并提前返回。
+- 目的：减少设备现场联调的入口错误，把缺访问码/设备 ID 这种本地问题挡在前端，不污染 localStorage，也不向后端发无效请求。
+- 功能：访问码和设备 ID 都填写后，原来的保存配置、刷新状态、启动轮询流程不变；任一为空时不会继续连接流程。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增连接必填校验回归测试，确认本地校验发生在后端请求前。
+- 目的：防止后续改连接流程时重新把空配置发到后端。
+- 功能影响：仅子女端本地连接体验变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，43 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，43 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端无画像清空示例 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web clears sample profile when backend has no saved profile`，要求 `refreshProfile` 在后端返回画像 404 时调用 `clearProfile()`，清掉 HTML 里预置的示例画像。
+- 目的：真实后端尚无家庭画像时，避免子女端仍显示“王阿姨 · 喜欢豫剧”等示例内容，误导现场联调判断。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，失败点为 `clearProfile()` 未出现。
+
+### 子女端无画像清空示例 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：新增 `clearProfile()`，在 `refreshProfile` 捕获画像 404 或 501 时把概要改成“暂无画像”，并用空 fields 写回画像表单。
+- 目的：连接真实后端但尚未保存家庭画像时，清掉静态 HTML 里的演示样例，避免现场误判“画像已经同步”。
+- 功能：后端无画像或 profile 域仍为占位时，子女端显示明确的空画像状态；保存画像成功后仍按后端返回值渲染并回填表单。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增无画像清空示例回归测试。
+- 目的：防止后续重构时重新把 404/501 静默吞掉并保留示例画像。
+- 功能影响：仅子女端显示状态变化；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `npm test --prefix web`，42 个 smoke 测试通过。
+  - 已运行 `node --test --experimental-test-coverage smoke.test.mjs`，42 个 smoke 测试通过；all files line 94.63%，funcs 96.67%。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 方案 C 部署现场速查文档
+
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：在指南开头新增“现场速查”章节，按只跑 xiaozhi、签 manager token、启动 anban、打开子女端 web 四步整理设备到场后的最短执行路径，并补充 PowerShell 命令清单。
+- 目的：把方案 C 的两进程边界和现场联调步骤写成可照做的 Runbook，避免把本仓库误当成 xiaozhi 仓库，也避免 Gate A 未过时继续堆安伴功能。
+- 功能：新增 Gate A-D 速查表，明确纯 xiaozhi、manager 接入、子女端闭环、可插拔性的验收点和未通过时的排查方向。
+- 功能影响：仅文档变更；无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `git diff --check -- docs/deployment/方案C部署与联调指南.md docs/REALTIME_CHANGELOG.md`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端后端地址规整 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `API client normalizes pasted backend base URL`，要求 `createAnbanClient` 在 `baseURL` 带首尾空白和多个尾斜杠时，仍请求干净的 `http://anban.local/api/messages?...`。
+- 目的：设备到场联调时子女端常会复制粘贴后端地址；该测试防止 `http://localhost:8090/ ` 这类输入拼出错误 API URL。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：新增测试失败，实际 URL 为 `'  http://anban.local///  /api/messages?deviceId=dev-001'`。
+
+### 子女端后端地址规整 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：`createAnbanClient` 初始化 `root` 时改为 `baseURL.trim().replace(/\/+$/, '')`，同时处理首尾空白和多个尾斜杠。
+- 目的：降低设备联调时子女端输入后端地址的摩擦，避免复制粘贴导致所有 API 请求 URL 拼错。
+- 功能：后端地址 `http://localhost:8090/ `、`http://localhost:8090///` 都会规整成 `http://localhost:8090` 再拼 API 路径；空字符串仍保持相对路径模式。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增后端地址规整回归测试。
+- 目的：防止前端 API client 后续重构时退回只删除单个尾斜杠。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `npm test --prefix web`，41 个 smoke 测试通过。
+
+## 2026-06-08
+
+### 00:00 childapi 留言列表路由 RED 测试
+
+- 文件：`server/internal/childapi/message_routes_test.go`
+- 内容：扩展 message 路由测试，要求 `MessageRoutes` 依赖提供时 `GET /api/messages` 能被注册路由接管；缺少依赖时该路径返回 501 占位。
+- 目的：让子女端 Web 刷新留言状态实际调用的列表 API 与后端骨架测试保持一致，避免测试只覆盖发送留言的 POST。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前测试 stub 只注册 `/messages` POST。
+- 验证：已运行 `go test ./internal/childapi`，得到有效 RED：`TestMessageRoutesAreRegisteredWhenDependencyProvided` 失败，`GET /api/messages` 返回 404 而不是 200。
+
+### 00:01 childapi 留言列表路由 GREEN 测试契约
+
+- 文件：`server/internal/childapi/message_routes_test.go`
+- 内容：message 路由 stub 新增 `GET /messages`，并覆盖有依赖/无依赖两种场景：有依赖时返回 200 stub 列表，缺依赖时返回 501 占位。
+- 目的：把 `childapi` 路由契约和真实 `message.Handler`、子女端 Web 的 `listMessages` 调用路径对齐，防止后续骨架测试遗漏留言列表。
+- 功能：仅测试契约变更；生产 `message.Handler` 已经同时注册 `POST /messages` 和 `GET /messages`，运行时行为不变。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/childapi`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/childapi`，childapi 包覆盖率 92.9%。
+  - 已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 11:41 childapi 设备状态 PRD 路径 RED 测试
+
+- 文件：`server/internal/childapi/status_routes_test.go`
+- 内容：扩展状态路由测试，要求 `StatusRoutes` 依赖提供时 `/api/device/status` 这个 PRD 路径也能被注册路由接管；缺少依赖时该路径返回 501 占位。
+- 目的：让子女端 Web 实际调用的 `/api/device/status` 与后端骨架测试保持一致，避免测试只覆盖旧别名 `/api/status`。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前测试 stub 只注册 `/status`。
+- 验证：已运行 `go test ./internal/childapi`，得到有效 RED：`TestStatusRoutesAreRegisteredWhenDependencyProvided` 失败，`GET /api/device/status` 返回 404 而不是 200。
+
+### 11:42 childapi 设备状态 PRD 路径 GREEN 测试契约
+
+- 文件：`server/internal/childapi/status_routes_test.go`
+- 内容：状态路由 stub 新增 `GET /device/status`，并覆盖有依赖/无依赖两种场景：有依赖时返回 200 stub，缺依赖时返回 501 占位。
+- 目的：把 `childapi` 路由契约和真实 `status.Handler`、子女端 Web 调用路径对齐，防止后续骨架测试遗漏 PRD 路径。
+- 功能：仅测试契约变更；生产 `status.Handler` 已经同时注册 `/status` 和 `/device/status`，运行时行为不变。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/childapi`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/childapi`，childapi 包覆盖率 92.9%。
+  - 已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 11:37 childapi 提醒撤销占位路由 RED 测试
+
+- 文件：`server/internal/childapi/reminder_routes_test.go`
+- 内容：扩展 reminder 路由测试，要求提供 `ReminderRoutes` 依赖时 `DELETE /api/reminders/:id` 能被注册路由接管；缺少依赖时，该路径也应返回 501 占位而不是 404。
+- 目的：让子女端骨架里的撤销提醒 API 与后端占位路由形状一致，前端在域未接入时看到“未实现”而不是“路由不存在”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `childapi` 缺少 DELETE 提醒占位。
+- 验证：已运行 `go test ./internal/childapi`，得到有效 RED：`TestReminderRoutesStayPlaceholderWhenDependencyMissing` 失败，`DELETE /api/reminders/:id` 返回 404 而不是 501。
+
+### 11:39 childapi 提醒撤销占位路由 GREEN 实现
+
+- 文件：`server/internal/childapi/server.go`
+- 内容：在缺少 `ReminderRoutes` 依赖的占位分支中新增 `api.DELETE("/reminders/:id", notImpl)`。
+- 目的：补齐子女端提醒撤销 API 的后端骨架路由，让 reminder 域未装配时仍返回统一的 501 占位响应。
+- 功能：真实 reminder handler 已装配时行为不变；缺依赖的骨架模式下，`DELETE /api/reminders/:id` 不再是 404。
+- 文件：`server/internal/childapi/reminder_routes_test.go`
+- 内容：新增有依赖/无依赖两种 DELETE 路由覆盖。
+- 目的：防止子女端骨架和后端占位路由再次不一致。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/childapi`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/childapi`，childapi 包覆盖率 92.9%。
+  - 已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 11:32 xiaozhi 历史畸形对象 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `TestGetHistoryRejectsMalformedObjectWithoutList`，模拟 manager 历史接口返回 `{"data":{"unexpected":true}}`，要求 `GetHistory` 返回错误。
+- 目的：避免状态页依赖的历史读取把 manager 契约不匹配静默解释为“没有历史”，让联调时能区分“无互动”和“历史接口返回形状不支持”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前实现会返回空历史且无错误。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED：`TestGetHistoryRejectsMalformedObjectWithoutList` 失败，错误为 expected malformed history response error, got nil。
+
+### 11:34 xiaozhi 历史畸形对象 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：`decodeHistoryMessages` 解析对象响应时增加 `foundList` 标记；如果没有找到 `messages/items/list/records/rows` 任一历史列表字段，返回 `xiaozhi manager history response does not contain a message list` 错误。
+- 目的：把 manager 历史接口契约不匹配留在 `xiaozhiclient` 边界内暴露，`status` 域仍可按已有降级逻辑回退到 `last_active_at`。
+- 功能：空数组仍是合法空历史；畸形对象不再静默成功，便于设备到场联调时定位 manager 历史接口形状问题。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增畸形对象回归测试。
+- 目的：防止历史解析再次把未知对象当成空历史。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/xiaozhiclient`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/xiaozhiclient`，xiaozhiclient 包覆盖率 86.9%。
+  - 已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 11:28 xiaozhi 历史 records 返回形状 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `TestGetHistoryParsesNestedRecordsPayload`，模拟 xiaozhi manager `/api/open/v1/history/messages` 返回 `{"data":{"records":[...]}}`，要求 `GetHistory` 能解析出角色、文本和时间。
+- 目的：增强 PRD #4 “最近互动时间”和 #5 “当前会话沉淀”所依赖的只读历史读取容错性，避免 manager 使用常见分页字段 `records` 时状态页退化为空历史。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前实现只支持直接数组或 `messages` 字段。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，得到有效 RED：`TestGetHistoryParsesNestedRecordsPayload` 失败，`history = []`。
+
+### 11:30 xiaozhi 历史列表字段 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：`decodeHistoryMessages` 在历史响应是对象时，按顺序识别 `messages`、`items`、`list`、`records`、`rows` 这些常见列表字段，并解析为统一的 `HistoryMessage`。
+- 目的：让安伴状态域只依赖 `xiaozhiclient.GetHistory` 的稳定接口，不把 manager 分页字段差异泄露到 `status` 或 `childapi`。
+- 功能：`GET /api/device/status` 通过 `GetHistory` 计算最近互动时，能兼容更多 manager 历史接口返回形状；直接数组和原有 `messages` 形状保持不变。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `data.records` 回归测试。
+- 目的：防止后续重构把历史列表解析重新收窄。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/xiaozhiclient`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/xiaozhiclient`，xiaozhiclient 包覆盖率 86.7%。
+  - 已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 11:22 reminder 重启过期未应答 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 `TestServiceRestoreScheduledMarksOverduePlayedReminderUnanswered`，模拟服务重启时已有一条 `played` 提醒，且 `playedAt + 30min` 早于当前时间，要求恢复阶段直接标记为 `unanswered`，不再安排过期的 ack timeout job。
+- 目的：对齐 PRD #6 “30 分钟无应答 -> 未应答且子女端可见”，避免后端重启后过期提醒短暂停留在 `played` 状态或依赖一个过去时间的异步 job 才能落状态。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：首次运行因 Go cache 目录未指向 D 盘失败，不计为有效 RED；创建并指向 `.gocache-go/.gotmp-go` 后运行 `go test ./internal/domains/reminder`，得到有效 RED：`TestServiceRestoreScheduledMarksOverduePlayedReminderUnanswered` 失败，原因是恢复时安排了 1 个过去的 ack timeout job。
+
+### 11:24 reminder 重启过期未应答 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：`RestoreScheduled` 恢复 `played` 提醒时先计算 `playedAt + defaultAckTimeout`；如果该时间已经不晚于当前时间，直接以 `AckKindTimeout` 调用确认逻辑并清空旧 `AckJobID`，不再安排过去时间的调度任务。
+- 目的：让后端重启后，超过 30 分钟未应答的提醒立即进入 `unanswered` 状态，保证子女端刷新即可看到真实状态。
+- 功能：未超过确认窗口的 `played` 提醒仍重排 ack timeout；已经过期的提醒同步转 `unanswered` 并带 `ackKind=timeout`、`acknowledgedAt`。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增过期恢复回归测试，验证没有新增 past ack job，且提醒状态直接为 `unanswered`。
+- 目的：防止后续恢复逻辑重构时重新依赖过去时间异步 job。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：
+  - 已运行 `go test -count=1 ./internal/domains/reminder`，通过。
+  - 已运行 `go test -count=1 -cover ./internal/domains/reminder`，reminder 包覆盖率 80.6%。
+  - 已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go test -count=1 ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go build ./...`，通过。
+  - 在 `server/` 使用 D 盘 `GOTMPDIR/GOCACHE` 运行 `go vet ./...`，通过。
+  - 已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 配置必填环境变量空白规整 RED 测试
+
+- 文件：`server/internal/config/config_test.go`
+- 内容：新增 `TestLoadTrimsRequiredEnvValues` 和 `TestLoadRejectsWhitespaceRequiredEnvValues`，要求主服务配置加载时 trim `ANBAN_MANAGER_BASE_URL`、`ANBAN_MANAGER_API_TOKEN`、`ANBAN_ACCESS_CODE`，并把纯空白 manager URL 视为缺失。
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增 `TestLoadPreflightConfigTrimsManagerAccess`，并扩展 `TestLoadPreflightConfigRequiresManagerAccess`，要求 preflight 独立配置同样 trim manager URL/token，并拒绝纯空白 manager URL。
+- 目的：提升设备到货联调容错性，避免复制 `.env` 时首尾空格通过校验，随后在 xiaozhi manager HTTP 调用里变成难定位错误。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前配置加载直接使用 `os.Getenv` 原值。
+- 验证：已运行 `go test ./internal/config ./cmd/anban-preflight`，按预期失败；失败点为 manager URL/token/access code 未 trim，且纯空白 manager URL 未被拒绝。
+
+### 配置必填环境变量空白规整 GREEN 实现
+
+- 文件：`server/internal/config/config.go`
+- 内容：新增 `trimEnv`，主服务配置加载时 trim `ANBAN_MANAGER_BASE_URL`、`ANBAN_MANAGER_API_TOKEN`、`ANBAN_ACCESS_CODE` 后再做必填校验。
+- 目的：让服务启动阶段更早暴露配置错误，避免 manager URL/token/access code 首尾空白在后续请求里变成难排查的鉴权或连接问题。
+- 功能：纯空白必填环境变量会被视为缺失；带首尾空白的有效值会被规整后使用。
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：`loadPreflightConfig` 对 manager URL/token 做 `strings.TrimSpace`。
+- 目的：让设备到货前置检查与主服务配置行为一致。
+- 功能：preflight 不再把带空白的 manager URL/token 原样传给 `xiaozhiclient`。
+- 文件：`server/internal/config/config_test.go`、`server/cmd/anban-preflight/main_test.go`
+- 内容：新增/扩展 GREEN 覆盖测试，验证 trim 和纯空白拒绝。
+- 目的：防止配置入口回退到原样读取。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `go test -count=1 ./internal/config ./cmd/anban-preflight`，通过；已运行 `go test -count=1 -cover ./internal/config ./cmd/anban-preflight`，`config` 覆盖率 90.0%，`anban-preflight` 覆盖率 86.2%；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### Compose 子女端跨域配置 RED 测试
+
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：新增 `TestDockerComposeWiresAnbanAllowedOrigins`，读取根目录 `docker-compose.yml`，要求 Compose 部署路径也给 `anban` 服务传入 `ANBAN_ALLOWED_ORIGINS`。
+- 目的：保证本地直跑 `.env.example` 和 Docker Compose 联调路径一致，避免子女端静态页在 Compose 部署时再次被 CORS 预检拦住。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `docker-compose.yml` 没有 `ANBAN_ALLOWED_ORIGINS`。
+- 验证：已运行 `go test ./internal/architecture`，按预期失败；失败点为 `docker-compose.yml anban service must pass ANBAN_ALLOWED_ORIGINS`。
+
+### Compose 子女端跨域配置 GREEN 实现
+
+- 文件：`docker-compose.yml`
+- 内容：在 `anban.environment` 中新增 `ANBAN_ALLOWED_ORIGINS: "${ANBAN_ALLOWED_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}"`。
+- 目的：让 Docker Compose 联调路径默认支持本地静态子女端访问安伴后端，同时允许部署时通过环境变量覆盖来源。
+- 功能：使用 Compose 启动 `anban` 时会把 CORS 允许来源传入后端配置，和 `.env.example` 的本地直跑路径保持一致。
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：新增架构/部署配置守护测试，防止以后移除 Compose 中的 `ANBAN_ALLOWED_ORIGINS`。
+- 目的：把方案 C 的基础联调配置纳入自动测试。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `go test -count=1 ./internal/architecture`，通过；已运行 `go test -count=1 -cover ./internal/architecture`，通过（纯测试守护包，无 statements）；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### xiaozhi manager base URL 尾斜杠 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `TestHTTPClientTrimsTrailingSlashFromManagerBaseURL`，用 `NewHTTPClient(srv.URL + "/", ...)` 调用 `InjectSpeak`，要求 manager 侧收到的路径仍是 `/api/open/v1/devices/inject-message`。
+- 目的：提升方案 C 部署容错性，避免 `.env` 中 `ANBAN_MANAGER_BASE_URL=http://localhost:8080/` 这种常见写法拼出 `//api/open/v1/*`，导致联调时误判 xiaozhi manager 端点不可用。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `NewHTTPClient` 原样保存 `baseURL`。
+- 验证：已运行 `go test ./internal/xiaozhiclient`，按预期失败；失败点为带尾斜杠 base URL 时 `InjectSpeak` 得到 manager 404。
+
+### xiaozhi manager base URL 尾斜杠 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：`NewHTTPClient` 保存 `baseURL` 时使用 `strings.TrimRight(baseURL, "/")` 去掉尾部斜杠。
+- 目的：让 `ANBAN_MANAGER_BASE_URL` 对 `http://localhost:8080` 和 `http://localhost:8080/` 两种常见写法都能正确拼接 `/api/open/v1/*`。
+- 功能：`InjectSpeak`、`CheckManagerAccess`、`GetDeviceStatus`、`GetHistory`、`SetRolePrompt`、`CallDeviceMCPTool` 共享同一个规整后的 manager base URL，避免双斜杠路径导致 manager 404。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增尾斜杠回归测试，覆盖 `InjectSpeak` 的真实路径。
+- 目的：防止后续重构把 base URL 拼接容错性破坏。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `go test -count=1 ./internal/xiaozhiclient`，通过；已运行 `go test -count=1 -cover ./internal/xiaozhiclient`，xiaozhiclient 包覆盖率 86.8%；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 状态快照留言摘要降级 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 `TestServiceGetKeepsDeviceStatusWhenMessageSummaryFails`，模拟 xiaozhi 设备状态正常、留言摘要读取失败，要求 status 服务仍返回设备在线、最近可见时间和空 `messages` 列表。
+- 目的：对齐 PRD #4 “子女端看设备状态”的基础价值，确保设备在线/最近互动这个安心底板不被附加的留言摘要故障拖垮。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 status 服务会把 message reader 错误直接返回。
+- 验证：已运行 `go test ./internal/domains/status`，按预期失败；失败点为 `Get: message db timeout`。
+
+### 状态快照留言摘要降级 GREEN 实现
+
+- 文件：`server/internal/domains/status/service.go`
+- 内容：`Get` 读取留言摘要时改为降级处理：`messageReader.ListMessageStatusSummaries` 成功则填充 `messages`，失败则保留空列表并继续返回设备状态。
+- 目的：让 PRD #4 的核心信息“设备在线/最近互动”在留言摘要临时故障时仍可用，降低子女端状态页被附属信息拖垮的风险。
+- 功能：`/api/status` 和 `/api/device/status` 在 xiaozhi 设备状态读取成功但留言摘要读取失败时仍返回 200 快照，`messages` 为空；设备状态读取失败仍按原逻辑返回错误。
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 GREEN 覆盖测试，验证留言摘要失败不会影响设备状态、最近可见时间和空消息列表返回。
+- 目的：防止后续状态聚合重构重新把附属摘要错误升级为整接口失败。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `go test -count=1 ./internal/domains/status`，通过；已运行 `go test -count=1 -cover ./internal/domains/status`，status 包覆盖率 89.1%；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 留言失败不阻塞后续发送覆盖测试
+
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：新增 `TestServiceSendMessageFailureDoesNotBlockNextMessage`，使用一个第一次 `InjectSpeak` 返回错误、第二次成功的 fake client，验证第一条留言保存为 `failed` 后，第二条留言仍能继续调用 xiaozhi、保存为 `played`，列表中同时保留失败和成功记录。
+- 目的：对齐 PRD #3 “单条留言失败不会卡死后续留言（队列健壮）”，把当前已有的独立发送/独立落库行为变成防回归测试。
+- 功能影响：无生产逻辑变更；测试直接通过，说明现有实现已满足该基础健壮性要求。
+- 验证：已运行 `go test -count=1 ./internal/domains/message`，通过；已运行 `go test -count=1 -cover ./internal/domains/message`，message 包覆盖率 90.9%；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 留言播报后续听 RED 测试
+
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：扩展 `TestServiceSendMessageInjectsAndPersistsPlayed`，要求子女端留言调用 `InjectSpeak` 时除 `SkipLLM=true` 外，还必须传入 `AutoListen=true`。
+- 目的：对齐 PRD #3 “子女端留言 → 设备播报”的现场高光，并让留言播完后把控制权交回原版 xiaozhi 聆听链路，避免安伴主动播报形成单向中断。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 message 域只设置 `SkipLLM=true`。
+- 验证：已运行 `go test ./internal/domains/message`，按预期失败；失败点为 `AutoListen is not true`。
+
+### 留言播报后续听 GREEN 实现
+
+- 文件：`server/internal/domains/message/service.go`
+- 内容：新增 `messageSpeakOptions()`，子女端留言播报调用 `InjectSpeak` 时同时设置 `SkipLLM=true` 和 `AutoListen=true`。
+- 目的：留言播报完后让 xiaozhi 继续聆听老人可能的回应，保持安伴增强能力与原版小智语音循环衔接。
+- 功能：`POST /api/messages` 触发的 manager `inject-message` 会显式携带 `auto_listen=true`；留言仍按原逻辑保存为 `played` 或 `failed`。
+- 文件：`server/internal/domains/message/service_test.go`
+- 内容：补充断言覆盖 `AutoListen=true`。
+- 目的：防止后续重构把留言播报恢复成单向注入。
+- 功能影响：无 xiaozhi 上游代码变化，不影响只部署原版 xiaozhi 的独立对话能力。
+- 验证：已运行 `go test -count=1 ./internal/domains/message`，通过；已运行 `go test -count=1 -cover ./internal/domains/message`，message 包覆盖率 90.9%；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### 子女端本地跨域 RED 测试
+
+- 文件：`server/internal/childapi/cors_test.go`
+- 内容：新增 CORS RED 测试，要求 `NewRouter` 支持配置允许来源，允许 `http://127.0.0.1:5173` 对 `/api/messages` 发起浏览器预检，并放行 `Content-Type` 与 `X-Access-Code` 请求头；未知来源不返回 `Access-Control-Allow-Origin`。
+- 文件：`server/internal/config/config_test.go`
+- 内容：新增配置 RED 测试，要求默认允许本地静态子女端来源 `http://127.0.0.1:5173` 和 `http://localhost:5173`，并支持通过 `ANBAN_ALLOWED_ORIGINS` 覆盖。
+- 目的：对齐方案 C 部署指南中“web 静态页 5173 + anban 后端 8090”的本地联调方式，避免子女端骨架在真实浏览器里被跨域预检拦住。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `childapi.Deps` 和 `config.Config` 尚无 `AllowedOrigins`。
+- 验证：已运行 `go test ./internal/childapi ./internal/config`，按预期编译失败；失败点为 `AllowedOrigins` 字段未定义。
+
+### 子女端本地跨域 GREEN 实现
+
+- 文件：`server/internal/config/config.go`
+- 内容：新增 `AllowedOrigins` 配置字段，默认值为 `http://127.0.0.1:5173,http://localhost:5173`，并支持 `ANBAN_ALLOWED_ORIGINS` 逗号分隔覆盖。
+- 目的：让本地静态子女端能按方案 C 指南从 5173 端口调用 8090 后端，同时保留部署时收敛来源的能力。
+- 功能：启动配置会把允许跨域来源传给 `childapi`，未知来源不会拿到 CORS 放行头。
+- 文件：`server/internal/childapi/server.go`
+- 内容：新增 `AllowedOrigins` 依赖字段、`AllowCORS` 中间件和 OPTIONS 预检处理，放行 `Content-Type` 与 `X-Access-Code` 请求头，以及 GET/POST/PUT/DELETE/OPTIONS 方法。
+- 目的：确保子女端 Web 骨架能在浏览器真实跨域环境下访问安伴后端 API，不只是在 Node smoke 测试里可用。
+- 功能：配置来源发起的预检返回 204，并带 `Access-Control-Allow-Origin/Methods/Headers`；未知来源仍可访问无需跨域的场景，但不会被浏览器视为 CORS 放行。
+- 文件：`server/cmd/anban/main.go`
+- 内容：启动装配时将 `cfg.AllowedOrigins` 注入 `childapi.NewRouter`。
+- 目的：让配置层和 HTTP 层真实连起来。
+- 功能影响：无 xiaozhi 调用变化，不影响原版小智独立运行。
+- 文件：`.env.example`
+- 内容：新增 `ANBAN_ALLOWED_ORIGINS=http://127.0.0.1:5173,http://localhost:5173`。
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：在 `.env` 示例中加入 `ANBAN_ALLOWED_ORIGINS`，并提示如果子女端换端口/域名需要同步更新。
+- 目的：让设备到货联调文档和实际配置一致。
+- 功能影响：无运行时影响。
+- 验证：已运行 `go test -count=1 ./internal/childapi ./internal/config`，通过；已运行 `go test -count=1 -cover ./internal/childapi ./internal/config`，`childapi` 覆盖率 92.8%，`config` 覆盖率 84.2%；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### preflight Gate A 显式确认 RED 测试
+
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增命令级 RED 测试，要求 `anban-preflight` 默认不能因为 manager/token 通过就退出 0，必须通过 `--xiaozhi-gate-passed` 或 `ANBAN_PREFLIGHT_XIAOZHI_GATE_PASSED=true` 显式确认纯 xiaozhi 语音闭环 Gate A 已人工通过。
+- 目的：把“确保原版小智功能正常”从提示文字升级为命令守门，避免跳过实机原版唤醒/回应/打断验证就继续安伴联调。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 CLI 没有 Gate A 确认参数，且 manager/token 通过时会直接返回 0。
+- 验证：已运行 `go test ./cmd/anban-preflight`，按预期失败；失败点为 `--xiaozhi-gate-passed` 未定义，以及未确认 Gate A 时仍返回 0。
+
+### preflight Gate A 显式确认 GREEN 实现
+
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：新增 `--xiaozhi-gate-passed` 参数和 `ANBAN_PREFLIGHT_XIAOZHI_GATE_PASSED` 环境变量；manager/token 检查通过但 Gate A 未确认时输出说明并返回非 0。
+- 目的：确保启动安伴联调前，操作者必须显式确认原版小智唤醒、回应、打断已人工验证。
+- 功能：preflight 现在需要“manager/token 通过 + 设备检查按需通过 + Gate A 显式确认”才会返回 0。
+- 文件：`README.md`
+- 内容：本地启动步骤中的 preflight 命令增加 `--xiaozhi-gate-passed`。
+- 目的：把 Gate A 确认放到仓库第一入口，避免误把 preflight 输出当成自动验证。
+- 功能影响：无运行时影响。
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：补充 `--xiaozhi-gate-passed` 和 `ANBAN_PREFLIGHT_XIAOZHI_GATE_PASSED=true` 的使用说明。
+- 目的：让设备到货部署指南明确区分自动 manager/token 检查和人工纯小智语音闭环确认。
+- 功能影响：无运行时影响。
+- 验证：已运行 `go test -count=1 ./cmd/anban-preflight`，通过；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；已运行 `git diff --check`，无空白错误，仅提示 Windows 下 LF 后续会被 Git 转为 CRLF。
+
+### preflight CLI 行为 RED 测试
+
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增命令级 RED 测试，使用 `httptest` 假 manager 验证 `anban-preflight` 在不设置 `ANBAN_ACCESS_CODE`、不传设备 ID 时仍会访问 `/api/open/v1/devices`、携带 `X-API-Token`、输出 manager PASS 和设备 SKIP，并在 manager 401 时返回非 0。
+- 目的：把设备到货联调命令本身纳入测试，证明 preflight 的真实 CLI 行为符合“先查 manager/token，再可选查设备”的守门顺序。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前命令只有 `main()`，没有可测试的 `run` 入口。
+- 验证：已运行 `go test ./cmd/anban-preflight`，按预期编译失败；失败原因为 `run` 未定义。
+
+### preflight CLI 行为 GREEN 实现
+
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：将 `main` 拆出 `run(args, stdout, stderr) int`，使用独立 `flag.FlagSet` 解析参数，并通过返回码表达成功、配置失败、manager 检查失败或参数错误。
+- 目的：让 `anban-preflight` 的真实 CLI 行为可测试，避免只测内部包而漏掉参数、环境变量和退出码组合。
+- 功能：外部命令行为不变；测试可注入 stdout/stderr 并断言 exit code。
+- 验证：已运行 `go test -count=1 ./cmd/anban-preflight`，通过；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；`git diff --check` 无空白错误。
+
+### preflight manager/token 检查 RED 测试
+
+- 文件：`server/internal/preflight/preflight_test.go`
+- 内容：新增断言，要求 `preflight.Run` 即使未提供设备 ID，也必须先检查 xiaozhi manager OpenAPI/token；manager 检查失败时整体失败，且不继续查设备状态。
+- 目的：让设备到货联调守门真正验证 manager URL/token，而不是在无设备 ID 时只输出 `[SKIP]`。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前 `DeviceStatusReader` 没有 manager access 检查能力。
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `CheckManagerAccess` RED 测试，要求通过 `GET /api/open/v1/devices` 和 `X-API-Token` 做非侵入式 manager/token 检查，并拒绝畸形设备列表响应。
+- 目的：把 manager/token 预检仍收口在 `xiaozhiclient`，不让 preflight 直接懂 OpenAPI 路径。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `HTTPClient.CheckManagerAccess` 尚未实现。
+- 验证：已运行 `go test ./internal/preflight ./internal/xiaozhiclient`，按预期失败；preflight 未检查 manager access，且 `HTTPClient.CheckManagerAccess` 未定义。
+
+### preflight manager/token 检查 GREEN 实现
+
+- 文件：`server/internal/preflight/preflight.go`
+- 内容：新增 `ManagerAccessChecker` 接口并要求 `DeviceStatusReader` 实现它；`Run` 先执行 manager OpenAPI/token 检查，失败则返回 fail，不再继续设备状态检查。
+- 目的：让 preflight 成为真正的方案 C 联调守门：先确认 xiaozhi manager/token 可用，再选择性检查具体设备。
+- 功能：无设备 ID 时也会输出 `[PASS] xiaozhi manager OpenAPI access` 或失败；设备 ID 为空仅跳过“具体设备在线”检查。
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：新增 `CheckManagerAccess(ctx)`，通过只读 `GET /api/open/v1/devices` 检查 manager OpenAPI 和 API Token，并复用设备列表解析校验响应形状。
+- 目的：继续保持只有 `xiaozhiclient` 知道 xiaozhi manager endpoint，preflight 不直接写 HTTP 路径。
+- 功能：可在不触发播报、不依赖设备 ID 的情况下验证 manager/token。
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：更新 preflight 说明和输出示例，明确无设备 ID 时仍会检查 manager URL/token，仅跳过具体设备在线检查。
+- 目的：保持部署指南和新的 preflight 守门行为一致。
+- 功能影响：无运行时影响。
+- 验证：已运行 `go test -count=1 ./internal/preflight ./internal/xiaozhiclient`，通过；已运行 `go run ./cmd/anban-preflight`（dummy manager/token、不设置访问码、不传设备 ID），按预期输出 `[FAIL] xiaozhi manager OpenAPI access` 并以非 0 退出；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；`git diff --check` 无空白错误。
+
+### preflight 独立配置 RED 测试
+
+- 文件：`server/cmd/anban-preflight/main_test.go`
+- 内容：新增测试，要求 `anban-preflight` 的配置加载只依赖 `ANBAN_MANAGER_BASE_URL` 和 `ANBAN_MANAGER_API_TOKEN`，不要求 `ANBAN_ACCESS_CODE`；同时覆盖缺 manager URL/token 的错误。
+- 目的：设备到货联调时，preflight 是安伴业务启动前的 xiaozhi manager 守门，不应被子女端访问码配置阻塞。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `loadPreflightConfig` 尚未实现。
+- 验证：已运行 `go test ./cmd/anban-preflight`，按预期编译失败；失败原因为 `loadPreflightConfig` 未定义。
+
+### preflight 独立配置 GREEN 实现
+
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：新增 `preflightConfig` 和 `loadPreflightConfig`，只读取并校验 `ANBAN_MANAGER_BASE_URL` 与 `ANBAN_MANAGER_API_TOKEN`，不再复用完整 `config.Load()`。
+- 目的：让设备到货后的 xiaozhi manager/token 预检可以早于安伴 childapi 配置执行，减少联调前置摩擦。
+- 功能：`anban-preflight` 不再因为 `ANBAN_ACCESS_CODE` 未设置而退出；manager URL/token 仍为必填。
+- 验证：已运行 `go test -count=1 ./cmd/anban-preflight`，通过；已运行 `go run ./cmd/anban-preflight`（设置 dummy manager/token、不设置 `ANBAN_ACCESS_CODE`、不传设备 ID），输出 `[MANUAL]` Gate A 和 `[SKIP]` 设备检查；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；`git diff --check` 无空白错误。
+
+### 主动语音播报后续听 RED 测试
+
+- 文件：`server/internal/domains/greeting/service_test.go`
+- 内容：新增断言，要求主动问候调用 `InjectSpeak` 时传入 `AutoListen=true`。
+- 目的：对齐 PRD #2 “问候后老人答挺好的→进入正常对话循环”，让安伴主动开口后把控制权交回原版 xiaozhi 聆听链路。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期当前实现只设置 `SkipLLM=true`，没有显式 `AutoListen=true`。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增断言，要求提醒播报调用 `InjectSpeak` 时传入 `AutoListen=true`。
+- 目的：对齐 PRD #6 “老人答好的→状态完成”的语音入口前提，避免提醒播完后设备不进入可回应状态。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/domains/greeting ./internal/domains/reminder`，按预期失败；失败点分别为 `AutoListen is not true`。
+
+### 主动语音播报后续听 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/service.go`
+- 内容：主动问候调用 `InjectSpeak` 时改用 `proactiveSpeakOptions()`，同时设置 `SkipLLM=true` 和 `AutoListen=true`。
+- 目的：问候播完后让 xiaozhi 继续聆听老人回应，符合 PRD #2 的演示链路。
+- 功能：子女按钮、定时问候、视觉触发问候共用该路径，播完都请求 xiaozhi 自动续听。
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：提醒播报调用 `InjectSpeak` 时改用 `proactiveSpeakOptions()`，设置 `AutoListen=true`。
+- 目的：提醒播完后给老人语音回答“好/知道了”的入口，避免安伴主动播报形成单向打断。
+- 功能：提醒到点播报后，manager 注入消息会显式携带 `auto_listen=true`。
+- 验证：已运行 `go test -count=1 ./internal/domains/greeting ./internal/domains/reminder`，通过；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；`git diff --check` 无空白错误。
+
+### 方案 C 架构边界守护测试
+
+- 文件：`server/internal/architecture/architecture_test.go`
+- 内容：新增架构边界测试，扫描生产 Go 文件，要求 xiaozhi manager OpenAPI 细节只出现在 `internal/xiaozhiclient`；`childapi` 不直接 import `store` 或 `xiaozhiclient`；各 `domains` 不互相 import。
+- 目的：把 AGENTS.md 三条架构铁律和方案 C“冻结 xiaozhi、安伴可插拔增强”的边界变成可执行测试，降低后续开发把安伴写成大产品式深耦合的风险。
+- 功能影响：无运行时影响；新增的是测试护栏。
+- 验证：已运行 `go test -count=1 ./internal/architecture`，通过。首次版本把注释里的 `X-API-Token` 说明误判为越界，已收窄为只检查 Go 字符串字面量；随后运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过；`git diff --check` 无空白错误。
+
+### 设备到货联调守门 RED 测试
+
+- 文件：`server/internal/preflight/preflight_test.go`
+- 内容：新增 preflight RED 测试，要求联调守门报告始终包含“纯 xiaozhi 语音闭环 Gate A 需人工先过”，并在给出设备 ID 时通过 xiaozhi manager 设备状态 API 校验设备在线；缺设备 ID 时跳过该可选检查，manager/token 错误或设备离线时失败。
+- 目的：把完整文档仓“三周计划 W1 先只跑原版小智”和方案 C“安伴可插拔增强”的纪律变成可重复运行的本仓检查，避免跳过纯 xiaozhi 验收就调安伴功能。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，预期 `preflight.Run`、`Report`、`StatusManual` 等尚未实现。
+- 验证：已运行 `go test ./internal/preflight`，按预期编译失败。失败原因为 `Run`、`StatusManual`、`StatusPass`、`FormatReport`、`Report`、`Status` 等尚未实现。
+
+### 设备到货联调守门 GREEN 实现
+
+- 文件：`server/internal/preflight/preflight.go`
+- 内容：新增 preflight 报告模型、`Run` 和 `FormatReport`，包含 Gate A 手工项、可选 manager 设备在线检查、失败判断和可读输出。
+- 目的：提供一个不触发设备播报、不改 xiaozhi 的联调守门，先确认纯小智语音闭环已人工通过，再确认安伴能用 manager OpenAPI 读到设备在线。
+- 功能：提供 `pass/fail/skip/manual` 四类检查状态；设备 ID 为空时跳过在线检查，token/manager/设备错误或离线时失败。
+- 文件：`server/cmd/anban-preflight/main.go`
+- 内容：新增 `anban-preflight` 命令，从现有 `ANBAN_*` 配置读取 manager 地址和 token，可通过 `-device-id` 或 `ANBAN_PREFLIGHT_DEVICE_ID` 指定设备。
+- 目的：设备到货后能在启动安伴业务功能前跑一次可重复的本仓预检。
+- 功能：输出 preflight 报告；如 manager 设备检查失败则以非 0 退出码结束。
+- 验证：已运行 `go test -count=1 ./internal/preflight`，通过；已运行 `go test -count=1 ./cmd/anban-preflight`，通过。
+
+### 联调守门文档与缓存忽略
+
+- 文件：`README.md`
+- 内容：在本地启动步骤中加入 `go run ./cmd/anban-preflight -device-id <xiaozhi设备ID>`。
+- 目的：把“先纯 xiaozhi，再接安伴”的联调顺序放到仓库第一入口。
+- 功能影响：无运行时影响。
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：在启动安伴后端前加入 preflight 命令说明、输出示例和最小联调顺序更新。
+- 目的：设备到手后能照着同一份指南执行，不把 preflight 的 `[SKIP]` 误解成 Gate A 通过。
+- 功能影响：无运行时影响。
+- 文件：`.gitignore`
+- 内容：忽略 `.gocache-go/`、`.gotmp-go/` 和 server 下同名 Go 本地缓存目录。
+- 目的：当前沙箱不能访问 Windows 用户目录下的 Go build cache，验证时需要把 `GOCACHE/GOTMPDIR` 切进仓库；忽略这些目录避免污染工作区。
+- 功能影响：无运行时影响。
+- 验证：已运行 `go run ./cmd/anban-preflight`（使用 dummy manager/token 且不传设备 ID），输出 `[MANUAL]` Gate A 和 `[SKIP]` 设备检查，未访问 manager、未触发播报；已运行 `go test -count=1 ./...`、`go build ./...`、`go vet ./...`，均通过；已运行 `npm test --prefix web`，40 个 smoke 测试通过。
+
+## 2026-06-06
+
+### 方案 C 部署与联调文档
+
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：新增设备到手后的方案 C 部署指南，明确 `xiaozhi-esp32-server-golang` 与 `anban` 是两个进程，先纯 xiaozhi 跑通，再把安伴作为可选增强接入。
+- 目的：回应“设备到了按方案 C 怎么部署、这个仓库是什么”的对齐问题，避免把 xiaozhi 上游源码或部署责任误纳入本仓库。
+- 功能影响：无运行时影响。
+- 文件：`README.md`
+- 内容：补充本仓库边界、可插拔部署说明和方案 C 部署指南入口。
+- 目的：让打开仓库的人第一眼知道本仓库不是 xiaozhi 仓库，而是安伴增强服务。
+- 功能影响：无运行时影响。
+- 文件：`docs/README.md`
+- 内容：加入 `deployment/方案C部署与联调指南.md` 文档索引。
+- 目的：让编码工作副本内能快速找到部署与设备联调指南。
+- 功能影响：无运行时影响。
+- 验证：已运行 `git diff --check`，无空白错误；已检查 README、docs 索引和部署指南包含方案 C、可选增强、`ANBAN_MANAGER_BASE_URL`、`127.0.0.1:7890`、Gate A 等关键字。仅有 Git 提示 LF 将在 Windows 下转换为 CRLF。
+
 ## 2026-05-31
 
 ### 23:40 初始化实时修改记录
@@ -1504,3 +3090,11 @@
   - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go build ./...` 通过。
   - 在 `server/` 使用 D 盘 `GOTMPDIR` 运行 `go vet ./...` 通过。
   - 首次 `go clean -cache` 有一个缓存文件被短暂占用，等待 2 秒后重试成功；已删除 `.gocache-go/README` 与 `.gocache-go/trim.txt` 缓存残留。
+
+### 11:18 方案 C 部署指南补充当前阶段范围
+
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：新增“当前阶段范围”，明确现在只优先 Gate A 纯 xiaozhi、Gate B manager 接入、Gate C 子女端最小闭环；画像先服务基础演示点，视觉最后接且允许降级。
+- 目的：回应“先做基础框架和基本功能”的对齐要求，避免执行时把安伴做成复杂大产品，或在 Gate A 未验证前继续扩大功能面。
+- 功能影响：仅文档变更；不改变后端、前端或部署行为。
+- 验证：已检查部署指南一级章节编号，确认新增章节后编号连续。

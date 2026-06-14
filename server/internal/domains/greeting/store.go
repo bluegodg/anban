@@ -27,6 +27,18 @@ func (s *Store) Update(ctx context.Context, greeting *Greeting) error {
 	return s.db.WithContext(ctx).Save(greeting).Error
 }
 
+func (s *Store) Get(ctx context.Context, id uint) (Greeting, error) {
+	var greeting Greeting
+	err := s.db.WithContext(ctx).First(&greeting, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Greeting{}, ErrNotFound
+	}
+	if err != nil {
+		return Greeting{}, err
+	}
+	return greeting, nil
+}
+
 func (s *Store) UpsertSchedule(ctx context.Context, schedule *GreetingSchedule) error {
 	var existing GreetingSchedule
 	err := s.db.WithContext(ctx).Where("device_id = ?", schedule.DeviceID).First(&existing).Error

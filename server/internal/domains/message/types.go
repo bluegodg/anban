@@ -8,6 +8,7 @@ import (
 const MaxTextRunes = 100
 
 var ErrInvalidInput = errors.New("message: invalid input")
+var ErrNotFound = errors.New("message: not found")
 
 type Status string
 

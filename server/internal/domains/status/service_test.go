@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	appstore "github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
@@ -87,6 +88,36 @@ func TestServiceGetIncludesRecentMessageStatuses(t *testing.T) {
 	}
 }
 
+func TestServiceGetKeepsDeviceStatusWhenMessageSummaryFails(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	reader := &statusMessageReader{err: errors.New("message db timeout")}
+	xc := &statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID:     "dev-001",
+			Online:       true,
+			LastActiveAt: lastActive,
+		},
+	}
+	svc := NewService(xc, reader)
+
+	snapshot, err := svc.Get(context.Background(), GetRequest{DeviceID: " dev-001 "})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if reader.gotDeviceID != "dev-001" {
+		t.Fatalf("message reader deviceID = %q, want dev-001", reader.gotDeviceID)
+	}
+	if snapshot.DeviceID != "dev-001" || !snapshot.Online {
+		t.Fatalf("snapshot = %+v, want device status despite message summary failure", snapshot)
+	}
+	if len(snapshot.Messages) != 0 {
+		t.Fatalf("messages = %+v, want empty fallback when message summary fails", snapshot.Messages)
+	}
+	if snapshot.LastSeenAt == nil || !snapshot.LastSeenAt.Equal(lastActive) {
+		t.Fatalf("lastSeenAt = %v, want %s", snapshot.LastSeenAt, lastActive)
+	}
+}
+
 func TestServiceGetUsesLatestHistoryForLastInteraction(t *testing.T) {
 	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
 	olderInteraction := time.Date(2026, 6, 1, 8, 29, 0, 0, time.UTC)
@@ -165,6 +196,73 @@ func TestServiceGetKeepsDeviceStatusWhenHistoryReadFails(t *testing.T) {
 	if snapshot.LastInteractionAt == nil || !snapshot.LastInteractionAt.Equal(lastActive) {
 		t.Fatalf("lastInteractionAt = %v, want fallback last active %s", snapshot.LastInteractionAt, lastActive)
 	}
+}
+
+func TestServiceGetFallsBackToCachedSnapshotWhenDeviceStatusFails(t *testing.T) {
+	statusStore := newTestStatusStore(t)
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	latestInteraction := time.Date(2026, 6, 1, 8, 45, 0, 0, time.UTC)
+	playedAt := time.Date(2026, 6, 1, 8, 50, 0, 0, time.UTC)
+
+	first := NewService(&statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID:     "dev-001",
+			Online:       true,
+			LastActiveAt: lastActive,
+		},
+		history: []xiaozhiclient.HistoryMessage{
+			{Role: "user", Text: "今天腰有点酸", At: latestInteraction},
+		},
+	})
+	first.UseStore(statusStore)
+	if _, err := first.Get(context.Background(), GetRequest{DeviceID: " dev-001 "}); err != nil {
+		t.Fatalf("prime cache Get: %v", err)
+	}
+
+	reader := &statusMessageReader{
+		summaries: []sharedtypes.MessageStatusSummary{
+			{MessageID: 7, Status: "played", QueuedAt: playedAt.Add(-time.Minute), PlayedAt: &playedAt},
+		},
+	}
+	failingClient := &statusClient{err: errors.New("manager unavailable")}
+	second := NewService(failingClient, reader)
+	second.UseStore(statusStore)
+
+	snapshot, err := second.Get(context.Background(), GetRequest{DeviceID: " dev-001 "})
+	if err != nil {
+		t.Fatalf("cached fallback Get: %v", err)
+	}
+	if failingClient.gotDeviceID != "dev-001" {
+		t.Fatalf("deviceID = %q, want trimmed dev-001", failingClient.gotDeviceID)
+	}
+	if snapshot.DeviceID != "dev-001" {
+		t.Fatalf("DeviceID = %q, want cached dev-001", snapshot.DeviceID)
+	}
+	if snapshot.Online {
+		t.Fatal("Online = true, want cached fallback to report offline while manager is unavailable")
+	}
+	if snapshot.LastSeenAt == nil || !snapshot.LastSeenAt.Equal(lastActive) {
+		t.Fatalf("LastSeenAt = %v, want cached %s", snapshot.LastSeenAt, lastActive)
+	}
+	if snapshot.LastInteractionAt == nil || !snapshot.LastInteractionAt.Equal(latestInteraction) {
+		t.Fatalf("LastInteractionAt = %v, want cached %s", snapshot.LastInteractionAt, latestInteraction)
+	}
+	if len(snapshot.Messages) != 1 || snapshot.Messages[0].MessageID != 7 {
+		t.Fatalf("Messages = %+v, want current persisted message summary on cached status", snapshot.Messages)
+	}
+}
+
+func newTestStatusStore(t *testing.T) *Store {
+	t.Helper()
+	st, err := appstore.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open store: %v", err)
+	}
+	statusStore := NewStore(st.DB)
+	if err := statusStore.AutoMigrate(); err != nil {
+		t.Fatalf("AutoMigrate status store: %v", err)
+	}
+	return statusStore
 }
 
 type statusClient struct {

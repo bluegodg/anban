@@ -80,6 +80,9 @@ func TestServiceCreateSchedulesAndFiresReminder(t *testing.T) {
 	if !call.Opts.SkipLLM {
 		t.Fatal("SkipLLM = false, want true for deterministic reminder playback")
 	}
+	if call.Opts.AutoListen == nil || !*call.Opts.AutoListen {
+		t.Fatal("AutoListen is not true; reminder playback should allow the elder to answer through xiaozhi")
+	}
 
 	list, err := svc.List(context.Background(), ListFilter{DeviceID: "dev-001"})
 	if err != nil {
@@ -101,6 +104,8 @@ func TestServiceCreateValidatesAndNormalizesInput(t *testing.T) {
 		{name: "missing device", req: CreateRequest{ScheduledAt: validTime, Content: "测血压"}},
 		{name: "missing content", req: CreateRequest{DeviceID: "dev-001", ScheduledAt: validTime}},
 		{name: "missing time", req: CreateRequest{DeviceID: "dev-001", Content: "测血压"}},
+		{name: "past time", req: CreateRequest{DeviceID: "dev-001", ScheduledAt: svc.now().Add(-time.Minute), Content: "测血压"}},
+		{name: "current time", req: CreateRequest{DeviceID: "dev-001", ScheduledAt: svc.now(), Content: "测血压"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,6 +129,29 @@ func TestServiceCreateValidatesAndNormalizesInput(t *testing.T) {
 	}
 	if got.Content != "记得喝水" {
 		t.Fatalf("Content = %q, want trimmed content", got.Content)
+	}
+}
+
+func TestServiceListNormalizesFilters(t *testing.T) {
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, &fakeScheduler{})
+	ctx := context.Background()
+
+	created, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 1, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	got, err := svc.List(ctx, ListFilter{DeviceID: "  dev-001  ", Status: "  scheduled  "})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != created.ID {
+		t.Fatalf("List = %+v, want reminder %d after trimmed filters", got, created.ID)
 	}
 }
 
@@ -172,7 +200,7 @@ func TestServiceCreateMarksFailedWhenInjectFailsOnFire(t *testing.T) {
 	}
 }
 
-func TestServiceSkipsReminderWhenProactiveVoiceQuotaUsed(t *testing.T) {
+func TestServiceRequeuesReminderWhenProactiveVoiceQuotaUsed(t *testing.T) {
 	fakeXC := &xiaozhiclient.FakeClient{}
 	fakeSch := &fakeScheduler{}
 	svc := newTestService(t, fakeXC, fakeSch)
@@ -189,15 +217,18 @@ func TestServiceSkipsReminderWhenProactiveVoiceQuotaUsed(t *testing.T) {
 	}
 
 	fakeSch.fire(0)
-	list, err := svc.List(context.Background(), ListFilter{Status: StatusSkipped})
+	list, err := svc.List(context.Background(), ListFilter{Status: StatusScheduled})
 	if err != nil {
-		t.Fatalf("List skipped: %v", err)
+		t.Fatalf("List scheduled: %v", err)
 	}
 	if len(list) != 1 || list[0].ID != got.ID {
-		t.Fatalf("skipped reminders = %+v, want skipped reminder %d", list, got.ID)
+		t.Fatalf("scheduled reminders = %+v, want requeued reminder %d", list, got.ID)
 	}
-	if list[0].JobID != "" {
-		t.Fatalf("JobID = %q, want cleared after skipped proactive voice", list[0].JobID)
+	if list[0].JobID != "job-2" {
+		t.Fatalf("JobID = %q, want retry job id job-2", list[0].JobID)
+	}
+	if want := svc.now().UTC().Add(proactiveRetryDelay); !list[0].ScheduledAt.Equal(want) {
+		t.Fatalf("ScheduledAt = %s, want retry at %s", list[0].ScheduledAt, want)
 	}
 	if list[0].ErrorMessage == "" {
 		t.Fatal("ErrorMessage is empty")
@@ -205,8 +236,11 @@ func TestServiceSkipsReminderWhenProactiveVoiceQuotaUsed(t *testing.T) {
 	if len(fakeXC.InjectCalls) != 0 {
 		t.Fatalf("InjectCalls = %d, want no xiaozhi injection when quota is used", len(fakeXC.InjectCalls))
 	}
-	if len(fakeSch.jobs) != 1 {
-		t.Fatalf("scheduled jobs = %d, want no ack timeout job after skipped reminder", len(fakeSch.jobs))
+	if len(fakeSch.jobs) != 2 {
+		t.Fatalf("scheduled jobs = %d, want original reminder job plus retry job", len(fakeSch.jobs))
+	}
+	if want := svc.now().UTC().Add(proactiveRetryDelay); !fakeSch.jobs[1].at.Equal(want) {
+		t.Fatalf("retry scheduled at = %s, want %s", fakeSch.jobs[1].at, want)
 	}
 }
 
@@ -318,6 +352,52 @@ func TestServiceRestoreScheduledRehydratesPlayedAckTimeouts(t *testing.T) {
 	}
 	if len(unanswered) != 1 || unanswered[0].ID != played.ID || unanswered[0].AckKind != AckKindTimeout {
 		t.Fatalf("unanswered reminders = %+v, want restored timeout reminder", unanswered)
+	}
+}
+
+func TestServiceRestoreScheduledMarksOverduePlayedReminderUnanswered(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	ctx := context.Background()
+	playedAt := svc.now().UTC().Add(-defaultAckTimeout - time.Minute)
+
+	played := Reminder{
+		DeviceID:    "dev-001",
+		ScheduledAt: svc.now().UTC().Add(-2 * defaultAckTimeout),
+		Content:     "测血压",
+		Category:    CategoryMed,
+		Text:        reminderText("测血压", CategoryMed),
+		Status:      StatusPlayed,
+		PlayedAt:    &playedAt,
+		AckJobID:    "stale-ack-job",
+	}
+	if err := svc.store.Create(ctx, &played); err != nil {
+		t.Fatalf("create played: %v", err)
+	}
+
+	count, err := svc.RestoreScheduled(ctx)
+	if err != nil {
+		t.Fatalf("RestoreScheduled: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("restored count = %d, want 1 overdue ack timeout", count)
+	}
+	if len(fakeSch.jobs) != 0 {
+		t.Fatalf("scheduled jobs = %d, want no past ack timeout job", len(fakeSch.jobs))
+	}
+
+	unanswered, err := svc.List(ctx, ListFilter{Status: StatusUnanswered})
+	if err != nil {
+		t.Fatalf("List unanswered: %v", err)
+	}
+	if len(unanswered) != 1 || unanswered[0].ID != played.ID || unanswered[0].AckKind != AckKindTimeout {
+		t.Fatalf("unanswered reminders = %+v, want overdue played reminder marked unanswered", unanswered)
+	}
+	if unanswered[0].AckJobID != "" {
+		t.Fatalf("AckJobID = %q, want cleared after overdue timeout", unanswered[0].AckJobID)
+	}
+	if unanswered[0].AcknowledgedAt == nil {
+		t.Fatal("AcknowledgedAt = nil, want overdue timeout timestamp")
 	}
 }
 

@@ -7,11 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
 func newTestService(t *testing.T, xc xiaozhiclient.Client) *Service {
+	t.Helper()
+	return newTestServiceWithScheduler(t, xc, nil)
+}
+
+func newTestServiceWithScheduler(t *testing.T, xc xiaozhiclient.Client, sch *fakeOneShotScheduler) *Service {
 	t.Helper()
 
 	st, err := store.Open(":memory:")
@@ -23,7 +30,12 @@ func newTestService(t *testing.T, xc xiaozhiclient.Client) *Service {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
-	svc := NewService(msgStore, xc)
+	var svc *Service
+	if sch == nil {
+		svc = NewService(msgStore, xc)
+	} else {
+		svc = NewService(msgStore, xc, sch)
+	}
 	svc.now = func() time.Time { return time.Date(2026, 5, 31, 10, 0, 0, 0, time.UTC) }
 	return svc
 }
@@ -61,6 +73,9 @@ func TestServiceSendMessageInjectsAndPersistsPlayed(t *testing.T) {
 	}
 	if !call.Opts.SkipLLM {
 		t.Fatal("SkipLLM = false, want true for exact child message playback")
+	}
+	if call.Opts.AutoListen == nil || !*call.Opts.AutoListen {
+		t.Fatal("AutoListen is not true; child message playback should hand control back to xiaozhi listening loop")
 	}
 
 	list, err := svc.List(context.Background(), ListFilter{DeviceID: "dev-001"})
@@ -115,6 +130,87 @@ func TestServiceMarksMessageFailedWhenInjectFails(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].Status != StatusFailed {
 		t.Fatalf("failed list = %+v", list)
+	}
+}
+
+func TestServiceQueuesMessageWhenProactiveVoiceQuotaUsed(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	fakeSch := &fakeOneShotScheduler{}
+	svc := newTestServiceWithScheduler(t, fake, fakeSch)
+	svc.UseProactiveVoiceGate(throttledVoiceGate{})
+
+	msg, err := svc.Send(context.Background(), SendRequest{
+		DeviceID: "dev-001",
+		Text:     "妈，我下班路过老张家了",
+		FromName: "小明",
+	})
+	if err != nil {
+		t.Fatalf("Send err = %v, want queued message without surfacing throttle", err)
+	}
+	if msg.Status != StatusPending {
+		t.Fatalf("Status = %q, want %q", msg.Status, StatusPending)
+	}
+	if msg.ErrorMessage == "" {
+		t.Fatal("ErrorMessage is empty")
+	}
+	if len(fake.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want no xiaozhi injection while voice gate is throttled", len(fake.InjectCalls))
+	}
+	if len(fakeSch.jobs) != 1 {
+		t.Fatalf("one-shot jobs = %d, want 1 retry job", len(fakeSch.jobs))
+	}
+	if want := svc.now().UTC().Add(messageRetryDelay); !fakeSch.jobs[0].at.Equal(want) {
+		t.Fatalf("retry scheduled at = %s, want %s", fakeSch.jobs[0].at, want)
+	}
+
+	list, err := svc.List(context.Background(), ListFilter{Status: StatusPending})
+	if err != nil {
+		t.Fatalf("List pending: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != msg.ID {
+		t.Fatalf("pending messages = %+v, want queued message %d", list, msg.ID)
+	}
+}
+
+func TestServiceSendMessageFailureDoesNotBlockNextMessage(t *testing.T) {
+	xc := &recoveringClient{err: errors.New("manager unavailable")}
+	svc := newTestService(t, xc)
+	ctx := context.Background()
+
+	failed, err := svc.Send(ctx, SendRequest{DeviceID: "dev-001", Text: "第一条先失败"})
+	if err == nil {
+		t.Fatal("expected first send to fail, got nil")
+	}
+	if failed.Status != StatusFailed {
+		t.Fatalf("first status = %q, want %q", failed.Status, StatusFailed)
+	}
+
+	played, err := svc.Send(ctx, SendRequest{DeviceID: "dev-001", Text: "第二条应该继续播报"})
+	if err != nil {
+		t.Fatalf("second Send: %v", err)
+	}
+	if played.Status != StatusPlayed {
+		t.Fatalf("second status = %q, want %q", played.Status, StatusPlayed)
+	}
+	if len(xc.successfulCalls) != 1 {
+		t.Fatalf("successful inject calls = %d, want 1", len(xc.successfulCalls))
+	}
+	if xc.successfulCalls[0].Text != "第二条应该继续播报" {
+		t.Fatalf("successful inject text = %q", xc.successfulCalls[0].Text)
+	}
+
+	messages, err := svc.List(ctx, ListFilter{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages = %+v, want failed and played messages", messages)
+	}
+	if messages[0].ID != played.ID || messages[0].Status != StatusPlayed {
+		t.Fatalf("newest message = %+v, want played second message", messages[0])
+	}
+	if messages[1].ID != failed.ID || messages[1].Status != StatusFailed {
+		t.Fatalf("older message = %+v, want failed first message", messages[1])
 	}
 }
 
@@ -178,4 +274,40 @@ func (f failingClient) SetRolePrompt(ctx context.Context, deviceID, prompt strin
 
 func (f failingClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
 	return json.RawMessage(`{}`), nil
+}
+
+type recoveringClient struct {
+	xiaozhiclient.FakeClient
+	err             error
+	successfulCalls []xiaozhiclient.InjectCall
+}
+
+func (c *recoveringClient) InjectSpeak(ctx context.Context, deviceID, text string, opts xiaozhiclient.InjectOptions) error {
+	if c.err != nil {
+		err := c.err
+		c.err = nil
+		return err
+	}
+	c.successfulCalls = append(c.successfulCalls, xiaozhiclient.InjectCall{DeviceID: deviceID, Text: text, Opts: opts})
+	return nil
+}
+
+type fakeOneShotScheduler struct {
+	jobs []fakeOneShotJob
+}
+
+type fakeOneShotJob struct {
+	at time.Time
+	fn func()
+}
+
+func (f *fakeOneShotScheduler) ScheduleAt(at time.Time, fn func()) (scheduler.JobID, error) {
+	f.jobs = append(f.jobs, fakeOneShotJob{at: at, fn: fn})
+	return scheduler.JobID("once-" + string(rune('0'+len(f.jobs)))), nil
+}
+
+type throttledVoiceGate struct{}
+
+func (throttledVoiceGate) TryAcquireProactiveVoice(context.Context, string, time.Time) (sharedtypes.ProactiveVoiceLease, error) {
+	return nil, sharedtypes.ErrProactiveVoiceThrottled
 }

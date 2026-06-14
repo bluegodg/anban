@@ -36,6 +36,17 @@ func TestReminderRoutesAreRegisteredWhenDependencyProvided(t *testing.T) {
 	if ackW.Code != http.StatusOK {
 		t.Fatalf("POST /api/reminders/:id/ack status = %d, want 200; body=%s", ackW.Code, ackW.Body.String())
 	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/reminders/1", nil)
+	deleteReq.Header.Set("X-Access-Code", "demo")
+	deleteW := httptest.NewRecorder()
+	r.ServeHTTP(deleteW, deleteReq)
+	if deleteW.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/reminders/:id status = %d, want 200; body=%s", deleteW.Code, deleteW.Body.String())
+	}
+	if !strings.Contains(deleteW.Body.String(), "canceled") {
+		t.Fatalf("body = %s, want canceled stub response", deleteW.Body.String())
+	}
 }
 
 func TestReminderRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
@@ -58,6 +69,14 @@ func TestReminderRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
 	if ackW.Code != http.StatusNotImplemented {
 		t.Fatalf("POST /api/reminders/:id/ack status = %d, want 501", ackW.Code)
 	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/reminders/1", nil)
+	deleteReq.Header.Set("X-Access-Code", "demo")
+	deleteW := httptest.NewRecorder()
+	r.ServeHTTP(deleteW, deleteReq)
+	if deleteW.Code != http.StatusNotImplemented {
+		t.Fatalf("DELETE /api/reminders/:id status = %d, want 501", deleteW.Code)
+	}
 }
 
 type reminderRoutesStub struct{}
@@ -68,6 +87,9 @@ func (reminderRoutesStub) RegisterRoutes(r gin.IRoutes) {
 	})
 	r.GET("/reminders", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"reminders": []string{"stub-reminder"}})
+	})
+	r.DELETE("/reminders/:id", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"reminderId": c.Param("id"), "status": "canceled"})
 	})
 	r.POST("/reminders/:id/ack", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"reminderId": c.Param("id"), "status": "completed"})

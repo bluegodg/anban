@@ -77,6 +77,9 @@ func TestServiceTriggerInjectsGreetingAndPersistsPlayed(t *testing.T) {
 	if !call.Opts.SkipLLM {
 		t.Fatal("SkipLLM = false, want true for deterministic greeting demo")
 	}
+	if call.Opts.AutoListen == nil || !*call.Opts.AutoListen {
+		t.Fatal("AutoListen is not true; proactive greeting should hand control back to xiaozhi listening loop")
+	}
 
 	list, err := svc.List(context.Background(), ListFilter{DeviceID: "dev-001"})
 	if err != nil {
@@ -101,6 +104,25 @@ func TestServiceTriggerValidatesInputAndDefaultsTone(t *testing.T) {
 	}
 	if got.TonePreset != ToneWarm {
 		t.Fatalf("TonePreset = %q, want %q", got.TonePreset, ToneWarm)
+	}
+}
+
+func TestServiceListNormalizesFilters(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	ctx := context.Background()
+
+	created, err := svc.Trigger(ctx, TriggerRequest{DeviceID: "dev-001", TonePreset: ToneWarm})
+	if err != nil {
+		t.Fatalf("Trigger: %v", err)
+	}
+
+	got, err := svc.List(ctx, ListFilter{DeviceID: "  dev-001  ", Status: "  played  "})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != created.ID {
+		t.Fatalf("List = %+v, want greeting %d after trimmed filters", got, created.ID)
 	}
 }
 
@@ -160,6 +182,25 @@ func TestServiceGreetingScheduleValidatesInput(t *testing.T) {
 		{name: "missing device", req: ScheduleRequest{Slots: []ScheduleSlot{{Label: "morning", Time: "08:00", Enabled: true}}}},
 		{name: "missing slots", req: ScheduleRequest{DeviceID: "dev-001"}},
 		{name: "bad time", req: ScheduleRequest{DeviceID: "dev-001", Slots: []ScheduleSlot{{Label: "morning", Time: "8am", Enabled: true}}}},
+		{name: "missing noon slot", req: ScheduleRequest{DeviceID: "dev-001", Slots: []ScheduleSlot{
+			{Label: "morning", Time: "08:00", Enabled: true},
+			{Label: "evening", Time: "18:00", Enabled: true},
+		}}},
+		{name: "duplicate morning slot", req: ScheduleRequest{DeviceID: "dev-001", Slots: []ScheduleSlot{
+			{Label: "morning", Time: "08:00", Enabled: true},
+			{Label: "morning", Time: "09:00", Enabled: true},
+			{Label: "evening", Time: "18:00", Enabled: true},
+		}}},
+		{name: "unknown slot label", req: ScheduleRequest{DeviceID: "dev-001", Slots: []ScheduleSlot{
+			{Label: "morning", Time: "08:00", Enabled: true},
+			{Label: "noon", Time: "12:30", Enabled: true},
+			{Label: "bedtime", Time: "21:00", Enabled: true},
+		}}},
+		{name: "blank slot label", req: ScheduleRequest{DeviceID: "dev-001", Slots: []ScheduleSlot{
+			{Label: "morning", Time: "08:00", Enabled: true},
+			{Label: "noon", Time: "12:30", Enabled: true},
+			{Label: " ", Time: "18:00", Enabled: true},
+		}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,34 +315,41 @@ func TestServiceTriggerMarksFailedWhenInjectFails(t *testing.T) {
 	}
 }
 
-func TestServiceTriggerSkipsWhenProactiveVoiceQuotaUsed(t *testing.T) {
+func TestServiceTriggerQueuesWhenProactiveVoiceQuotaUsed(t *testing.T) {
 	fake := &xiaozhiclient.FakeClient{}
-	svc := newTestService(t, fake)
+	fakeSch := &fakeCronScheduler{}
+	svc := newTestServiceWithScheduler(t, fake, fakeSch)
 	svc.UseProactiveVoiceGate(throttledVoiceGate{})
 
 	got, err := svc.Trigger(context.Background(), TriggerRequest{DeviceID: "dev-001", TonePreset: ToneWarm})
-	if !errors.Is(err, sharedtypes.ErrProactiveVoiceThrottled) {
-		t.Fatalf("Trigger err = %v, want ErrProactiveVoiceThrottled", err)
+	if err != nil {
+		t.Fatalf("Trigger err = %v, want queued greeting without surfacing throttle", err)
 	}
-	if got.Status != StatusSkipped {
-		t.Fatalf("Status = %q, want %q", got.Status, StatusSkipped)
+	if got.Status != StatusPending {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusPending)
 	}
 	if len(fake.InjectCalls) != 0 {
 		t.Fatalf("InjectCalls = %d, want no xiaozhi injection when quota is used", len(fake.InjectCalls))
 	}
+	if len(fakeSch.oneShots) != 1 {
+		t.Fatalf("one-shot jobs = %d, want 1 retry job", len(fakeSch.oneShots))
+	}
+	if want := svc.now().UTC().Add(time.Minute); !fakeSch.oneShots[0].at.Equal(want) {
+		t.Fatalf("retry scheduled at = %s, want %s", fakeSch.oneShots[0].at, want)
+	}
 
-	list, err := svc.List(context.Background(), ListFilter{Status: StatusSkipped})
+	list, err := svc.List(context.Background(), ListFilter{Status: StatusPending})
 	if err != nil {
-		t.Fatalf("List skipped: %v", err)
+		t.Fatalf("List pending: %v", err)
 	}
 	if len(list) != 1 || list[0].ID != got.ID || list[0].ErrorMessage == "" {
-		t.Fatalf("skipped greetings = %+v, want persisted skipped greeting", list)
+		t.Fatalf("pending greetings = %+v, want persisted queued greeting with throttle detail", list)
 	}
 }
 
-func TestHandlerTriggerGreetingReturnsTooManyRequestsWhenQuotaUsed(t *testing.T) {
+func TestHandlerTriggerGreetingReturnsAcceptedWhenQuotaUsed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	svc := newTestService(t, &xiaozhiclient.FakeClient{})
+	svc := newTestServiceWithScheduler(t, &xiaozhiclient.FakeClient{}, &fakeCronScheduler{})
 	svc.UseProactiveVoiceGate(throttledVoiceGate{})
 	r := gin.New()
 	NewHandler(svc).RegisterRoutes(r.Group("/api"))
@@ -309,16 +357,17 @@ func TestHandlerTriggerGreetingReturnsTooManyRequestsWhenQuotaUsed(t *testing.T)
 	req := httptest.NewRequest(http.MethodPost, "/api/greetings/trigger", strings.NewReader(`{"deviceId":"dev-001"}`))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want 429; body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"status":"skipped"`) {
-		t.Fatalf("body = %s, want skipped greeting payload", w.Body.String())
+	if !strings.Contains(w.Body.String(), `"status":"pending"`) {
+		t.Fatalf("body = %s, want pending greeting payload", w.Body.String())
 	}
 }
 
 type fakeCronScheduler struct {
 	jobs     []fakeCronJob
+	oneShots []fakeOneShotJob
 	canceled []scheduler.JobID
 }
 
@@ -327,9 +376,19 @@ type fakeCronJob struct {
 	fn   func()
 }
 
+type fakeOneShotJob struct {
+	at time.Time
+	fn func()
+}
+
 func (f *fakeCronScheduler) RegisterCron(spec string, fn func()) (scheduler.JobID, error) {
 	f.jobs = append(f.jobs, fakeCronJob{spec: spec, fn: fn})
 	return scheduler.JobID("cron-" + string(rune('0'+len(f.jobs)))), nil
+}
+
+func (f *fakeCronScheduler) ScheduleAt(at time.Time, fn func()) (scheduler.JobID, error) {
+	f.oneShots = append(f.oneShots, fakeOneShotJob{at: at, fn: fn})
+	return scheduler.JobID("once-" + string(rune('0'+len(f.oneShots)))), nil
 }
 
 func (f *fakeCronScheduler) Cancel(id scheduler.JobID) {

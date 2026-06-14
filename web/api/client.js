@@ -1,9 +1,10 @@
 export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = fetch } = {}) {
-  const root = baseURL.replace(/\/$/, '');
+  const root = baseURL.trim().replace(/\/+$/, '');
+  const childAccessCode = String(accessCode || '').trim();
 
   async function request(path, { method = 'GET', body } = {}) {
     const headers = {
-      'X-Access-Code': accessCode,
+      'X-Access-Code': childAccessCode,
     };
     const init = { method, headers };
     if (body !== undefined) {
@@ -27,8 +28,8 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     },
     listMessages({ deviceId, status } = {}) {
       const params = new URLSearchParams();
-      if (deviceId) params.set('deviceId', deviceId);
-      if (status) params.set('status', status);
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'status', status);
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/messages${suffix}`);
     },
@@ -43,7 +44,7 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     },
     getGreetingSchedule({ deviceId } = {}) {
       const params = new URLSearchParams();
-      if (deviceId) params.set('deviceId', deviceId);
+      setQueryParam(params, 'deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/greetings/schedule${suffix}`);
     },
@@ -55,26 +56,26 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
     },
     listReminders({ deviceId, status } = {}) {
       const params = new URLSearchParams();
-      if (deviceId) params.set('deviceId', deviceId);
-      if (status) params.set('status', status);
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'status', status);
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/reminders${suffix}`);
     },
     deleteReminder(reminderId) {
-      return request(`/api/reminders/${encodeURIComponent(reminderId)}`, { method: 'DELETE' });
+      return request(`/api/reminders/${encodePathSegment(reminderId)}`, { method: 'DELETE' });
     },
     ackReminder(reminderId, payload) {
-      return request(`/api/reminders/${encodeURIComponent(reminderId)}/ack`, { method: 'POST', body: payload });
+      return request(`/api/reminders/${encodePathSegment(reminderId)}/ack`, { method: 'POST', body: payload });
     },
     getStatus({ deviceId } = {}) {
       const params = new URLSearchParams();
-      if (deviceId) params.set('deviceId', deviceId);
+      setQueryParam(params, 'deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/device/status${suffix}`);
     },
     getProfile({ deviceId } = {}) {
       const params = new URLSearchParams();
-      if (deviceId) params.set('deviceId', deviceId);
+      setQueryParam(params, 'deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/profile${suffix}`);
     },
@@ -82,6 +83,15 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
       return request('/api/profile', { method: 'PUT', body: payload });
     },
   };
+}
+
+function setQueryParam(params, name, value) {
+  const normalized = String(value ?? '').trim();
+  if (normalized) params.set(name, normalized);
+}
+
+function encodePathSegment(value) {
+  return encodeURIComponent(String(value ?? '').trim());
 }
 
 export class ApiError extends Error {

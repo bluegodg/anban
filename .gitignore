@@ -3,6 +3,10 @@
 *.exe
 *.test
 *.out
+.gocache-go/
+.gotmp-go/
+server/.gocache-go/
+server/.gotmp-go/
 # 本地数据/密钥
 *.db
 *.sqlite

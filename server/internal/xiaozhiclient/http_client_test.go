@@ -58,6 +58,28 @@ func TestInjectSpeakErrorsOnNon2xx(t *testing.T) {
 	}
 }
 
+func TestHTTPClientTrimsTrailingSlashFromManagerBaseURL(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if gotPath != "/api/open/v1/devices/inject-message" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL+"/", "tok_abc")
+	if err := c.InjectSpeak(context.Background(), "dev-001", "hi", InjectOptions{}); err != nil {
+		t.Fatalf("InjectSpeak: %v", err)
+	}
+	if gotPath != "/api/open/v1/devices/inject-message" {
+		t.Fatalf("path = %q, want single-slash API path", gotPath)
+	}
+}
+
 func TestGetDeviceStatusReadsManagerDeviceList(t *testing.T) {
 	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
 	var gotPath, gotToken string
@@ -109,6 +131,42 @@ func TestGetDeviceStatusReadsManagerDeviceList(t *testing.T) {
 	}
 }
 
+func TestCheckManagerAccessReadsDevicesEndpoint(t *testing.T) {
+	var gotPath, gotToken string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotToken = r.Header.Get("X-API-Token")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":[]}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if err := c.CheckManagerAccess(context.Background()); err != nil {
+		t.Fatalf("CheckManagerAccess: %v", err)
+	}
+	if gotPath != "/api/open/v1/devices" {
+		t.Fatalf("path = %q, want device list endpoint", gotPath)
+	}
+	if gotToken != "tok_abc" {
+		t.Fatalf("X-API-Token = %q", gotToken)
+	}
+}
+
+func TestCheckManagerAccessRejectsMalformedDeviceList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"unexpected":true}}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if err := c.CheckManagerAccess(context.Background()); err == nil {
+		t.Fatal("expected malformed devices response error, got nil")
+	}
+}
+
 func TestGetDeviceStatusParsesDirectActivePayload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -144,6 +202,24 @@ func TestGetDeviceStatusRejectsInvalidTime(t *testing.T) {
 	c := NewHTTPClient(srv.URL, "tok_abc")
 	if _, err := c.GetDeviceStatus(context.Background(), "dev-001"); err == nil {
 		t.Fatal("expected invalid time error, got nil")
+	}
+}
+
+func TestGetDeviceStatusTrimsManagerTimeFields(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"device_name":"dev-001","last_active_at":"  2026-06-01T08:30:00Z  "}]} `))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	status, err := c.GetDeviceStatus(context.Background(), "dev-001")
+	if err != nil {
+		t.Fatalf("GetDeviceStatus: %v", err)
+	}
+	if !status.LastActiveAt.Equal(lastActive) {
+		t.Fatalf("lastActiveAt = %s, want %s", status.LastActiveAt, lastActive)
 	}
 }
 
@@ -308,6 +384,44 @@ func TestDecodeManagerDevicesParsesNestedListAndStringIDs(t *testing.T) {
 	}
 }
 
+func TestDecodeManagerDevicesTreatsNullDataAsEmpty(t *testing.T) {
+	// 真机确认：manager 设备表为空时返回 {"data":null}，应当作"空列表"而非报错。
+	devices, err := decodeManagerDevices([]byte(`{"data":null}`))
+	if err != nil {
+		t.Fatalf("decodeManagerDevices({data:null}): %v", err)
+	}
+	if len(devices) != 0 {
+		t.Fatalf("devices = %+v, want empty", devices)
+	}
+}
+
+func TestCheckManagerAccessAcceptsEmptyNullDeviceList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":null}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if err := c.CheckManagerAccess(context.Background()); err != nil {
+		t.Fatalf("CheckManagerAccess with empty device list should pass, got: %v", err)
+	}
+}
+
+func TestGetDeviceStatusReportsNotFoundOnEmptyNullDeviceList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":null}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	_, err := c.GetDeviceStatus(context.Background(), "dev-001")
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("err = %v, want not found on empty device list", err)
+	}
+}
+
 func TestDecodeManagerAgentParsesNestedAgentPayload(t *testing.T) {
 	agent, err := decodeManagerAgent([]byte(`{
 		"success": true,
@@ -402,6 +516,37 @@ func TestGetHistoryParsesDirectArrayPayload(t *testing.T) {
 	}
 }
 
+func TestGetHistoryParsesNestedRecordsPayload(t *testing.T) {
+	at := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"success": true,
+			"data": {
+				"records": [
+					{"role":"assistant","content":"您刚才说腰酸，要不要早点休息？","created_at":"2026-06-01T09:05:00Z"}
+				]
+			}
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	history, err := c.GetHistory(context.Background(), "dev-001", 1)
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("history = %+v, want one nested records message", history)
+	}
+	if history[0].Role != "assistant" || history[0].Text != "您刚才说腰酸，要不要早点休息？" {
+		t.Fatalf("history[0] = %+v, want assistant record", history[0])
+	}
+	if !history[0].At.Equal(at) {
+		t.Fatalf("history[0].At = %s, want %s", history[0].At, at)
+	}
+}
+
 func TestGetHistoryRejectsInvalidTime(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -412,6 +557,19 @@ func TestGetHistoryRejectsInvalidTime(t *testing.T) {
 	c := NewHTTPClient(srv.URL, "tok_abc")
 	if _, err := c.GetHistory(context.Background(), "dev-001", 5); err == nil {
 		t.Fatal("expected invalid time error, got nil")
+	}
+}
+
+func TestGetHistoryRejectsMalformedObjectWithoutList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"data":{"unexpected":true}}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if _, err := c.GetHistory(context.Background(), "dev-001", 5); err == nil {
+		t.Fatal("expected malformed history response error, got nil")
 	}
 }
 

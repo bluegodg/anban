@@ -28,6 +28,17 @@ func TestMessageRoutesAreRegisteredWhenDependencyProvided(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "stub-message") {
 		t.Fatalf("body = %s, want stub response", w.Body.String())
 	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/messages?deviceId=dev-001", nil)
+	listReq.Header.Set("X-Access-Code", "demo")
+	listW := httptest.NewRecorder()
+	r.ServeHTTP(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("GET /api/messages status = %d, want 200; body=%s", listW.Code, listW.Body.String())
+	}
+	if !strings.Contains(listW.Body.String(), "stub-message") {
+		t.Fatalf("body = %s, want stub list response", listW.Body.String())
+	}
 }
 
 func TestMessageRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
@@ -42,6 +53,14 @@ func TestMessageRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("POST /api/messages status = %d, want 501", w.Code)
 	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/messages?deviceId=dev-001", nil)
+	listReq.Header.Set("X-Access-Code", "demo")
+	listW := httptest.NewRecorder()
+	r.ServeHTTP(listW, listReq)
+	if listW.Code != http.StatusNotImplemented {
+		t.Fatalf("GET /api/messages status = %d, want 501", listW.Code)
+	}
 }
 
 type messageRoutesStub struct{}
@@ -49,5 +68,8 @@ type messageRoutesStub struct{}
 func (messageRoutesStub) RegisterRoutes(r gin.IRoutes) {
 	r.POST("/messages", func(c *gin.Context) {
 		c.JSON(http.StatusCreated, gin.H{"messageId": "stub-message"})
+	})
+	r.GET("/messages", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"messages": []string{"stub-message"}})
 	})
 }

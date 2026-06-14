@@ -2,6 +2,7 @@ package childapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,6 +11,7 @@ import (
 // 地基期为空骨架；域 follow-on 计划往这里加自己的 handler 字段并注册路由。
 type Deps struct {
 	AccessCode     string
+	AllowedOrigins []string
 	MessageRoutes  RouteRegistrar
 	GreetingRoutes RouteRegistrar
 	ReminderRoutes RouteRegistrar
@@ -25,6 +27,10 @@ type RouteRegistrar interface {
 func NewRouter(d Deps) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(AllowCORS(d.AllowedOrigins))
+	r.OPTIONS("/*path", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 
 	// 健康检查无需访问码
 	r.GET("/health", func(c *gin.Context) {
@@ -50,6 +56,7 @@ func NewRouter(d Deps) *gin.Engine {
 	} else {
 		api.POST("/reminders", notImpl)         // reminder 域
 		api.GET("/reminders", notImpl)          // reminder 域
+		api.DELETE("/reminders/:id", notImpl)   // reminder 域
 		api.POST("/reminders/:id/ack", notImpl) // reminder 域
 	}
 	if d.GreetingRoutes != nil {
@@ -81,4 +88,42 @@ func NewRouter(d Deps) *gin.Engine {
 	}
 
 	return r
+}
+
+func AllowCORS(allowedOrigins []string) gin.HandlerFunc {
+	allowed := make(map[string]struct{}, len(allowedOrigins))
+	allowAll := false
+	for _, origin := range allowedOrigins {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if origin == "*" {
+			allowAll = true
+			continue
+		}
+		allowed[origin] = struct{}{}
+	}
+
+	return func(c *gin.Context) {
+		origin := strings.TrimSpace(c.GetHeader("Origin"))
+		if origin != "" {
+			if allowAll {
+				c.Header("Access-Control-Allow-Origin", "*")
+			} else if _, ok := allowed[origin]; ok {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Vary", "Origin")
+			}
+			if c.Writer.Header().Get("Access-Control-Allow-Origin") != "" {
+				c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+				c.Header("Access-Control-Allow-Headers", "Content-Type, X-Access-Code")
+			}
+		}
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }

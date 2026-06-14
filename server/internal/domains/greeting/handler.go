@@ -43,6 +43,10 @@ func (h *Handler) trigger(c *gin.Context) {
 		return
 	}
 
+	if greeting.Status == StatusPending {
+		c.JSON(http.StatusAccepted, greeting)
+		return
+	}
 	c.JSON(http.StatusCreated, greeting)
 }
 

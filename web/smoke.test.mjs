@@ -50,6 +50,66 @@ test('API client sends child access code and message payload', async () => {
   assert.equal(result.messageId, 7);
 });
 
+test('API client normalizes pasted backend base URL', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: '  http://anban.local///  ',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ messages: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  await client.listMessages({ deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/messages?deviceId=dev-001');
+});
+
+test('API client normalizes pasted child access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: '  demo-code  ',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ online: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  await client.getStatus({ deviceId: 'dev-001' });
+
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+});
+
+test('API client normalizes pasted device id query values', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ online: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  await client.getStatus({ deviceId: '  dev-001  ' });
+
+  assert.equal(request.url, 'http://anban.local/api/device/status?deviceId=dev-001');
+});
+
 test('message draft normalizer truncates overlong text and reports child notice', async () => {
   const { MESSAGE_TEXT_LIMIT, normalizeMessageDraft } = await import('./message-input.js');
   const overlong = '妈'.repeat(MESSAGE_TEXT_LIMIT + 1);
@@ -71,6 +131,60 @@ test('message draft normalizer keeps short text without notice', async () => {
     wasTruncated: false,
     notice: '',
   });
+});
+
+test('reminder draft normalizer rejects non-future times', async () => {
+  const { normalizeReminderDraft } = await import('./reminder-input.js');
+  const now = new Date('2026-06-01T09:00');
+
+  assert.deepEqual(normalizeReminderDraft({
+    content: '  测血压  ',
+    scheduledAtLocal: '2026-06-01T08:59',
+    now,
+  }), {
+    content: '测血压',
+    scheduledAt: '',
+    valid: false,
+    notice: '提醒时间要晚于现在',
+  });
+  assert.equal(normalizeReminderDraft({
+    content: '测血压',
+    scheduledAtLocal: '2026-06-01T09:00',
+    now,
+  }).notice, '提醒时间要晚于现在');
+});
+
+test('reminder draft normalizer rejects incomplete or invalid time input', async () => {
+  const { normalizeReminderDraft } = await import('./reminder-input.js');
+
+  assert.deepEqual(normalizeReminderDraft({
+    content: '  ',
+    scheduledAtLocal: '2026-06-01T09:01',
+  }), {
+    content: '',
+    scheduledAt: '',
+    valid: false,
+    notice: '提醒内容和时间都要填写',
+  });
+  assert.equal(normalizeReminderDraft({
+    content: '测血压',
+    scheduledAtLocal: 'not-a-time',
+  }).notice, '提醒时间格式无效');
+});
+
+test('reminder draft normalizer returns ISO time for future reminders', async () => {
+  const { normalizeReminderDraft } = await import('./reminder-input.js');
+
+  const result = normalizeReminderDraft({
+    content: '  测血压  ',
+    scheduledAtLocal: '2026-06-01T09:01',
+    now: new Date('2026-06-01T09:00'),
+  });
+
+  assert.equal(result.content, '测血压');
+  assert.equal(result.valid, true);
+  assert.equal(result.notice, '');
+  assert.equal(result.scheduledAt, new Date('2026-06-01T09:01').toISOString());
 });
 
 test('message state surfaces failed message returned by send API error', async () => {
@@ -101,11 +215,45 @@ test('message state surfaces failed message returned by send API error', async (
   assert.deepEqual(surfaced.map((item) => item.messageId), [7, 3]);
 });
 
+test('message send result formatter distinguishes queued messages', async () => {
+  const { formatMessageSendResult } = await import('./message-result.js');
+
+  assert.deepEqual(formatMessageSendResult({
+    status: 'played',
+    text: '妈，我到家了',
+  }), {
+    label: '在线',
+    detail: '留言已播报',
+    notice: '留言已播报：妈，我到家了',
+  });
+
+  assert.deepEqual(formatMessageSendResult({
+    status: 'pending',
+    text: '妈，我下班路过老张家了',
+  }, { draftNotice: '留言已按 100 字发送' }), {
+    label: '在线',
+    detail: '留言已排队等待设备空闲',
+    notice: '留言已排队：妈，我下班路过老张家了（留言已按 100 字发送）',
+  });
+});
+
 test('child web applies message length notice before sending', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 
   assert.match(app, /normalizeMessageDraft/);
   assert.match(app, /draft\.notice/);
+});
+
+test('child web uses message send result formatter', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const messageHandler = app.slice(
+    app.indexOf('els.messageForm.addEventListener'),
+    app.indexOf('els.greetingButton.addEventListener'),
+  );
+
+  assert.match(app, /formatMessageSendResult/);
+  assert.match(messageHandler, /const result = formatMessageSendResult\(message, \{ draftNotice: draft\.notice \}\);/);
+  assert.match(messageHandler, /showNotice\(result\.notice\)/);
 });
 
 test('child web renders failed message returned by send error payload', async () => {
@@ -114,6 +262,17 @@ test('child web renders failed message returned by send error payload', async ()
   assert.match(app, /upsertMessageFromSendError/);
   assert.match(app, /error\.payload\?\.message/);
   assert.match(app, /renderMessages\(\)/);
+});
+
+test('child web refreshes status card immediately after send result changes messages', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const messageHandler = app.slice(
+    app.indexOf('els.messageForm.addEventListener'),
+    app.indexOf('els.greetingButton.addEventListener'),
+  );
+
+  assert.match(messageHandler, /state\.messages = upsertMessage\(state\.messages, message\);\s*renderMessages\(\);\s*renderCurrentBackendStatus\(\);/);
+  assert.match(messageHandler, /state\.messages = upsertMessageFromSendError\(state\.messages, error\);\s*renderMessages\(\);\s*renderCurrentBackendStatus\(\);/);
 });
 
 test('API error notice prefers backend reason over generic fallback', async () => {
@@ -137,10 +296,44 @@ test('child web uses API error notice formatter', async () => {
   assert.match(app, /showNotice\(formatApiErrorNotice\(error, fallback\)\)/);
 });
 
-test('child web shows greeting text returned by backend', async () => {
+test('greeting trigger result formatter shows played greeting text', async () => {
+  const { formatGreetingTriggerResult } = await import('./greeting-result.js');
+
+  assert.equal(
+    formatGreetingTriggerResult({ status: 'played', text: '王阿姨，下午好~ 今天精神咋样？' }).notice,
+    '问候已触发：王阿姨，下午好~ 今天精神咋样？',
+  );
+});
+
+test('greeting trigger result formatter distinguishes queued greetings', async () => {
+  const { formatGreetingTriggerResult } = await import('./greeting-result.js');
+
+  assert.deepEqual(formatGreetingTriggerResult({
+    status: 'played',
+    text: '王阿姨，下午好~ 今天精神咋样？',
+  }), {
+    label: '在线',
+    detail: '刚刚触发一次主动问候',
+    notice: '问候已触发：王阿姨，下午好~ 今天精神咋样？',
+  });
+
+  assert.deepEqual(formatGreetingTriggerResult({
+    status: 'pending',
+    text: '王阿姨，下午好~ 今天精神咋样？',
+  }), {
+    label: '在线',
+    detail: '主动问候已排队',
+    notice: '问候已排队：王阿姨，下午好~ 今天精神咋样？',
+  });
+});
+
+test('child web uses greeting trigger result formatter', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 
-  assert.match(app, /问候已触发：\$\{greeting\.text\}/);
+  assert.match(app, /formatGreetingTriggerResult/);
+  assert.match(app, /const result = formatGreetingTriggerResult\(greeting\);/);
+  assert.match(app, /renderStatus\(result\.label, result\.detail\)/);
+  assert.match(app, /showNotice\(result\.notice\)/);
 });
 
 test('API client saves greeting schedule with access code', async () => {
@@ -267,6 +460,26 @@ test('API client cancels reminders with access code', async () => {
   assert.equal(request.options.method, 'DELETE');
   assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
   assert.equal(result.status, 'canceled');
+});
+
+test('API client normalizes pasted reminder id path values', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ reminderId: 9, status: 'canceled' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  await client.deleteReminder(' 9 ');
+
+  assert.equal(request.url, 'http://anban.local/api/reminders/9');
 });
 
 test('API client acknowledges reminders with access code', async () => {
@@ -429,14 +642,60 @@ test('API client checks vision presence with access code', async () => {
   assert.equal(result.observation.triggeredGreeting, true);
 });
 
+test('vision presence result formatter distinguishes queued greeting', async () => {
+  const { formatVisionPresenceResult } = await import('./vision-presence-result.js');
+
+  assert.deepEqual(formatVisionPresenceResult({
+    observation: {
+      presence: 'someone',
+      triggeredGreeting: true,
+      greeting: { status: 'played', text: '王阿姨，回来啦' },
+    },
+  }), {
+    label: '在线',
+    detail: '视觉触发了一次主动问候',
+    notice: '视觉触发已完成',
+    output: '视觉触发结果：有人 · 已触发问候',
+  });
+
+  assert.deepEqual(formatVisionPresenceResult({
+    observation: {
+      presence: 'someone',
+      triggeredGreeting: true,
+      greeting: { status: 'pending', text: '王阿姨，回来啦' },
+    },
+  }), {
+    label: '在线',
+    detail: '视觉触发的主动问候已排队',
+    notice: '视觉触发已排队',
+    output: '视觉触发结果：有人 · 问候已排队',
+  });
+
+  assert.deepEqual(formatVisionPresenceResult({
+    observation: {
+      presence: 'no_one',
+      triggeredGreeting: false,
+    },
+  }), {
+    label: '在线',
+    detail: '刚刚完成一次视觉判定',
+    notice: '视觉判定已返回',
+    output: '视觉触发结果：无人 · 未触发问候',
+  });
+
+  assert.equal(formatVisionPresenceResult({ observation: {} }).output, '视觉触发结果：未知 · 未触发问候');
+});
+
 test('child web exposes vision presence trigger action', async () => {
   const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const formatter = await readFile(new URL('./vision-presence-result.js', import.meta.url), 'utf8');
 
   assert.match(html, /visionPresenceButton/);
   assert.match(html, /visionPresenceResult/);
   assert.match(app, /client\(\)\.checkVisionPresence/);
-  assert.match(app, /视觉触发结果/);
+  assert.match(app, /formatVisionPresenceResult/);
+  assert.match(formatter, /视觉触发结果/);
 });
 
 test('API client fetches device status with access code', async () => {
@@ -460,6 +719,60 @@ test('API client fetches device status with access code', async () => {
   assert.equal(request.options.method, 'GET');
   assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
   assert.equal(result.online, true);
+});
+
+test('status detail surfaces latest message playback state', async () => {
+  const { formatStatusDetail, messageStatusLabel } = await import('./status-summary.js');
+
+  const detail = formatStatusDetail({
+    lastInteractionAt: '2026-06-01T08:30:00.000Z',
+    messages: [{ messageId: 7, status: 'played' }],
+  }, {
+    formatDateTime: () => '06/01 08:30',
+  });
+
+  assert.equal(detail, '最近互动：06/01 08:30 · 最新留言：已播报');
+  assert.equal(messageStatusLabel('failed'), '失败');
+  assert.equal(messageStatusLabel('pending'), '排队中');
+});
+
+test('status detail keeps fallback when there is no message summary', async () => {
+  const { formatStatusDetail } = await import('./status-summary.js');
+
+  assert.equal(formatStatusDetail({}, { formatDateTime: () => 'unused' }), '暂无最近互动');
+  assert.match(formatStatusDetail({
+    lastSeenAt: '2026-06-01T08:30:00.000Z',
+    messages: [{ messageId: 7, status: 'failed' }],
+  }), /最新留言：失败/);
+});
+
+test('status display can be built from local messages before backend status exists', async () => {
+  const { buildStatusSnapshotForDisplay, formatStatusDetail } = await import('./status-summary.js');
+
+  const snapshot = buildStatusSnapshotForDisplay(null, [{ messageId: 7, status: 'played' }]);
+
+  assert.equal(snapshot.online, true);
+  assert.equal(
+    formatStatusDetail(snapshot, { formatDateTime: () => 'unused' }),
+    '暂无最近互动 · 最新留言：已播报',
+  );
+});
+
+test('status display merges backend status with current local messages', async () => {
+  const { buildStatusSnapshotForDisplay } = await import('./status-summary.js');
+
+  assert.equal(buildStatusSnapshotForDisplay(null, []), null);
+
+  const snapshot = buildStatusSnapshotForDisplay(
+    {
+      online: true,
+      messages: [{ messageId: 3, status: 'pending' }],
+    },
+    [{ messageId: 7, status: 'failed' }],
+  );
+
+  assert.equal(snapshot.online, true);
+  assert.deepEqual(snapshot.messages, [{ messageId: 7, status: 'failed' }]);
 });
 
 test('child web refreshes backend status before listing messages', async () => {
@@ -505,6 +818,88 @@ test('child web starts status polling after connect', async () => {
   assert.match(app, /refreshBackendStatus/);
 });
 
+test('child web validates connection settings before backend calls', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const submitIndex = app.indexOf("els.connectForm.addEventListener('submit'");
+  const validationIndex = app.indexOf('后端地址、访问码和设备 ID 必填', submitIndex);
+  const refreshIndex = app.indexOf('await refreshMessages()', submitIndex);
+
+  assert.notEqual(submitIndex, -1);
+  assert.notEqual(validationIndex, -1);
+  assert.notEqual(refreshIndex, -1);
+  assert.ok(validationIndex < refreshIndex);
+  assert.match(app.slice(submitIndex, refreshIndex), /!state\.apiBaseURL\s*\|\|\s*!state\.accessCode\s*\|\|\s*!state\.deviceId/);
+});
+
+test('child web backend address placeholder matches required static deployment', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /id="apiBaseURL"[^>]*placeholder="http:\/\/localhost:8090"/);
+  assert.doesNotMatch(html, /同源留空/);
+});
+
+test('child web defaults backend address to local anban server for Gate C', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const stateStart = app.indexOf('const state = {');
+  const stateEnd = app.indexOf('\n};', stateStart);
+  const stateBlock = app.slice(stateStart, stateEnd);
+
+  assert.notEqual(stateStart, -1);
+  assert.notEqual(stateEnd, -1);
+  assert.match(stateBlock, /apiBaseURL:\s*localStorage\.getItem\('anban\.apiBaseURL'\)\s*\|\|\s*'http:\/\/localhost:8090'/);
+});
+
+test('child web stops existing polling when connection settings become invalid', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const submitIndex = app.indexOf("els.connectForm.addEventListener('submit'");
+  const validationIndex = app.indexOf('后端地址、访问码和设备 ID 必填', submitIndex);
+  const invalidBranch = app.slice(submitIndex, validationIndex);
+
+  assert.notEqual(submitIndex, -1);
+  assert.notEqual(validationIndex, -1);
+  assert.match(invalidBranch, /stopConnectionPolling\(\)/);
+  assert.match(app, /function stopConnectionPolling\(\)/);
+});
+
+test('child web clears stale device data when connection settings become invalid', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const submitIndex = app.indexOf("els.connectForm.addEventListener('submit'");
+  const validationIndex = app.indexOf('后端地址、访问码和设备 ID 必填', submitIndex);
+  const invalidBranch = app.slice(submitIndex, validationIndex);
+  const clearStart = app.indexOf('function clearConnectionData()');
+  const clearEnd = app.indexOf('\n}\n\nasync function refreshReminders', clearStart);
+  const clearBlock = app.slice(clearStart, clearEnd);
+
+  assert.notEqual(submitIndex, -1);
+  assert.notEqual(validationIndex, -1);
+  assert.match(invalidBranch, /clearConnectionData\(\)/);
+  assert.notEqual(clearStart, -1);
+  assert.notEqual(clearEnd, -1);
+  assert.match(clearBlock, /state\.messages\s*=\s*\[\]/);
+  assert.match(clearBlock, /state\.reminders\s*=\s*\[\]/);
+  assert.match(clearBlock, /renderMessages\(\)/);
+  assert.match(clearBlock, /renderReminders\(\)/);
+  assert.match(clearBlock, /clearProfile\(\)/);
+});
+
+test('child web starts polling only after a successful backend refresh', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const submitIndex = app.indexOf("els.connectForm.addEventListener('submit'");
+  const restartIndex = app.indexOf('restartStatusPolling()', submitIndex);
+  const submitBlock = app.slice(submitIndex, restartIndex);
+  const refreshIndex = app.indexOf('async function refreshMessages()');
+  const refreshEnd = app.indexOf('\n}\n\nasync function refreshBackendStatus', refreshIndex);
+  const refreshBlock = app.slice(refreshIndex, refreshEnd);
+
+  assert.notEqual(submitIndex, -1);
+  assert.notEqual(restartIndex, -1);
+  assert.match(submitBlock, /if\s*\(\s*!\s*await refreshMessages\(\)\s*\)\s*{\s*return;\s*}/);
+  assert.notEqual(refreshIndex, -1);
+  assert.notEqual(refreshEnd, -1);
+  assert.match(refreshBlock, /return true;/);
+  assert.match(refreshBlock, /return false;/);
+});
+
 test('message status polling schedules backend refresh every 10 seconds', async () => {
   const {
     MESSAGE_STATUS_REFRESH_INTERVAL_MS,
@@ -543,6 +938,14 @@ test('child web starts message status polling after connect', async () => {
   assert.match(app, /stopMessageStatusPolling/);
   assert.match(app, /restartMessageStatusPolling/);
   assert.match(app, /refreshBackendMessages/);
+});
+
+test('child web refreshes status card after message status polling updates', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /statusSnapshot: null/);
+  assert.match(app, /function renderCurrentBackendStatus/);
+  assert.match(app, /refreshBackendMessages[\s\S]*state\.messages = payload\.messages \|\| \[\];[\s\S]*renderMessages\(\);[\s\S]*renderCurrentBackendStatus\(\);/);
 });
 
 test('reminder status polling schedules backend refresh every 10 seconds', async () => {
@@ -671,6 +1074,22 @@ test('child web writes backend-normalized profile back after save', async () => 
   assert.ok(writeIndex > submitSuccessBlock.indexOf('renderProfile(profile)'));
 });
 
+test('child web keeps backend-persisted profile when xiaozhi profile sync fails', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const submitIndex = app.indexOf("els.profileForm.addEventListener('submit'");
+  const catchIndex = app.indexOf('} catch (error) {', submitIndex);
+  const submitEnd = app.indexOf('\n});', catchIndex);
+  const catchBlock = app.slice(catchIndex, submitEnd);
+
+  assert.notEqual(submitIndex, -1);
+  assert.notEqual(catchIndex, -1);
+  assert.notEqual(submitEnd, -1);
+  assert.match(catchBlock, /error\.payload\?\.profile/);
+  assert.match(catchBlock, /renderProfile\(error\.payload\.profile\)/);
+  assert.match(catchBlock, /writeProfileForm\(error\.payload\.profile\)/);
+  assert.ok(catchBlock.indexOf('writeProfileForm(error.payload.profile)') < catchBlock.indexOf("handleApiError(error, '画像同步失败')"));
+});
+
 test('profile form writer clears fields missing from backend profile', async () => {
   const { writeProfileFormFields } = await import('./profile-form.js');
   const inputs = {
@@ -710,4 +1129,21 @@ test('child web loads saved profile on connect', async () => {
   assert.match(app, /refreshProfile/);
   assert.match(app, /client\(\)\.getProfile/);
   assert.match(app, /writeProfileFormFields/);
+});
+
+test('child web clears sample profile when backend has no saved profile', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const refreshIndex = app.indexOf('async function refreshProfile()');
+  const catchIndex = app.indexOf('} catch (error) {', refreshIndex);
+  const endIndex = app.indexOf('\n}\n\nfunction renderBackendStatus', catchIndex);
+  const refreshBlock = app.slice(refreshIndex, endIndex);
+  const notFoundIndex = refreshBlock.indexOf('error.status === 404');
+  const clearIndex = refreshBlock.indexOf('clearProfile()', notFoundIndex);
+
+  assert.notEqual(refreshIndex, -1);
+  assert.notEqual(catchIndex, -1);
+  assert.notEqual(endIndex, -1);
+  assert.notEqual(notFoundIndex, -1);
+  assert.notEqual(clearIndex, -1);
+  assert.ok(clearIndex > notFoundIndex);
 });

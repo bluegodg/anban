@@ -30,3 +30,33 @@ func TestAccessCodeMiddleware(t *testing.T) {
 		t.Fatalf("with code: status = %d, want 200", w2.Code)
 	}
 }
+
+func TestAccessCodeMiddlewareTrimsHeaderValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequireAccessCode("secret"))
+	r.GET("/x", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("X-Access-Code", " secret ")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 for trimmed access code header", w.Code)
+	}
+}
+
+func TestAccessCodeMiddlewareRejectsEmptyConfiguredCode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequireAccessCode(""))
+	r.GET("/x", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 when access code config is empty", w.Code)
+	}
+}

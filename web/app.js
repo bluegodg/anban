@@ -2,17 +2,23 @@ import { ApiError, createAnbanClient } from './api/client.js';
 import { formatApiErrorNotice } from './api-error-notice.js';
 import { startMessageStatusPolling, stopMessageStatusPolling } from './message-status-polling.js';
 import { normalizeMessageDraft } from './message-input.js';
+import { formatMessageSendResult } from './message-result.js';
+import { normalizeReminderDraft } from './reminder-input.js';
 import { upsertMessage, upsertMessageFromSendError } from './message-state.js';
 import { writeProfileFormFields } from './profile-form.js';
 import { startReminderStatusPolling, stopReminderStatusPolling } from './reminder-status-polling.js';
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
+import { buildStatusSnapshotForDisplay, formatStatusDetail, messageStatusLabel } from './status-summary.js';
+import { formatGreetingTriggerResult } from './greeting-result.js';
+import { formatVisionPresenceResult } from './vision-presence-result.js';
 
 const state = {
   accessCode: localStorage.getItem('anban.accessCode') || 'demo',
   deviceId: localStorage.getItem('anban.deviceId') || 'dev-001',
-  apiBaseURL: localStorage.getItem('anban.apiBaseURL') || '',
+  apiBaseURL: localStorage.getItem('anban.apiBaseURL') || 'http://localhost:8090',
   messages: [],
   reminders: [],
+  statusSnapshot: null,
   statusPoller: null,
   messageStatusPoller: null,
   reminderStatusPoller: null,
@@ -75,10 +81,19 @@ els.connectForm.addEventListener('submit', async (event) => {
   state.accessCode = els.accessCode.value.trim();
   state.deviceId = els.deviceId.value.trim();
   state.apiBaseURL = els.apiBaseURL.value.trim();
+  if (!state.apiBaseURL || !state.accessCode || !state.deviceId) {
+    stopConnectionPolling();
+    clearConnectionData();
+    renderStatus('未连接', '请填写后端地址、访问码和设备 ID');
+    showNotice('后端地址、访问码和设备 ID 必填');
+    return;
+  }
   localStorage.setItem('anban.accessCode', state.accessCode);
   localStorage.setItem('anban.deviceId', state.deviceId);
   localStorage.setItem('anban.apiBaseURL', state.apiBaseURL);
-  await refreshMessages();
+  if (!await refreshMessages()) {
+    return;
+  }
   restartStatusPolling();
   restartMessageStatusPolling();
   restartReminderStatusPolling();
@@ -98,15 +113,17 @@ els.messageForm.addEventListener('submit', async (event) => {
       text: draft.text,
       fromName: els.fromName.value.trim(),
     });
+    const result = formatMessageSendResult(message, { draftNotice: draft.notice });
     els.messageText.value = '';
     state.messages = upsertMessage(state.messages, message);
     renderMessages();
-    renderStatus('在线', '刚刚完成一次留言播报');
-    showNotice(draft.notice || '留言已发送');
+    renderCurrentBackendStatus();
+    showNotice(result.notice);
   } catch (error) {
     if (error instanceof ApiError && error.payload?.message) {
       state.messages = upsertMessageFromSendError(state.messages, error);
       renderMessages();
+      renderCurrentBackendStatus();
     }
     handleApiError(error, '留言发送失败');
   }
@@ -115,8 +132,9 @@ els.messageForm.addEventListener('submit', async (event) => {
 els.greetingButton.addEventListener('click', async () => {
   try {
     const greeting = await client().triggerGreeting({ deviceId: state.deviceId, tonePreset: 'warm' });
-    renderStatus('在线', '刚刚触发一次主动问候');
-    showNotice(`问候已触发：${greeting.text}`);
+    const result = formatGreetingTriggerResult(greeting);
+    renderStatus(result.label, result.detail);
+    showNotice(result.notice);
   } catch (error) {
     handleApiError(error, '问候接口暂未接入');
   }
@@ -148,10 +166,10 @@ els.visionPresenceButton.addEventListener('click', async () => {
       tool: 'camera.capture',
       args: { quality: 'low' },
     });
-    renderVisionPresence(result);
-    const observation = result.observation || {};
-    renderStatus('在线', observation.triggeredGreeting ? '视觉触发了一次主动问候' : '刚刚完成一次视觉判定');
-    showNotice(observation.triggeredGreeting ? '视觉触发已完成' : '视觉判定已返回');
+    const rendered = formatVisionPresenceResult(result);
+    renderVisionPresence(rendered);
+    renderStatus(rendered.label, rendered.detail);
+    showNotice(rendered.notice);
   } catch (error) {
     handleApiError(error, '视觉触发失败');
   } finally {
@@ -175,17 +193,19 @@ els.greetingScheduleForm.addEventListener('submit', async (event) => {
 
 els.reminderForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const content = els.reminderContent.value.trim();
-  const at = els.reminderTime.value;
-  if (!content || !at) {
-    showNotice('提醒内容和时间都要填写');
+  const draft = normalizeReminderDraft({
+    content: els.reminderContent.value,
+    scheduledAtLocal: els.reminderTime.value,
+  });
+  if (!draft.valid) {
+    showNotice(draft.notice);
     return;
   }
   try {
     const reminder = await client().createReminder({
       deviceId: state.deviceId,
-      scheduledAt: new Date(at).toISOString(),
-      content,
+      scheduledAt: draft.scheduledAt,
+      content: draft.content,
       category: 'med',
     });
     state.reminders = [reminder, ...state.reminders.filter((item) => item.reminderId !== reminder.reminderId)];
@@ -242,6 +262,10 @@ els.profileForm.addEventListener('submit', async (event) => {
     writeProfileForm(profile);
     showNotice('画像已同步');
   } catch (error) {
+    if (error instanceof ApiError && error.payload?.profile) {
+      renderProfile(error.payload.profile);
+      writeProfileForm(error.payload.profile);
+    }
     handleApiError(error, '画像同步失败');
   }
 });
@@ -249,29 +273,32 @@ els.profileForm.addEventListener('submit', async (event) => {
 async function refreshMessages() {
   try {
     const snapshot = await client().getStatus({ deviceId: state.deviceId });
-    renderBackendStatus(snapshot);
+    updateStatusSnapshot(snapshot);
 
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
     renderMessages();
+    renderCurrentBackendStatus();
     await refreshReminders();
     await refreshGreetingSchedule();
     await refreshProfile();
     showNotice('已连接后端');
+    return true;
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
       renderStatus('骨架模式', '后端业务域仍是占位');
       showNotice('后端仍在占位模式');
-      return;
+      return false;
     }
     handleApiError(error, '暂时无法连接后端');
+    return false;
   }
 }
 
 async function refreshBackendStatus() {
   try {
     const snapshot = await client().getStatus({ deviceId: state.deviceId });
-    renderBackendStatus(snapshot);
+    updateStatusSnapshot(snapshot);
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
       return;
@@ -290,6 +317,7 @@ async function refreshBackendMessages() {
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
     renderMessages();
+    renderCurrentBackendStatus();
   } catch (error) {
     if (error instanceof ApiError && error.status === 501) {
       return;
@@ -314,6 +342,24 @@ async function refreshBackendReminders() {
 function restartReminderStatusPolling() {
   stopReminderStatusPolling(state.reminderStatusPoller);
   state.reminderStatusPoller = startReminderStatusPolling(refreshBackendReminders);
+}
+
+function stopConnectionPolling() {
+  stopStatusPolling(state.statusPoller);
+  stopMessageStatusPolling(state.messageStatusPoller);
+  stopReminderStatusPolling(state.reminderStatusPoller);
+  state.statusPoller = null;
+  state.messageStatusPoller = null;
+  state.reminderStatusPoller = null;
+}
+
+function clearConnectionData() {
+  state.messages = [];
+  state.reminders = [];
+  state.statusSnapshot = null;
+  renderMessages();
+  renderReminders();
+  clearProfile();
 }
 
 async function refreshReminders() {
@@ -348,17 +394,35 @@ async function refreshProfile() {
     writeProfileForm(profile);
   } catch (error) {
     if (error instanceof ApiError && (error.status === 404 || error.status === 501)) {
+      clearProfile();
       return;
     }
     throw error;
   }
 }
 
+function clearProfile() {
+  els.profileSummary.textContent = '暂无画像';
+  writeProfileForm({ fields: {} });
+}
+
 function renderBackendStatus(snapshot) {
   const label = snapshot.online ? '在线' : '离线';
-  const at = snapshot.lastInteractionAt || snapshot.lastSeenAt;
-  const detail = at ? `最近互动：${formatDateTime(at)}` : '暂无最近互动';
+  const detail = formatStatusDetail(snapshot, { formatDateTime });
   renderStatus(label, detail);
+}
+
+function updateStatusSnapshot(snapshot) {
+  state.statusSnapshot = snapshot;
+  renderCurrentBackendStatus();
+}
+
+function renderCurrentBackendStatus() {
+  const snapshot = buildStatusSnapshotForDisplay(state.statusSnapshot, state.messages);
+  if (!snapshot) {
+    return;
+  }
+  renderBackendStatus(snapshot);
 }
 
 function renderStatus(label, detail) {
@@ -392,10 +456,7 @@ function renderVisionCapture(capture) {
 }
 
 function renderVisionPresence(result) {
-  const observation = result.observation || {};
-  const presence = presenceLabel(observation.presence);
-  const triggered = observation.triggeredGreeting ? '已触发问候' : '未触发问候';
-  els.visionPresenceResult.textContent = `视觉触发结果：${presence} · ${triggered}`;
+  els.visionPresenceResult.textContent = result.output;
 }
 
 function renderMessages() {
@@ -460,9 +521,7 @@ function writeGreetingSlot(label, slot) {
 }
 
 function statusLabel(status) {
-  if (status === 'played') return '已播报';
-  if (status === 'failed') return '失败';
-  return '排队中';
+  return messageStatusLabel(status);
 }
 
 function reminderStatusLabel(status) {
@@ -473,12 +532,6 @@ function reminderStatusLabel(status) {
   if (status === 'canceled') return '已撤销';
   if (status === 'skipped') return '已跳过';
   return '待提醒';
-}
-
-function presenceLabel(presence) {
-  if (presence === 'someone') return '有人';
-  if (presence === 'no_one') return '无人';
-  return '未知';
 }
 
 function formatTime(value) {

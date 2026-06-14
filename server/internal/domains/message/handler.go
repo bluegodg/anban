@@ -37,6 +37,10 @@ func (h *Handler) create(c *gin.Context) {
 		return
 	}
 
+	if msg.Status == StatusPending {
+		c.JSON(http.StatusAccepted, msg)
+		return
+	}
 	c.JSON(http.StatusCreated, msg)
 }
 

@@ -2,6 +2,7 @@ package reminder
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 const (
 	defaultAckTimeout    = 30 * time.Minute
+	proactiveRetryDelay  = time.Minute
 	minReminderTextRunes = 30
 	maxReminderTextRunes = 60
 )
@@ -45,14 +47,15 @@ func (s *Service) UseProactiveVoiceGate(gate sharedtypes.ProactiveVoiceGate) {
 func (s *Service) Create(ctx context.Context, req CreateRequest) (Reminder, error) {
 	deviceID := strings.TrimSpace(req.DeviceID)
 	content := strings.TrimSpace(req.Content)
-	if deviceID == "" || content == "" || req.ScheduledAt.IsZero() {
+	scheduledAt := req.ScheduledAt.UTC()
+	if deviceID == "" || content == "" || scheduledAt.IsZero() || !scheduledAt.After(s.now().UTC()) {
 		return Reminder{}, ErrInvalidInput
 	}
 
 	category := normalizeCategory(req.Category)
 	rem := Reminder{
 		DeviceID:    deviceID,
-		ScheduledAt: req.ScheduledAt.UTC(),
+		ScheduledAt: scheduledAt,
 		Content:     content,
 		Category:    category,
 		Text:        reminderText(content, category),
@@ -79,6 +82,8 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Reminder, erro
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]Reminder, error) {
+	filter.DeviceID = strings.TrimSpace(filter.DeviceID)
+	filter.Status = Status(strings.TrimSpace(string(filter.Status)))
 	return s.store.List(ctx, filter)
 }
 
@@ -145,7 +150,15 @@ func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 		if rem.PlayedAt == nil {
 			continue
 		}
-		jobID, err := s.sch.ScheduleAt(rem.PlayedAt.UTC().Add(defaultAckTimeout), func() {
+		timeoutAt := rem.PlayedAt.UTC().Add(defaultAckTimeout)
+		if !timeoutAt.After(s.now().UTC()) {
+			if _, err := s.acknowledge(ctx, rem.ID, AckKindTimeout, false); err != nil {
+				return restored, err
+			}
+			restored++
+			continue
+		}
+		jobID, err := s.sch.ScheduleAt(timeoutAt, func() {
 			s.markUnanswered(rem.ID)
 		})
 		if err != nil {
@@ -179,6 +192,10 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 	playedAt := s.now().UTC()
 	lease, err := s.tryAcquireProactiveVoice(ctx, rem.DeviceID, playedAt)
 	if err != nil {
+		if errors.Is(err, sharedtypes.ErrProactiveVoiceThrottled) {
+			s.requeueProactiveVoice(ctx, rem, playedAt, err)
+			return
+		}
 		rem.Status = StatusSkipped
 		rem.ErrorMessage = err.Error()
 		rem.JobID = ""
@@ -186,7 +203,7 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 		return
 	}
 
-	if err := s.xc.InjectSpeak(ctx, rem.DeviceID, rem.Text, xiaozhiclient.InjectOptions{SkipLLM: true}); err != nil {
+	if err := s.xc.InjectSpeak(ctx, rem.DeviceID, rem.Text, proactiveSpeakOptions()); err != nil {
 		if lease != nil {
 			_ = lease.Rollback(ctx)
 		}
@@ -215,11 +232,44 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 	_ = s.store.Update(ctx, rem)
 }
 
+func (s *Service) requeueProactiveVoice(ctx context.Context, rem *Reminder, at time.Time, cause error) {
+	retryAt := at.UTC().Add(proactiveRetryDelay)
+	if s.sch == nil {
+		rem.Status = StatusFailed
+		rem.ErrorMessage = cause.Error()
+		rem.JobID = ""
+		_ = s.store.Update(ctx, rem)
+		return
+	}
+
+	jobID, err := s.sch.ScheduleAt(retryAt, func() {
+		s.fire(rem.ID)
+	})
+	if err != nil {
+		rem.Status = StatusFailed
+		rem.ErrorMessage = err.Error()
+		rem.JobID = ""
+		_ = s.store.Update(ctx, rem)
+		return
+	}
+
+	rem.Status = StatusScheduled
+	rem.ScheduledAt = retryAt
+	rem.JobID = string(jobID)
+	rem.ErrorMessage = cause.Error()
+	_ = s.store.Update(ctx, rem)
+}
+
 func (s *Service) tryAcquireProactiveVoice(ctx context.Context, deviceID string, at time.Time) (sharedtypes.ProactiveVoiceLease, error) {
 	if s.voiceGate == nil {
 		return nil, nil
 	}
 	return s.voiceGate.TryAcquireProactiveVoice(ctx, deviceID, at)
+}
+
+func proactiveSpeakOptions() xiaozhiclient.InjectOptions {
+	autoListen := true
+	return xiaozhiclient.InjectOptions{SkipLLM: true, AutoListen: &autoListen}
 }
 
 func (s *Service) markUnanswered(id uint) {

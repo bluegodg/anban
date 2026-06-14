@@ -42,7 +42,8 @@ func main() {
 	if err := messageStore.AutoMigrate(); err != nil {
 		log.Fatalf("message 表迁移失败: %v", err)
 	}
-	messageService := message.NewService(messageStore, xc)
+	messageService := message.NewService(messageStore, xc, sch)
+	messageService.UseProactiveVoiceGate(voiceGate)
 	messageHandler := message.NewHandler(messageService)
 
 	greetingStore := greeting.NewStore(st.DB)
@@ -71,7 +72,12 @@ func main() {
 	}
 	reminderHandler := reminder.NewHandler(reminderService)
 
+	statusStore := status.NewStore(st.DB)
+	if err := statusStore.AutoMigrate(); err != nil {
+		log.Fatalf("status 表迁移失败: %v", err)
+	}
 	statusService := status.NewService(xc, messageService)
+	statusService.UseStore(statusStore)
 	statusHandler := status.NewHandler(statusService)
 
 	profileStore := profile.NewStore(st.DB)
@@ -86,6 +92,7 @@ func main() {
 
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
+		AllowedOrigins: cfg.AllowedOrigins,
 		MessageRoutes:  messageHandler,
 		GreetingRoutes: greetingHandler,
 		ReminderRoutes: reminderHandler,

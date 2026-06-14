@@ -57,21 +57,24 @@ func TestSharedVoiceGateBlocksReminderAfterGreetingForSameDevice(t *testing.T) {
 	}
 	fakeSch.fire(0)
 
-	skipped, err := reminderSvc.List(ctx, reminder.ListFilter{Status: reminder.StatusSkipped})
+	scheduled, err := reminderSvc.List(ctx, reminder.ListFilter{Status: reminder.StatusScheduled})
 	if err != nil {
-		t.Fatalf("List skipped reminders: %v", err)
+		t.Fatalf("List scheduled reminders: %v", err)
 	}
-	if len(skipped) != 1 || skipped[0].ID != created.ID {
-		t.Fatalf("skipped reminders = %+v, want reminder %d", skipped, created.ID)
+	if len(scheduled) != 1 || scheduled[0].ID != created.ID {
+		t.Fatalf("scheduled reminders = %+v, want requeued reminder %d", scheduled, created.ID)
 	}
-	if skipped[0].JobID != "" {
-		t.Fatalf("JobID = %q, want cleared after skipped proactive voice", skipped[0].JobID)
+	if scheduled[0].JobID != "job-2" {
+		t.Fatalf("JobID = %q, want retry job id job-2", scheduled[0].JobID)
 	}
-	if !strings.Contains(skipped[0].ErrorMessage, "proactive voice") {
-		t.Fatalf("ErrorMessage = %q, want proactive voice throttle detail", skipped[0].ErrorMessage)
+	if !strings.Contains(scheduled[0].ErrorMessage, "proactive voice") {
+		t.Fatalf("ErrorMessage = %q, want proactive voice throttle detail", scheduled[0].ErrorMessage)
 	}
 	if len(fakeXC.InjectCalls) != 1 {
 		t.Fatalf("InjectCalls = %d, want only greeting to inject", len(fakeXC.InjectCalls))
+	}
+	if len(fakeSch.jobs) != 2 {
+		t.Fatalf("scheduled jobs = %d, want original reminder job plus retry job", len(fakeSch.jobs))
 	}
 }
 
