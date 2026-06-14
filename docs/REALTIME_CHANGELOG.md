@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 对话记录内容边界
+
+- 文件：`server/internal/domains/status/service.go`、`server/internal/domains/status/service_test.go`
+- 内容：status 对外历史接口只返回 `user` 与 `assistant` 两类老人↔设备文本，过滤 manager 中的 `system` / `tool` 内部记录；设备“最近互动”时间也忽略这些内部事件。
+- 目的：让子女端看到的确实是 PRD #4 开发期完整对话，而不是家庭画像提示词或 MCP 工具执行细节，并避免工具调用把最近互动时间误报得更晚。
+- 架构影响：过滤发生在 status 域的北向展示模型中；`xiaozhiclient.GetHistory` 仍保留 manager 原始历史语义，reminder 等其他使用方契约不变。
+- 验证：RED 阶段 status 测试显示 tool 记录把最近互动从 08:45 推到 09:45，且 API 返回 4 条含 system/tool 的记录；实现后 status 定向测试转绿；`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过（含 reminder 与架构守护测试），Linux 交叉编译通过，`npm test --prefix web` 73/73 通过。
+
 ### PRD #4 manager 历史查询参数映射修复
 
 - 文件：`server/internal/xiaozhiclient/http_client.go`、`server/internal/xiaozhiclient/http_client_test.go`

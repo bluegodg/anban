@@ -83,8 +83,12 @@ func (s *Service) GetHistory(ctx context.Context, req HistoryRequest) (HistoryRe
 
 	messages := make([]HistoryEntry, 0, len(history))
 	for _, message := range history {
+		role := normalizeConversationRole(message.Role)
+		if role == "" {
+			continue
+		}
 		messages = append(messages, HistoryEntry{
-			Role: message.Role,
+			Role: role,
 			Text: message.Text,
 			At:   timePtr(message.At),
 		})
@@ -161,7 +165,7 @@ func timePtr(value time.Time) *time.Time {
 func latestHistoryAt(history []xiaozhiclient.HistoryMessage) *time.Time {
 	var latest time.Time
 	for _, message := range history {
-		if message.At.IsZero() {
+		if normalizeConversationRole(message.Role) == "" || message.At.IsZero() {
 			continue
 		}
 		at := message.At.UTC()
@@ -170,4 +174,15 @@ func latestHistoryAt(history []xiaozhiclient.HistoryMessage) *time.Time {
 		}
 	}
 	return timePtr(latest)
+}
+
+func normalizeConversationRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "user":
+		return "user"
+	case "assistant":
+		return "assistant"
+	default:
+		return ""
+	}
 }
