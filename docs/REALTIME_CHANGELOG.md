@@ -131,6 +131,33 @@
   - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
   - 切片后 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
   - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### PRD #6 分类提醒文案 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：扩展 `TestReminderTextFitsPRDLength`，要求 `birthday` 分类的播报文案含“生日”、`festival` 分类含“节日”，同时继续满足 PRD 30–60 字长度和老人称谓。
+- 目的：让 Web 已能选择的生日/节日提醒在设备播报时也有明确场景感，不退回通用“提醒您”。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/domains/reminder`，得到有效 RED：生日、节日子用例失败，当前文案分别缺少“生日”和“节日”分类提示。
+
+### PRD #6 分类提醒文案 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：`reminderText` 为 `CategoryBirthday` 和 `CategoryFestival` 增加专门文案分支；用药和自定义分支保持原有行为，仍经 `buildReminderText` 控制 30–60 字。
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：保留生日/节日分类文案守护测试。
+- 目的：让 #6 主动提醒在用药、生日、节日三个 PRD 场景里都有可听懂的播报语境，同时不改变调度、ack、主动语音配额或 manager 客户端契约。
+- 功能影响：仅影响提醒播报文本生成；不改变提醒状态机、DB schema、childapi 路由、Web 请求或 xiaozhi 下发参数。
+- 验证：
+  - 切片前 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片前 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片前 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
+  - RED 后 `go test ./internal/domains/reminder` 得到有效失败：生日、节日文案缺少分类提示。
+  - GREEN 后 `go test ./internal/domains/reminder` 通过，RED 用例已转绿。
+  - 切片后 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片后 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
 
 ### 真机后阶段对齐文档
 

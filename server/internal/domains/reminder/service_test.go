@@ -157,12 +157,15 @@ func TestServiceListNormalizesFilters(t *testing.T) {
 
 func TestReminderTextFitsPRDLength(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		category Category
+		name         string
+		content      string
+		category     Category
+		wantContains string
 	}{
-		{name: "short medicine reminder", content: "测血压", category: CategoryMed},
-		{name: "long custom reminder", content: strings.Repeat("记得测血压", 20), category: CategoryCustom},
+		{name: "short medicine reminder", content: "测血压", category: CategoryMed, wantContains: "该"},
+		{name: "birthday reminder", content: "小宝七岁", category: CategoryBirthday, wantContains: "生日"},
+		{name: "festival reminder", content: "端午包粽子", category: CategoryFestival, wantContains: "节日"},
+		{name: "long custom reminder", content: strings.Repeat("记得测血压", 20), category: CategoryCustom, wantContains: "提醒"},
 	}
 
 	for _, tt := range tests {
@@ -171,6 +174,9 @@ func TestReminderTextFitsPRDLength(t *testing.T) {
 			assertReminderTextLength(t, text)
 			if !strings.Contains(text, "您") {
 				t.Fatalf("text = %q, want elder-facing salutation", text)
+			}
+			if !strings.Contains(text, tt.wantContains) {
+				t.Fatalf("text = %q, want category cue %q", text, tt.wantContains)
 			}
 		})
 	}

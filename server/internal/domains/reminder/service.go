@@ -334,6 +334,20 @@ func reminderText(content string, category Category) string {
 			"啦，记得按时完成哦。完成了跟安伴说一声，我也就放心啦。",
 		)
 	}
+	if category == CategoryBirthday {
+		return buildReminderText(
+			"您好，生日提醒：",
+			content,
+			"。记得送上祝福，安伴会陪您记着。",
+		)
+	}
+	if category == CategoryFestival {
+		return buildReminderText(
+			"您好，节日提醒：",
+			content,
+			"。安伴陪您一起记着这个日子。",
+		)
+	}
 	return buildReminderText(
 		"您好，提醒您：",
 		content,
