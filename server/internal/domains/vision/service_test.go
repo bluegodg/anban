@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
@@ -54,6 +55,22 @@ func TestServiceCaptureUsesDefaultTool(t *testing.T) {
 	}
 	if result.Tool != DefaultCaptureTool {
 		t.Fatalf("result tool = %q, want default %q", result.Tool, DefaultCaptureTool)
+	}
+}
+
+func TestServiceCaptureBoundsMCPCallForPRDLatency(t *testing.T) {
+	xc := &visionClient{raw: json.RawMessage(`{"presence":"someone"}`)}
+	svc := NewService(xc)
+
+	if _, err := svc.Capture(context.Background(), CaptureRequest{DeviceID: "dev-001"}); err != nil {
+		t.Fatalf("Capture: %v", err)
+	}
+	if !xc.gotDeadline {
+		t.Fatal("MCP call context has no deadline; PRD #7 requires vision trigger latency <= 8s")
+	}
+	remaining := time.Until(xc.deadline)
+	if remaining <= 0 || remaining > 8*time.Second {
+		t.Fatalf("MCP call deadline remaining = %s, want within 8s", remaining)
 	}
 }
 
@@ -197,12 +214,15 @@ type visionClient struct {
 	gotDeviceID string
 	gotTool     string
 	gotArgs     map[string]any
+	gotDeadline bool
+	deadline    time.Time
 }
 
 func (c *visionClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
 	c.gotDeviceID = deviceID
 	c.gotTool = tool
 	c.gotArgs = args
+	c.deadline, c.gotDeadline = ctx.Deadline()
 	return c.raw, c.err
 }
 

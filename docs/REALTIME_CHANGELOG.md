@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #7 视觉 MCP 调用 8 秒边界 RED 测试
+
+- 文件：`server/internal/domains/vision/service_test.go`
+- 内容：新增 `TestServiceCaptureBoundsMCPCallForPRDLatency`，要求 vision 域调用设备 MCP 拍照/Presence 工具时给下游 context 设置不超过 8 秒的 deadline。
+- 目的：对齐 PRD #7 “VLM 调用延迟 + 触发延迟 ≤ 8 秒”，避免视觉触发链路在 manager/MCP 卡住时长时间拖住子女端请求。
+- 边界：仅覆盖 vision 可降级链路；不改 xiaozhi、不影响原版语音、留言、问候、提醒主链路。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/vision`，按预期失败于 `MCP call context has no deadline`。
+
 ### 方案 C 仓库边界与部署入口
 
 - 文件：`docs/deployment/方案C仓库边界与部署总纲.md`、`README.md`、`docs/README.md`
