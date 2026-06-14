@@ -12,6 +12,8 @@ import (
 	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
+const visionMCPTimeout = 8 * time.Second
+
 type Service struct {
 	xc               xiaozhiclient.Client
 	greetingTrigger  sharedtypes.ProactiveGreetingTrigger
@@ -42,7 +44,10 @@ func (s *Service) Capture(ctx context.Context, req CaptureRequest) (CaptureResul
 		tool = DefaultCaptureTool
 	}
 
-	raw, err := s.xc.CallDeviceMCPTool(ctx, deviceID, tool, req.Args)
+	callCtx, cancel := withVisionMCPTimeout(ctx)
+	defer cancel()
+
+	raw, err := s.xc.CallDeviceMCPTool(callCtx, deviceID, tool, req.Args)
 	if err != nil {
 		return CaptureResult{}, err
 	}
@@ -114,6 +119,13 @@ func (s *Service) ObservePresence(ctx context.Context, req PresenceObservationRe
 	}
 	result.TriggeredGreeting = true
 	return result, nil
+}
+
+func withVisionMCPTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= visionMCPTimeout {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, visionMCPTimeout)
 }
 
 func parsePresence(raw json.RawMessage) (Presence, error) {

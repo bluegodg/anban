@@ -12,6 +12,14 @@
 - 边界：仅覆盖 vision 可降级链路；不改 xiaozhi、不影响原版语音、留言、问候、提醒主链路。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/vision`，按预期失败于 `MCP call context has no deadline`。
 
+### PRD #7 视觉 MCP 调用 8 秒边界 GREEN 实现
+
+- 文件：`server/internal/domains/vision/service.go`、`server/internal/domains/vision/service_test.go`
+- 内容：`Capture` 调用 `xiaozhiclient.CallDeviceMCPTool` 前统一套 8 秒 timeout；若外层请求已有更短 deadline，则保留外层 deadline。
+- 目的：让“看一眼 / 视觉 Presence 触发”这条可降级链路具备明确超时边界，避免路演时视觉卡顿拖住子女端操作。
+- 边界：不改变 MCP 工具名、请求参数、返回形状或 `xiaozhiclient` 接口；不触碰原版小智语音和已通真机留言链路。
+- 验证：`go test -count=1 ./internal/domains/vision` 已转绿；随后 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译、`npm test --prefix web` 77/77 全部通过。
+
 ### 方案 C 仓库边界与部署入口
 
 - 文件：`docs/deployment/方案C仓库边界与部署总纲.md`、`README.md`、`docs/README.md`
