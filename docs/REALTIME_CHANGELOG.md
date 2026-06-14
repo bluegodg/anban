@@ -104,6 +104,34 @@
   - 切片后 `npm test --prefix web` 通过，70 个 smoke tests 全绿。
   - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
 
+### PRD #6 提醒分类选择 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web lets children choose PRD reminder categories`，要求子女端提醒表单暴露 `med`、`birthday`、`festival`、`custom` 四类，并在创建提醒时从表单读取 category。
+- 目的：补齐 PRD #6 “用药 / 生日 / 节日”提醒在子女端的演示入口，避免 Web 永远把提醒写死成 `med`。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：71 个 smoke tests 中新增用例失败，失败点显示页面缺少 `#reminderCategory`。
+
+### PRD #6 提醒分类选择 GREEN 实现
+
+- 文件：`web/index.html`
+- 内容：在提醒表单增加“提醒类型”下拉，支持用药、生日、节日、自定义，对应后端已有 `med`、`birthday`、`festival`、`custom`。
+- 文件：`web/app.js`
+- 内容：新增 `els.reminderCategory`，创建提醒时使用 `category: els.reminderCategory.value`，不再把子女端提醒固定为 `med`。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留提醒分类选择的 smoke 守护测试。
+- 目的：让 #6 主动提醒能在 Web 演示中覆盖用药、生日、节日三种 PRD 场景，同时复用现有 reminder 后端契约。
+- 功能影响：仅改变子女端创建提醒 payload 的 category 来源；不改变提醒调度、主动语音配额、设备下发或 xiaozhi manager 客户端。
+- 验证：
+  - 切片前 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片前 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片前 `npm test --prefix web` 通过，70 个 smoke tests 全绿。
+  - GREEN 后 `npm test --prefix web` 通过，71 个 smoke tests 全绿，前端 RED 用例已转绿。
+  - 切片后 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片后 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
 ### 真机后阶段对齐文档
 
 - 文件：`docs/plans/2026-06-14-真机后阶段对齐与方案C部署说明.md`

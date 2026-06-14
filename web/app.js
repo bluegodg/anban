@@ -58,6 +58,7 @@ const els = {
   reminderForm: document.querySelector('#reminderForm'),
   reminderContent: document.querySelector('#reminderContent'),
   reminderTime: document.querySelector('#reminderTime'),
+  reminderCategory: document.querySelector('#reminderCategory'),
   reminderList: document.querySelector('#reminderList'),
   profileForm: document.querySelector('#profileForm'),
   profileSummary: document.querySelector('#profileSummary'),
@@ -211,7 +212,7 @@ els.reminderForm.addEventListener('submit', async (event) => {
       deviceId: state.deviceId,
       scheduledAt: draft.scheduledAt,
       content: draft.content,
-      category: 'med',
+      category: els.reminderCategory.value,
     });
     state.reminders = [reminder, ...state.reminders.filter((item) => item.reminderId !== reminder.reminderId)];
     renderReminders();

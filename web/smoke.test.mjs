@@ -439,6 +439,18 @@ test('child web shows reminder creation result returned by backend', async () =>
   assert.match(app, /提醒已创建：\$\{reminder\.content\}/);
 });
 
+test('child web lets children choose PRD reminder categories', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(html, /id="reminderCategory"/);
+  for (const category of ['med', 'birthday', 'festival', 'custom']) {
+    assert.match(html, new RegExp(`value="${category}"`));
+  }
+  assert.match(app, /reminderCategory: document\.querySelector\('#reminderCategory'\)/);
+  assert.match(app, /category: els\.reminderCategory\.value/);
+});
+
 test('API client cancels reminders with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;
