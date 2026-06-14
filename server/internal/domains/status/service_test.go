@@ -131,6 +131,7 @@ func TestServiceGetUsesLatestHistoryForLastInteraction(t *testing.T) {
 		history: []xiaozhiclient.HistoryMessage{
 			{Role: "assistant", Text: "小宝今天 7 岁啦", At: olderInteraction},
 			{Role: "user", Text: "今天腰有点酸", At: latestInteraction},
+			{Role: "tool", Text: "self.screen.set_theme completed", At: latestInteraction.Add(time.Hour)},
 		},
 	}
 	svc := NewService(xc)
@@ -158,21 +159,23 @@ func TestServiceGetHistoryReturnsConversationMessages(t *testing.T) {
 	answeredAt := time.Date(2026, 6, 1, 8, 31, 5, 0, time.UTC)
 	xc := &statusClient{
 		history: []xiaozhiclient.HistoryMessage{
+			{Role: "system", Text: "家庭画像提示词", At: askedAt.Add(-time.Second)},
 			{Role: "user", Text: "我孙子叫啥", At: askedAt},
 			{Role: "assistant", Text: "小宝今天 7 岁啦", At: answeredAt},
+			{Role: "tool", Text: "self.screen.set_theme completed", At: answeredAt.Add(time.Second)},
 		},
 	}
 	svc := NewService(xc)
 
-	history, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: " dev-001 ", Limit: 2})
+	history, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: " dev-001 ", Limit: 4})
 	if err != nil {
 		t.Fatalf("GetHistory: %v", err)
 	}
 	if xc.gotHistoryDeviceID != "dev-001" {
 		t.Fatalf("history deviceID = %q, want trimmed dev-001", xc.gotHistoryDeviceID)
 	}
-	if xc.gotHistoryLimit != 2 {
-		t.Fatalf("history limit = %d, want 2", xc.gotHistoryLimit)
+	if xc.gotHistoryLimit != 4 {
+		t.Fatalf("history limit = %d, want 4", xc.gotHistoryLimit)
 	}
 	if history.DeviceID != "dev-001" {
 		t.Fatalf("DeviceID = %q, want dev-001", history.DeviceID)
