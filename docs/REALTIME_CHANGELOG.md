@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 对话记录缺失时间展示
+
+- 文件：`web/history-view.js`、`web/app.js`、`web/smoke.test.mjs`
+- 内容：新增对话记录展示 helper，统一处理角色、文本和时间；当 manager 历史记录缺少时间或时间非法时，前端显示“时间未知”，不再把 `undefined`/异常时间交给日期格式化器。
+- 目的：避免路演页对话记录出现 `Invalid Date` 这类技术泄漏，让开发期完整对话记录在真实 manager 数据不完整时仍保持可读。
+- 边界：仅影响子女端展示；不改 childapi 契约、不补写时间、不缓存 manager 历史。
+- 验证：切片前服务端 build/vet/test、Linux 交叉编译和 76 个 Web smoke tests 全绿；RED 阶段新增测试因 `history-view.js` 不存在且 `app.js` 未接入 helper 按预期失败；实现后 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译、`npm test --prefix web` 77/77 全部通过。
+
 ### PRD #4 对话记录时间顺序
 
 - 文件：`server/internal/domains/status/service.go`、`server/internal/domains/status/service_test.go`

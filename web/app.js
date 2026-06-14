@@ -11,6 +11,7 @@ import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 import { buildStatusSnapshotForDisplay, formatStatusDetail, messageStatusLabel } from './status-summary.js';
 import { formatGreetingTriggerResult } from './greeting-result.js';
 import { loadConversationHistory } from './history-refresh.js';
+import { formatHistoryEntry } from './history-view.js';
 import { formatVisionPresenceResult } from './vision-presence-result.js';
 
 const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
@@ -526,18 +527,10 @@ function renderHistory() {
 
   els.historyList.innerHTML = state.history
     .map((message) => {
-      const role = historyRoleLabel(message.role || message.Role);
-      const text = message.text || message.Text || '';
-      const at = formatDateTime(message.at || message.At);
-      return `<li><strong>${role}</strong><span>${escapeHtml(text)}</span><time>${at}</time></li>`;
+      const entry = formatHistoryEntry(message, { formatDateTime });
+      return `<li><strong>${entry.role}</strong><span>${escapeHtml(entry.text)}</span><time>${entry.time}</time></li>`;
     })
     .join('');
-}
-
-function historyRoleLabel(role) {
-  if (role === 'user') return '老人';
-  if (role === 'assistant') return '安伴';
-  return '对话';
 }
 
 function readGreetingSchedule() {
