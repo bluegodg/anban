@@ -852,7 +852,7 @@ test('child web status polling refreshes conversation history', async () => {
   assert.match(statusRefresh, /updateStatusSnapshot\(snapshot\);[\s\S]*await refreshHistory\(\);/);
 });
 
-test('status polling schedules backend refresh every 30 seconds', async () => {
+test('status polling leaves request latency margin for the PRD 30-second offline target', async () => {
   const { STATUS_REFRESH_INTERVAL_MS, startStatusPolling, stopStatusPolling } = await import('./status-polling.js');
   let scheduledDelay;
   let refreshCalls = 0;
@@ -873,8 +873,8 @@ test('status polling schedules backend refresh every 30 seconds', async () => {
     },
   });
 
-  assert.equal(STATUS_REFRESH_INTERVAL_MS, 30_000);
-  assert.equal(scheduledDelay, 30_000);
+  assert.equal(STATUS_REFRESH_INTERVAL_MS, 20_000);
+  assert.equal(scheduledDelay, 20_000);
   assert.equal(refreshCalls, 1);
   assert.equal(clearedTimer, 42);
 });

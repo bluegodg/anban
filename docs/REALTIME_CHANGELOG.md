@@ -34,6 +34,33 @@
   - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
   - 切片后 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
   - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
+### PRD #4 掉线显示轮询余量 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：把状态轮询测试改为要求 20 秒刷新一次，为 PRD #4“设备掉线后 ≤30 秒显示离线”留出 HTTP 请求耗时与浏览器调度余量。
+- 目的：避免轮询间隔本身已占满 30 秒，导致真实离线展示必然可能越过验收上限。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：71 个 smoke tests 中仅新增约束失败，实际值 `30000`、期望值 `20000`。
+
+### PRD #4 掉线显示轮询余量 GREEN 实现
+
+- 文件：`web/status-polling.js`
+- 内容：把 `STATUS_REFRESH_INTERVAL_MS` 从 30 秒调整为 20 秒；首次连接仍立即刷新，后续只增加既有 `/api/device/status` 的刷新频率。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留 20 秒状态轮询守护测试，并明确这是为 30 秒离线目标预留请求延迟余量。
+- 目的：让子女端对设备掉线的感知更稳定地落在 PRD #4 的 30 秒窗口内。
+- 功能影响：仅调整子女端状态/对话历史刷新频率；不改变后端在线判定、固件保活、留言状态 10 秒轮询或任何 xiaozhi manager 契约。
+- 验证：
+  - 切片前 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，架构测试全绿。
+  - 切片前 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片前 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
+  - RED 后 `npm test --prefix web` 得到有效失败：状态轮询实际值 `30000`、期望值 `20000`。
+  - GREEN 后 `npm test --prefix web` 通过，71 个 smoke tests 全绿，RED 用例已转绿。
+  - 切片后 `server/` 下 `go build ./... && go vet ./... && go test ./...` 通过，含 `internal/architecture` 守护测试。
+  - 切片后 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban` 通过。
+  - 切片后 `npm test --prefix web` 通过，71 个 smoke tests 全绿。
 
 ## 2026-06-14
 

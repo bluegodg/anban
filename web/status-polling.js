@@ -1,4 +1,4 @@
-export const STATUS_REFRESH_INTERVAL_MS = 30_000;
+export const STATUS_REFRESH_INTERVAL_MS = 20_000;
 
 export function startStatusPolling(refresh, { setIntervalImpl = setInterval } = {}) {
   if (typeof refresh !== 'function') {
