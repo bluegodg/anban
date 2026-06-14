@@ -163,10 +163,10 @@ func (c *HTTPClient) findAgentIDForDevice(ctx context.Context, deviceID string) 
 func (c *HTTPClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error) {
 	q := url.Values{}
 	if deviceID != "" {
-		q.Set("deviceId", deviceID)
+		q.Set("device_id", deviceID)
 	}
 	if limit > 0 {
-		q.Set("limit", strconv.Itoa(limit))
+		q.Set("page_size", strconv.Itoa(limit))
 	}
 	path := "/api/open/v1/history/messages"
 	if query := q.Encode(); query != "" {

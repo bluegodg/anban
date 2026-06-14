@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 manager 历史查询参数映射修复
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`、`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：`GetHistory(deviceID, limit)` 保持既有契约不变，内部调用 manager `GET /api/open/v1/history/messages` 时改用上游真实参数 `device_id` 和 `page_size`，并用测试禁止旧的 `deviceId` / `limit` 参数回归。
+- 依据：完整文档仓的 manager 深读说明 OpenAPI history 复用 `ChatHistoryController.GetMessages`；本地冻结上游源码中该控制器读取 `device_id` 与 `page_size`，并按 `created_at DESC` 返回 `data`。
+- 目的：确保 PRD #4 对话记录只读取当前设备且遵守条数上限，避免同一 manager 用户下其他设备的历史被混入子女端，同时不改变 xiaozhi 上游或跨越 `xiaozhiclient` 边界。
+- 验证：切片前服务端 build/vet/test、Linux 交叉编译和 73 个 Web smoke tests 全绿；RED 测试显示 manager 收到的 `device_id` / `page_size` 为空；修复后定向 xiaozhiclient 测试转绿；`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过（含架构守护测试），Linux 交叉编译通过，`npm test --prefix web` 73/73 通过。
+
 ### PRD #4 最近互动相对时间展示
 
 - 文件：`web/status-summary.js`、`web/app.js`、`web/smoke.test.mjs`
