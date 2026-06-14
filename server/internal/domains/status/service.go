@@ -11,6 +11,8 @@ import (
 
 const defaultMessageStatusLimit = 10
 const defaultHistoryLimit = 10
+const defaultConversationHistoryLimit = 50
+const maxConversationHistoryLimit = 100
 
 type Service struct {
 	xc            xiaozhiclient.Client
@@ -68,6 +70,28 @@ func (s *Service) Get(ctx context.Context, req GetRequest) (Snapshot, error) {
 	return snapshot, nil
 }
 
+func (s *Service) GetHistory(ctx context.Context, req HistoryRequest) (HistoryResponse, error) {
+	deviceID := strings.TrimSpace(req.DeviceID)
+	if deviceID == "" {
+		return HistoryResponse{}, ErrInvalidInput
+	}
+
+	history, err := s.xc.GetHistory(ctx, deviceID, normalizeHistoryLimit(req.Limit))
+	if err != nil {
+		return HistoryResponse{}, err
+	}
+
+	messages := make([]HistoryEntry, 0, len(history))
+	for _, message := range history {
+		messages = append(messages, HistoryEntry{
+			Role: message.Role,
+			Text: message.Text,
+			At:   timePtr(message.At),
+		})
+	}
+	return HistoryResponse{DeviceID: deviceID, Messages: messages}, nil
+}
+
 func (s *Service) messageSummaries(ctx context.Context, deviceID string) []sharedtypes.MessageStatusSummary {
 	if s.messageReader == nil {
 		return []sharedtypes.MessageStatusSummary{}
@@ -106,6 +130,16 @@ func (s *Service) cacheSnapshot(ctx context.Context, snapshot Snapshot) {
 		LastSeenAt:        cloneTimePtr(snapshot.LastSeenAt),
 		LastInteractionAt: cloneTimePtr(snapshot.LastInteractionAt),
 	})
+}
+
+func normalizeHistoryLimit(limit int) int {
+	if limit <= 0 {
+		return defaultConversationHistoryLimit
+	}
+	if limit > maxConversationHistoryLimit {
+		return maxConversationHistoryLimit
+	}
+	return limit
 }
 
 func cloneTimePtr(value *time.Time) *time.Time {

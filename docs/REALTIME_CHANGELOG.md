@@ -4,6 +4,61 @@
 
 ## 2026-06-14
 
+### PRD #4 对话记录后端 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 `TestServiceGetHistoryReturnsConversationMessages`、`TestServiceGetHistoryDefaultsAndCapsLimit`、`TestServiceGetHistoryRejectsMissingDeviceID`，要求 status 域把 `xiaozhiclient.GetHistory` 包装成子女端可读的只读对话历史响应，修剪 deviceId，默认 limit=50，最大 limit=100。
+- 文件：`server/internal/domains/status/handler_test.go`
+- 内容：新增 `TestHandlerGetHistory` 和 `TestHandlerGetHistoryRejectsInvalidLimit`，要求 `GET /api/device/history?deviceId=&limit=` 返回对话记录，并拒绝非法 limit。
+- 文件：`server/internal/childapi/status_routes_test.go`
+- 内容：要求 childapi 在 status 依赖缺失时也保留 `/api/device/history` 的 501 占位，在依赖提供时由 status handler 接管。
+- 目的：落实 PRD #4/开发期完整对话记录，只读展示 xiaozhi 已有历史，不复制到 anban DB，不改变 `xiaozhiclient.GetHistory` 契约。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `go test ./internal/domains/status ./internal/childapi`（`server/`，含 `GOPROXY=https://goproxy.cn,direct`、`GOSUMDB=off`、`CGO_ENABLED=0`），得到有效 RED：`status` 包因缺少 `HistoryRequest`、`HistoryResponse` 和 `Service.GetHistory` 编译失败；`childapi` 的 `/api/device/history` 在缺少 status 依赖时返回 404 而非 501。
+
+### PRD #4 对话记录后端 GREEN 实现
+
+- 文件：`server/internal/domains/status/types.go`
+- 内容：新增 `HistoryRequest`、`HistoryResponse`、`HistoryEntry`，用 `role/text/at` 小写 JSON 字段给子女端展示对话历史。
+- 文件：`server/internal/domains/status/service.go`
+- 内容：新增 `Service.GetHistory`，修剪 deviceId，经 `xiaozhiclient.GetHistory` 只读拉取历史，并把时间转为 UTC；接口默认 limit=50，最大 limit=100。
+- 文件：`server/internal/domains/status/handler.go`
+- 内容：注册 `GET /api/device/history`，支持 `deviceId` 和可选 `limit` 查询参数，非法 `deviceId/limit` 返回 400，manager/history 读取失败返回 502。
+- 文件：`server/internal/childapi/server.go`
+- 内容：在 status 依赖缺失时为 `/api/device/history` 保留 501 地基占位。
+- 目的：让子女端可以通过 anban 只读查看 xiaozhi 对话历史，同时保持 `xiaozhiclient` 仍是唯一懂 manager OpenAPI 的边界。
+- 功能影响：新增只读 childapi 路由；不写 anban DB，不改变设备播报、留言配额、profile prompt 或 xiaozhi manager 客户端契约。
+- 验证：已重跑 `go test ./internal/domains/status ./internal/childapi`（`server/`，同上 Go 环境）通过，后端 RED 用例已转绿。
+
+### PRD #4 对话记录前端 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `API client fetches device conversation history with access code`，要求 `createAnbanClient().getHistory({deviceId, limit})` 调用 `/api/device/history?deviceId=&limit=` 并携带 `X-Access-Code`。
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web shows backend conversation history on connect`，要求页面包含“对话记录”和 `historyList`，应用状态包含 `history`，连接刷新流程调用 `refreshHistory()`，并有 `renderHistory()` 渲染函数。
+- 目的：把 PRD #4 开发期完整对话记录落实到子女端可见 UI，而不是只停留在后端接口。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：68 个 smoke tests 中 2 个失败，分别为 `client.getHistory is not a function` 和页面缺少“对话记录”/`historyList`。
+
+### PRD #4 对话记录前端 GREEN 实现
+
+- 文件：`web/api/client.js`
+- 内容：新增 `getHistory({deviceId, limit})`，请求 `/api/device/history` 并复用访问码鉴权与查询参数清洗。
+- 文件：`web/app.js`
+- 内容：新增 `state.history`、`refreshHistory()`、`renderHistory()` 和角色标签映射；连接成功刷新时拉取最近 50 条对话记录，501/502 时清空历史但不阻断状态/留言主链路。
+- 文件：`web/index.html`
+- 内容：新增“对话记录”面板和 `historyList` 列表。
+- 文件：`web/styles.css`
+- 内容：复用列表样式并为 history 列表增加角色、正文、时间三列布局。
+- 目的：让子女端在开发期能直接查看老人和设备的文字对话历史，支撑 PRD #4 的状态安心感与 §8 的开发期记录策略。
+- 功能影响：新增只读 UI 展示；不改变留言发送、主动问候、提醒、画像或视觉链路。
+- 验证：
+  - `npm test --prefix web` 通过，68 个 smoke tests 全绿，前端 RED 用例已转绿。
+  - 切片后 `go build ./... && go vet ./... && go test ./...`（`server/`，含 `GOPROXY=https://goproxy.cn,direct`、`GOSUMDB=off`、`CGO_ENABLED=0`）通过，含 `internal/architecture` 守护测试。
+  - `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`（`server/`，同上 GOPROXY/GOSUMDB）通过。
+  - 切片后 `npm test --prefix web` 通过，68 个 smoke tests 全绿。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
 ### 真机后阶段对齐文档
 
 - 文件：`docs/plans/2026-06-14-真机后阶段对齐与方案C部署说明.md`

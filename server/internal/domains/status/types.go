@@ -14,12 +14,28 @@ type GetRequest struct {
 	DeviceID string
 }
 
+type HistoryRequest struct {
+	DeviceID string
+	Limit    int
+}
+
 type Snapshot struct {
 	DeviceID          string                             `json:"deviceId"`
 	Online            bool                               `json:"online"`
 	LastSeenAt        *time.Time                         `json:"lastSeenAt,omitempty"`
 	LastInteractionAt *time.Time                         `json:"lastInteractionAt,omitempty"`
 	Messages          []sharedtypes.MessageStatusSummary `json:"messages"`
+}
+
+type HistoryResponse struct {
+	DeviceID string         `json:"deviceId"`
+	Messages []HistoryEntry `json:"messages"`
+}
+
+type HistoryEntry struct {
+	Role string     `json:"role"`
+	Text string     `json:"text"`
+	At   *time.Time `json:"at,omitempty"`
 }
 
 type SnapshotCache struct {

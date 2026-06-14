@@ -18,6 +18,7 @@ const state = {
   apiBaseURL: localStorage.getItem('anban.apiBaseURL') || 'http://localhost:8090',
   messages: [],
   reminders: [],
+  history: [],
   statusSnapshot: null,
   statusPoller: null,
   messageStatusPoller: null,
@@ -36,6 +37,7 @@ const els = {
   messageText: document.querySelector('#messageText'),
   fromName: document.querySelector('#fromName'),
   messageList: document.querySelector('#messageList'),
+  historyList: document.querySelector('#historyList'),
   greetingButton: document.querySelector('#greetingButton'),
   visionButton: document.querySelector('#visionButton'),
   visionResult: document.querySelector('#visionResult'),
@@ -74,6 +76,7 @@ function boot() {
   renderStatus('未连接', '等待访问码');
   renderMessages();
   renderReminders();
+  renderHistory();
 }
 
 els.connectForm.addEventListener('submit', async (event) => {
@@ -274,6 +277,7 @@ async function refreshMessages() {
   try {
     const snapshot = await client().getStatus({ deviceId: state.deviceId });
     updateStatusSnapshot(snapshot);
+    await refreshHistory();
 
     const payload = await client().listMessages({ deviceId: state.deviceId });
     state.messages = payload.messages || [];
@@ -356,9 +360,11 @@ function stopConnectionPolling() {
 function clearConnectionData() {
   state.messages = [];
   state.reminders = [];
+  state.history = [];
   state.statusSnapshot = null;
   renderMessages();
   renderReminders();
+  renderHistory();
   clearProfile();
 }
 
@@ -373,6 +379,21 @@ async function refreshReminders() {
     }
     state.reminders = [];
     renderReminders();
+  }
+}
+
+async function refreshHistory() {
+  try {
+    const payload = await client().getHistory({ deviceId: state.deviceId, limit: 50 });
+    state.history = payload.messages || [];
+    renderHistory();
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 501 || error.status === 502)) {
+      state.history = [];
+      renderHistory();
+      return;
+    }
+    throw error;
   }
 }
 
@@ -494,6 +515,28 @@ function renderReminders() {
       return `<li><span>${escapeHtml(reminder.content)}</span><strong>${status}</strong><time>${at}</time>${action}</li>`;
     })
     .join('');
+}
+
+function renderHistory() {
+  if (!state.history.length) {
+    els.historyList.innerHTML = '<li class="empty">暂无对话记录</li>';
+    return;
+  }
+
+  els.historyList.innerHTML = state.history
+    .map((message) => {
+      const role = historyRoleLabel(message.role || message.Role);
+      const text = message.text || message.Text || '';
+      const at = formatDateTime(message.at || message.At);
+      return `<li><strong>${role}</strong><span>${escapeHtml(text)}</span><time>${at}</time></li>`;
+    })
+    .join('');
+}
+
+function historyRoleLabel(role) {
+  if (role === 'user') return '老人';
+  if (role === 'assistant') return '安伴';
+  return '对话';
 }
 
 function readGreetingSchedule() {

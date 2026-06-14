@@ -73,6 +73,13 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/device/status${suffix}`);
     },
+    getHistory({ deviceId, limit } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'limit', limit);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/device/history${suffix}`);
+    },
     getProfile({ deviceId } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);

@@ -216,7 +216,8 @@ form {
 }
 
 .message-list,
-.reminder-list {
+.reminder-list,
+.history-list {
   display: grid;
   gap: 8px;
   margin: 16px 0 0;
@@ -225,7 +226,8 @@ form {
 }
 
 .message-list li,
-.reminder-list li {
+.reminder-list li,
+.history-list li {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
@@ -241,19 +243,31 @@ form {
   border-left-color: var(--gold);
 }
 
+.history-list li {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  border-left-color: var(--coral);
+}
+
 .message-list strong,
-.reminder-list strong {
+.reminder-list strong,
+.history-list strong {
   color: var(--leaf);
 }
 
+.history-list strong {
+  min-width: 36px;
+}
+
 .message-list time,
-.reminder-list time {
+.reminder-list time,
+.history-list time {
   color: var(--muted);
   font-size: 12px;
 }
 
 .message-list .empty,
-.reminder-list .empty {
+.reminder-list .empty,
+.history-list .empty {
   grid-template-columns: 1fr;
   color: var(--muted);
 }

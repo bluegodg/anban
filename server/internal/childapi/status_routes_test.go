@@ -39,6 +39,17 @@ func TestStatusRoutesAreRegisteredWhenDependencyProvided(t *testing.T) {
 	if !strings.Contains(prdW.Body.String(), "stub-status") {
 		t.Fatalf("body = %s, want stub response for PRD status path", prdW.Body.String())
 	}
+
+	historyReq := httptest.NewRequest(http.MethodGet, "/api/device/history?deviceId=dev-001", nil)
+	historyReq.Header.Set("X-Access-Code", "demo")
+	historyW := httptest.NewRecorder()
+	r.ServeHTTP(historyW, historyReq)
+	if historyW.Code != http.StatusOK {
+		t.Fatalf("GET /api/device/history status = %d, want 200; body=%s", historyW.Code, historyW.Body.String())
+	}
+	if !strings.Contains(historyW.Body.String(), "stub-history") {
+		t.Fatalf("body = %s, want stub response for history path", historyW.Body.String())
+	}
 }
 
 func TestStatusRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
@@ -61,6 +72,14 @@ func TestStatusRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
 	if prdW.Code != http.StatusNotImplemented {
 		t.Fatalf("GET /api/device/status status = %d, want 501", prdW.Code)
 	}
+
+	historyReq := httptest.NewRequest(http.MethodGet, "/api/device/history?deviceId=dev-001", nil)
+	historyReq.Header.Set("X-Access-Code", "demo")
+	historyW := httptest.NewRecorder()
+	r.ServeHTTP(historyW, historyReq)
+	if historyW.Code != http.StatusNotImplemented {
+		t.Fatalf("GET /api/device/history status = %d, want 501", historyW.Code)
+	}
 }
 
 type statusRoutesStub struct{}
@@ -71,5 +90,8 @@ func (statusRoutesStub) RegisterRoutes(r gin.IRoutes) {
 	})
 	r.GET("/device/status", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"deviceId": "stub-status"})
+	})
+	r.GET("/device/history", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"deviceId": "stub-history"})
 	})
 }

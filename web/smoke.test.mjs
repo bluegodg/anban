@@ -721,6 +721,45 @@ test('API client fetches device status with access code', async () => {
   assert.equal(result.online, true);
 });
 
+test('API client fetches device conversation history with access code', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    accessCode: 'demo-code',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ deviceId: 'dev-001', messages: [{ role: 'user', text: '今天腰有点酸' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await client.getHistory({ deviceId: '  dev-001  ', limit: 20 });
+
+  assert.equal(request.url, 'http://anban.local/api/device/history?deviceId=dev-001&limit=20');
+  assert.equal(request.options.method, 'GET');
+  assert.equal(request.options.headers['X-Access-Code'], 'demo-code');
+  assert.equal(result.messages[0].text, '今天腰有点酸');
+});
+
+test('child web shows backend conversation history on connect', async () => {
+  const html = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const refreshBlock = app.slice(
+    app.indexOf('async function refreshMessages'),
+    app.indexOf('async function refreshBackendStatus'),
+  );
+
+  assert.match(html, /对话记录/);
+  assert.match(html, /historyList/);
+  assert.match(app, /history:/);
+  assert.match(app, /client\(\)\.getHistory/);
+  assert.match(refreshBlock, /await refreshHistory\(\)/);
+  assert.match(app, /function renderHistory/);
+});
+
 test('status detail surfaces latest message playback state', async () => {
   const { formatStatusDetail, messageStatusLabel } = await import('./status-summary.js');
 

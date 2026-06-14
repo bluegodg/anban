@@ -153,6 +153,75 @@ func TestServiceGetUsesLatestHistoryForLastInteraction(t *testing.T) {
 	}
 }
 
+func TestServiceGetHistoryReturnsConversationMessages(t *testing.T) {
+	askedAt := time.Date(2026, 6, 1, 8, 31, 0, 0, time.FixedZone("CST", 8*60*60))
+	answeredAt := time.Date(2026, 6, 1, 8, 31, 5, 0, time.UTC)
+	xc := &statusClient{
+		history: []xiaozhiclient.HistoryMessage{
+			{Role: "user", Text: "我孙子叫啥", At: askedAt},
+			{Role: "assistant", Text: "小宝今天 7 岁啦", At: answeredAt},
+		},
+	}
+	svc := NewService(xc)
+
+	history, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: " dev-001 ", Limit: 2})
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
+	if xc.gotHistoryDeviceID != "dev-001" {
+		t.Fatalf("history deviceID = %q, want trimmed dev-001", xc.gotHistoryDeviceID)
+	}
+	if xc.gotHistoryLimit != 2 {
+		t.Fatalf("history limit = %d, want 2", xc.gotHistoryLimit)
+	}
+	if history.DeviceID != "dev-001" {
+		t.Fatalf("DeviceID = %q, want dev-001", history.DeviceID)
+	}
+	if len(history.Messages) != 2 {
+		t.Fatalf("messages = %+v, want 2 conversation messages", history.Messages)
+	}
+	if history.Messages[0].Role != "user" || history.Messages[0].Text != "我孙子叫啥" {
+		t.Fatalf("messages[0] = %+v, want user question", history.Messages[0])
+	}
+	if history.Messages[0].At == nil || !history.Messages[0].At.Equal(askedAt.UTC()) {
+		t.Fatalf("messages[0].At = %v, want UTC %s", history.Messages[0].At, askedAt.UTC())
+	}
+	if history.Messages[1].Role != "assistant" || history.Messages[1].Text != "小宝今天 7 岁啦" {
+		t.Fatalf("messages[1] = %+v, want assistant answer", history.Messages[1])
+	}
+	if history.Messages[1].At == nil || !history.Messages[1].At.Equal(answeredAt) {
+		t.Fatalf("messages[1].At = %v, want %s", history.Messages[1].At, answeredAt)
+	}
+}
+
+func TestServiceGetHistoryDefaultsAndCapsLimit(t *testing.T) {
+	xc := &statusClient{}
+	svc := NewService(xc)
+
+	if _, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: "dev-001"}); err != nil {
+		t.Fatalf("GetHistory default limit: %v", err)
+	}
+	if xc.gotHistoryLimit != 50 {
+		t.Fatalf("default history limit = %d, want 50", xc.gotHistoryLimit)
+	}
+
+	if _, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: "dev-001", Limit: 999}); err != nil {
+		t.Fatalf("GetHistory capped limit: %v", err)
+	}
+	if xc.gotHistoryLimit != 100 {
+		t.Fatalf("capped history limit = %d, want 100", xc.gotHistoryLimit)
+	}
+}
+
+func TestServiceGetHistoryRejectsMissingDeviceID(t *testing.T) {
+	svc := NewService(&statusClient{})
+
+	_, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: " "})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+}
+
 func TestServiceGetFallsBackWhenHistoryIsUnavailable(t *testing.T) {
 	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
 	xc := &statusClient{

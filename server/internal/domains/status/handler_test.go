@@ -63,6 +63,40 @@ func TestHandlerSupportsPRDDeviceStatusRoute(t *testing.T) {
 	}
 }
 
+func TestHandlerGetHistory(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	at := time.Date(2026, 6, 1, 8, 31, 0, 0, time.UTC)
+	xc := &statusClient{
+		history: []xiaozhiclient.HistoryMessage{
+			{Role: "user", Text: "今天腰有点酸", At: at},
+		},
+	}
+	svc := NewService(xc)
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/device/history?deviceId=dev-001&limit=1", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/device/history status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if xc.gotHistoryDeviceID != "dev-001" || xc.gotHistoryLimit != 1 {
+		t.Fatalf("history call = (%q, %d), want (dev-001, 1)", xc.gotHistoryDeviceID, xc.gotHistoryLimit)
+	}
+
+	var history HistoryResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &history); err != nil {
+		t.Fatalf("unmarshal history: %v", err)
+	}
+	if history.DeviceID != "dev-001" || len(history.Messages) != 1 {
+		t.Fatalf("history = %+v, want one message for dev-001", history)
+	}
+	if history.Messages[0].Role != "user" || history.Messages[0].Text != "今天腰有点酸" {
+		t.Fatalf("history message = %+v, want user text", history.Messages[0])
+	}
+}
+
 func TestHandlerGetStatusRejectsMissingDeviceID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := NewService(&statusClient{})
@@ -77,5 +111,22 @@ func TestHandlerGetStatusRejectsMissingDeviceID(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "deviceId") {
 		t.Fatalf("body = %s, want deviceId validation message", w.Body.String())
+	}
+}
+
+func TestHandlerGetHistoryRejectsInvalidLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := NewService(&statusClient{})
+	r := gin.New()
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/device/history?deviceId=dev-001&limit=abc", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("GET /api/device/history status = %d, want 400; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "limit") {
+		t.Fatalf("body = %s, want limit validation message", w.Body.String())
 	}
 }
