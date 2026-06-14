@@ -12,6 +12,14 @@
 - 边界：仅约束问候下发调用；不改变问候文案、主动语音配额、留言必达链路或 xiaozhi manager 契约。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/greeting`，按预期失败于 `InjectSpeak context has no deadline`。
 
+### PRD #2 问候触发 5 秒下发边界 GREEN 实现
+
+- 文件：`server/internal/domains/greeting/service.go`、`server/internal/domains/greeting/service_test.go`
+- 内容：`play` 调用 `xiaozhiclient.InjectSpeak` 前套 5 秒 timeout；若外层请求已有更短 deadline，则沿用外层 deadline。
+- 目的：对齐 PRD #2 “子女端点击按钮到设备开口播报 ≤ 5 秒”，避免 manager 慢请求拖住问候。
+- 边界：不改问候文案、排队/配额逻辑、`xiaozhiclient` 接口或留言链路。
+- 验证：`go test -count=1 ./internal/domains/greeting`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #7 视觉 MCP 调用 8 秒边界 RED 测试
 
 - 文件：`server/internal/domains/vision/service_test.go`

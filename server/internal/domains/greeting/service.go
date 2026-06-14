@@ -22,7 +22,10 @@ type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
 }
 
-const greetingRetryDelay = time.Minute
+const (
+	greetingRetryDelay    = time.Minute
+	greetingInjectTimeout = 5 * time.Second
+)
 
 var requiredScheduleSlotLabels = map[string]struct{}{
 	"morning": {},
@@ -117,7 +120,10 @@ func (s *Service) play(ctx context.Context, greeting *Greeting, at time.Time) er
 		return err
 	}
 
-	if err := s.xc.InjectSpeak(ctx, greeting.DeviceID, greeting.Text, proactiveSpeakOptions()); err != nil {
+	injectCtx, cancel := withGreetingInjectTimeout(ctx)
+	defer cancel()
+
+	if err := s.xc.InjectSpeak(injectCtx, greeting.DeviceID, greeting.Text, proactiveSpeakOptions()); err != nil {
 		if lease != nil {
 			_ = lease.Rollback(ctx)
 		}
@@ -179,6 +185,13 @@ func (s *Service) tryAcquireProactiveVoice(ctx context.Context, deviceID string,
 func proactiveSpeakOptions() xiaozhiclient.InjectOptions {
 	autoListen := true
 	return xiaozhiclient.InjectOptions{SkipLLM: true, AutoListen: &autoListen}
+}
+
+func withGreetingInjectTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= greetingInjectTimeout {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, greetingInjectTimeout)
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]Greeting, error) {
