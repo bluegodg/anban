@@ -13,7 +13,8 @@ https://github.com/bluegodg/AnBan-docs-repo
 - specs/2026-05-29-xiaozhi-full-architecture-map.md — §9 每个域怎么调 manager OpenAPI
 - specs/架构图.md — 分层 / 演进 / 进程边界图
 - plans/2026-05-29-anban-backend-foundation.md — 地基计划 + 末尾 Roadmap（每个域第一步）
-- plans/2026-06-12-phase-alignment-scheme-c.md — 当前阶段、目标验收、方案 C 部署顺序与仓库边界
+- plans/2026-06-14-真机后阶段对齐与方案C部署说明.md — 真机验证后的当前阶段、方案 C 两进程部署、可插拔边界和下一步 PRD 收口
+- plans/2026-06-12-phase-alignment-scheme-c.md — 设备到手前的阶段对齐、目标验收、方案 C 部署顺序与仓库边界
 - decisions/ — 服务端选 C 的决策记录
 - deployment/方案C部署与联调指南.md — 设备到手后按 C 方案部署：先纯 xiaozhi，再接安伴增强
 - deployment/设备到手方案C首日执行单.md — 现场短清单：设备到了当天按 Gate A/B/C/D 逐项验证
