@@ -810,6 +810,26 @@ test('conversation history initial load failure does not reuse another device hi
   assert.deepEqual(result.messages, []);
 });
 
+test('conversation history view labels missing or invalid timestamps', async () => {
+  const { formatHistoryEntry } = await import('./history-view.js');
+
+  assert.deepEqual(
+    formatHistoryEntry({ role: 'user', text: '今天腰有点酸' }),
+    { role: '老人', text: '今天腰有点酸', time: '时间未知' },
+  );
+  assert.equal(
+    formatHistoryEntry({ Role: 'assistant', Text: '要不要早点休息？', At: 'bad-time' }).time,
+    '时间未知',
+  );
+  assert.deepEqual(
+    formatHistoryEntry(
+      { role: 'assistant', text: '小宝今天 7 岁啦', at: '2026-06-01T08:31:05Z' },
+      { formatDateTime: () => '06/01 08:31' },
+    ),
+    { role: '安伴', text: '小宝今天 7 岁啦', time: '06/01 08:31' },
+  );
+});
+
 test('child web keeps optional history failures out of the core connection path', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const refreshMessages = app.slice(
@@ -822,6 +842,7 @@ test('child web keeps optional history failures out of the core connection path'
   );
 
   assert.match(app, /loadConversationHistory/);
+  assert.match(app, /formatHistoryEntry/);
   assert.match(refreshMessages, /refreshHistory\(\{ preserveOnFailure: false \}\)/);
   assert.doesNotMatch(refreshHistory, /throw error/);
 });
