@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -93,6 +94,7 @@ func (s *Service) GetHistory(ctx context.Context, req HistoryRequest) (HistoryRe
 			At:   timePtr(message.At),
 		})
 	}
+	sortHistoryEntries(messages)
 	return HistoryResponse{DeviceID: deviceID, Messages: messages}, nil
 }
 
@@ -185,4 +187,16 @@ func normalizeConversationRole(role string) string {
 	default:
 		return ""
 	}
+}
+
+func sortHistoryEntries(messages []HistoryEntry) {
+	sort.SliceStable(messages, func(i, j int) bool {
+		if messages[i].At == nil {
+			return false
+		}
+		if messages[j].At == nil {
+			return true
+		}
+		return messages[i].At.Before(*messages[j].At)
+	})
 }

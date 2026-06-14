@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 对话记录时间顺序
+
+- 文件：`server/internal/domains/status/service.go`、`server/internal/domains/status/service_test.go`
+- 内容：status 对外历史响应在过滤为老人↔设备文本后，按时间稳定排序为旧到新；时间缺失的记录保留在末尾。
+- 依据：冻结上游 `ChatHistoryController.GetMessages` 明确按 `created_at DESC` 返回，且注释要求前端反转；安伴 childapi 作为北向边界应给子女端可顺读的对话流。
+- 目的：让“对话记录”在路演页按“老人提问 → 安伴回答”的自然顺序展示，而不是 manager 的最新优先分页顺序。
+- 验证：RED 阶段倒序输入下第一条变成 assistant，`go test -count=1 ./internal/domains/status -run TestServiceGetHistoryReturnsConversationMessages` 按预期失败；实现后定向 status 测试转绿；`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过（含架构守护测试），Linux 交叉编译通过，`npm test --prefix web` 76/76 通过。
+
 ### PRD #4 对话历史读取失败降级
 
 - 文件：`web/history-refresh.js`、`web/app.js`、`web/smoke.test.mjs`
