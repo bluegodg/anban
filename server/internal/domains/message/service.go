@@ -11,6 +11,8 @@ import (
 	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
+const messageInjectTimeout = 60 * time.Second
+
 type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
 }
@@ -64,7 +66,10 @@ func (s *Service) play(ctx context.Context, msg *Message) error {
 		speakText = "刚才" + msg.FromName + "发来留言：" + msg.Text
 	}
 
-	if err := s.xc.InjectSpeak(ctx, msg.DeviceID, speakText, messageSpeakOptions()); err != nil {
+	injectCtx, cancel := withMessageInjectTimeout(ctx)
+	defer cancel()
+
+	if err := s.xc.InjectSpeak(injectCtx, msg.DeviceID, speakText, messageSpeakOptions()); err != nil {
 		msg.Status = StatusFailed
 		msg.ErrorMessage = err.Error()
 		_ = s.store.Update(ctx, msg)
@@ -79,6 +84,13 @@ func (s *Service) play(ctx context.Context, msg *Message) error {
 		return err
 	}
 	return nil
+}
+
+func withMessageInjectTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= messageInjectTimeout {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, messageInjectTimeout)
 }
 
 func messageSpeakOptions() xiaozhiclient.InjectOptions {

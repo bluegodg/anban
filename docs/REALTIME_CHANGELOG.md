@@ -12,6 +12,14 @@
 - 边界：仅约束 message 下发调用耗时；不改变留言状态机、AutoListen、长度截断、失败落库、问候/提醒/视觉主动配额或 `xiaozhiclient` 契约。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/message`，按预期失败于 `InjectSpeak context has no deadline`。
 
+### PRD #3 留言下发 60 秒边界 GREEN 实现
+
+- 文件：`server/internal/domains/message/service.go`、`server/internal/domains/message/service_test.go`
+- 内容：message `play` 调用 `xiaozhiclient.InjectSpeak` 前套 60 秒 timeout；若外层请求已有更短 deadline，则沿用外层 deadline。
+- 目的：对齐 PRD #3 “子女端发送到设备播报完毕端到端 ≤ 60 秒”，避免 manager 慢请求拖住留言发送，同时不把留言放回主动语音配额。
+- 边界：不改变留言点对点必达语义、状态机、AutoListen、长度截断、失败落库、`xiaozhiclient` 接口或问候/提醒/视觉配额逻辑。
+- 验证：`go test -count=1 ./internal/domains/message`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #3 留言绕过主动语音配额 RED 测试
 
 - 文件：`server/internal/domains/message/service_test.go`
