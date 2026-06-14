@@ -84,8 +84,8 @@ func (s *Service) Trigger(ctx context.Context, req TriggerRequest) (Greeting, er
 	}
 
 	tone := normalizeTone(req.TonePreset)
-	text := greetingText(tone)
 	now := s.now().UTC()
+	text := greetingText(now, tone)
 	greeting := Greeting{
 		DeviceID:    deviceID,
 		TonePreset:  tone,
@@ -370,9 +370,25 @@ func cronSpec(slotTime string) (string, error) {
 	return fmt.Sprintf("%d %d * * *", parsed.Minute(), parsed.Hour()), nil
 }
 
-func greetingText(tone TonePreset) string {
+// greetingLocation 让时段问候按东八区判断，避免容器 UTC 下早晨也说"下午好"。
+var greetingLocation = time.FixedZone("CST", 8*60*60)
+
+func greetingText(now time.Time, tone TonePreset) string {
 	if tone == ToneCasual {
-		return "王阿姨，回来啦，今天过得怎么样？"
+		return "您回来啦，今天过得怎么样？"
 	}
-	return "王阿姨，下午好~ 今天精神咋样？"
+	return timeOfDayGreeting(now) + "您今天精神怎么样？"
+}
+
+func timeOfDayGreeting(now time.Time) string {
+	switch h := now.In(greetingLocation).Hour(); {
+	case h < 11:
+		return "早上好~ "
+	case h < 13:
+		return "中午好~ "
+	case h < 18:
+		return "下午好~ "
+	default:
+		return "晚上好~ "
+	}
 }

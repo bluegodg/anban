@@ -38,6 +38,14 @@ func TestCancelStopsOneShot(t *testing.T) {
 	}
 }
 
+func TestNewUsesUTC8Location(t *testing.T) {
+	s := New()
+	_, offset := time.Now().In(s.Location()).Zone()
+	if offset != 8*60*60 {
+		t.Fatalf("scheduler 时区偏移 = %d 秒, want %d 秒 (UTC+8)", offset, 8*60*60)
+	}
+}
+
 func TestCancelRemovesCronJob(t *testing.T) {
 	s := New()
 

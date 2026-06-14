@@ -329,15 +329,15 @@ func reminderText(content string, category Category) string {
 	content = strings.TrimSpace(content)
 	if category == CategoryMed {
 		return buildReminderText(
-			"王阿姨，该",
+			"您该",
 			content,
-			"啦。小宝惦记着您，记得按时完成，安心一点哦。",
+			"啦，记得按时完成哦。完成了跟安伴说一声，我也就放心啦。",
 		)
 	}
 	return buildReminderText(
-		"王阿姨，提醒您：",
+		"您好，提醒您：",
 		content,
-		"。完成后跟安伴说一声好，我也放心。",
+		"。完成后跟安伴说一声，我也就放心啦。",
 	)
 }
 

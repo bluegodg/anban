@@ -71,7 +71,7 @@ func TestServiceTriggerInjectsGreetingAndPersistsPlayed(t *testing.T) {
 	if call.DeviceID != "dev-001" {
 		t.Fatalf("DeviceID = %q, want dev-001", call.DeviceID)
 	}
-	if call.Text != "王阿姨，下午好~ 今天精神咋样？" {
+	if call.Text != "晚上好~ 您今天精神怎么样？" {
 		t.Fatalf("inject text = %q", call.Text)
 	}
 	if !call.Opts.SkipLLM {
@@ -87,6 +87,20 @@ func TestServiceTriggerInjectsGreetingAndPersistsPlayed(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].ID != got.ID {
 		t.Fatalf("List = %+v, want the created greeting", list)
+	}
+}
+
+func TestServiceTriggerWarmGreetingIsTimeOfDayAware(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	// 00:30 UTC = 08:30 东八区 → 应说"早上好"，而不是写死的"下午好"。
+	svc.now = func() time.Time { return time.Date(2026, 6, 1, 0, 30, 0, 0, time.UTC) }
+
+	if _, err := svc.Trigger(context.Background(), TriggerRequest{DeviceID: "dev-001", TonePreset: ToneWarm}); err != nil {
+		t.Fatalf("Trigger: %v", err)
+	}
+	if fake.InjectCalls[0].Text != "早上好~ 您今天精神怎么样？" {
+		t.Fatalf("morning greeting = %q, want 早上好 prefix", fake.InjectCalls[0].Text)
 	}
 }
 
@@ -243,7 +257,7 @@ func TestServiceUpdateScheduleRegistersCronJobsAndFires(t *testing.T) {
 	if len(fakeXC.InjectCalls) != 1 {
 		t.Fatalf("InjectCalls = %d, want scheduled greeting to inject once", len(fakeXC.InjectCalls))
 	}
-	if fakeXC.InjectCalls[0].Text != "王阿姨，回来啦，今天过得怎么样？" {
+	if fakeXC.InjectCalls[0].Text != "您回来啦，今天过得怎么样？" {
 		t.Fatalf("inject text = %q, want casual greeting", fakeXC.InjectCalls[0].Text)
 	}
 

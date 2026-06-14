@@ -20,11 +20,21 @@ type Scheduler struct {
 	seq      int64
 }
 
+// scheduleLocation 让所有 cron 定时统一按东八区（UTC+8）解释，避免容器默认 UTC
+// 导致"早 8 点问候"在北京时间下午才触发。用 FixedZone 而非 LoadLocation：
+// 中国无夏令时，且不依赖容器内 tzdata（alpine 等精简镜像也安全）。
+var scheduleLocation = time.FixedZone("CST", 8*60*60)
+
 func New() *Scheduler {
 	return &Scheduler{
-		cron:     cron.New(),
+		cron:     cron.New(cron.WithLocation(scheduleLocation)),
 		oneShots: make(map[JobID]*time.Timer),
 	}
+}
+
+// Location 返回 cron 调度使用的时区（供装配/测试核对）。
+func (s *Scheduler) Location() *time.Location {
+	return s.cron.Location()
 }
 
 func (s *Scheduler) Start() { s.cron.Start() }

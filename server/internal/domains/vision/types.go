@@ -8,7 +8,8 @@ import (
 	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
-const DefaultCaptureTool = "camera.capture"
+// DefaultCaptureTool 是真机 ESP32 上报的拍照 MCP 工具名（2026-06-04 真机日志确认为 self.camera.take_photo）。
+const DefaultCaptureTool = "self.camera.take_photo"
 
 var ErrInvalidInput = errors.New("vision: invalid input")
 var ErrPresenceUnavailable = errors.New("vision: presence unavailable")

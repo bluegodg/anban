@@ -169,7 +169,7 @@ func TestReminderTextFitsPRDLength(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			text := reminderText(tt.content, tt.category)
 			assertReminderTextLength(t, text)
-			if !strings.Contains(text, "王阿姨") {
+			if !strings.Contains(text, "您") {
 				t.Fatalf("text = %q, want elder-facing salutation", text)
 			}
 		})
