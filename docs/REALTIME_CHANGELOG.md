@@ -59,6 +59,29 @@
   - 切片后 `npm test --prefix web` 通过，68 个 smoke tests 全绿。
   - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
 
+### 子女端视觉工具名对齐真机 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web uses real ESP32 camera MCP tool for vision actions`，要求子女端视觉按钮集中使用 `VISION_CAPTURE_TOOL = 'self.camera.take_photo'`，且不再向后端显式传旧的 `camera.capture`。
+- 目的：对齐 2026-06-14 真机交接中“vision 默认工具名 `self.camera.take_photo` 已修，勿回退”的约束，避免 web 覆盖后端默认工具名导致真机拍照 MCP 调用失败。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段。
+- 验证：已运行 `npm test --prefix web`，得到有效 RED：69 个 smoke tests 中新增用例失败，失败点显示 `app.js` 缺少 `VISION_CAPTURE_TOOL = 'self.camera.take_photo'` 且仍传 `tool: 'camera.capture'`。
+
+### 子女端视觉工具名对齐真机 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：新增 `VISION_CAPTURE_TOOL = 'self.camera.take_photo'` 常量，并让“看一眼”和“视觉触发”两个按钮都使用该真实 ESP32 拍照 MCP 工具名。
+- 文件：`web/smoke.test.mjs`
+- 内容：保留前端工具名守护测试，防止后续把 web 侧回退到旧的 `camera.capture`。
+- 目的：避免子女端显式传旧工具名覆盖后端 vision 域的真机默认值，保护已验证的 `self.camera.take_photo` 链路。
+- 功能影响：仅调整子女端视觉请求 payload 的 tool 字段；不改变后端 vision 默认、不改 xiaozhi client、不影响留言/问候/提醒主链路。
+- 验证：
+  - `npm test --prefix web` 通过，69 个 smoke tests 全绿，前端 RED 用例已转绿。
+  - 切片后 `go build ./... && go vet ./... && go test ./...`（`server/`，含 `GOPROXY=https://goproxy.cn,direct`、`GOSUMDB=off`、`CGO_ENABLED=0`）通过，含 `internal/architecture` 守护测试。
+  - `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`（`server/`，同上 GOPROXY/GOSUMDB）通过。
+  - 切片后 `npm test --prefix web` 通过，69 个 smoke tests 全绿。
+  - `git diff --check` 通过；仅出现既有 Windows LF/CRLF 换行提示。
+
 ### 真机后阶段对齐文档
 
 - 文件：`docs/plans/2026-06-14-真机后阶段对齐与方案C部署说明.md`

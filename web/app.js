@@ -12,6 +12,8 @@ import { buildStatusSnapshotForDisplay, formatStatusDetail, messageStatusLabel }
 import { formatGreetingTriggerResult } from './greeting-result.js';
 import { formatVisionPresenceResult } from './vision-presence-result.js';
 
+const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
+
 const state = {
   accessCode: localStorage.getItem('anban.accessCode') || 'demo',
   deviceId: localStorage.getItem('anban.deviceId') || 'dev-001',
@@ -148,7 +150,7 @@ els.visionButton.addEventListener('click', async () => {
   try {
     const capture = await client().captureVision({
       deviceId: state.deviceId,
-      tool: 'camera.capture',
+      tool: VISION_CAPTURE_TOOL,
       args: { quality: 'low' },
     });
     renderVisionCapture(capture);
@@ -166,7 +168,7 @@ els.visionPresenceButton.addEventListener('click', async () => {
   try {
     const result = await client().checkVisionPresence({
       deviceId: state.deviceId,
-      tool: 'camera.capture',
+      tool: VISION_CAPTURE_TOOL,
       args: { quality: 'low' },
     });
     const rendered = formatVisionPresenceResult(result);

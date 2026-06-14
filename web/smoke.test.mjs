@@ -607,6 +607,14 @@ test('child web exposes vision capture action', async () => {
   assert.match(app, /看一眼结果/);
 });
 
+test('child web uses real ESP32 camera MCP tool for vision actions', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+
+  assert.match(app, /const VISION_CAPTURE_TOOL = 'self\.camera\.take_photo';/);
+  assert.match(app, /tool: VISION_CAPTURE_TOOL/);
+  assert.doesNotMatch(app, /tool: 'camera\.capture'/);
+});
+
 test('API client checks vision presence with access code', async () => {
   const { createAnbanClient } = await import('./api/client.js');
   let request;
