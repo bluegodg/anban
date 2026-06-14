@@ -125,7 +125,7 @@ func TestHandlerCreateReturnsBadGatewayWhenInjectFails(t *testing.T) {
 	}
 }
 
-func TestHandlerCreateReturnsAcceptedWhenMessageIsQueued(t *testing.T) {
+func TestHandlerCreateBypassesProactiveVoiceQuota(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := newTestServiceWithScheduler(t, &xiaozhiclient.FakeClient{}, &fakeOneShotScheduler{})
 	svc.UseProactiveVoiceGate(throttledVoiceGate{})
@@ -135,10 +135,10 @@ func TestHandlerCreateReturnsAcceptedWhenMessageIsQueued(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/messages", strings.NewReader(`{"deviceId":"dev-001","text":"今晚记得吃饭"}`))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"status":"pending"`) {
-		t.Fatalf("body = %s, want pending message payload", w.Body.String())
+	if !strings.Contains(w.Body.String(), `"status":"played"`) {
+		t.Fatalf("body = %s, want played message payload", w.Body.String())
 	}
 }

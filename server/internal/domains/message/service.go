@@ -2,7 +2,6 @@ package message
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,35 +11,26 @@ import (
 	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 )
 
-const messageRetryDelay = time.Minute
-
 type OneShotScheduler interface {
 	ScheduleAt(t time.Time, fn func()) (scheduler.JobID, error)
 }
 
 type Service struct {
-	store     *Store
-	xc        xiaozhiclient.Client
-	retrySch  OneShotScheduler
-	now       func() time.Time
-	voiceGate sharedtypes.ProactiveVoiceGate
+	store *Store
+	xc    xiaozhiclient.Client
+	now   func() time.Time
 }
 
 func NewService(store *Store, xc xiaozhiclient.Client, schedulers ...OneShotScheduler) *Service {
-	var retrySch OneShotScheduler
-	if len(schedulers) > 0 {
-		retrySch = schedulers[0]
-	}
 	return &Service{
-		store:    store,
-		xc:       xc,
-		retrySch: retrySch,
-		now:      time.Now,
+		store: store,
+		xc:    xc,
+		now:   time.Now,
 	}
 }
 
-func (s *Service) UseProactiveVoiceGate(gate sharedtypes.ProactiveVoiceGate) {
-	s.voiceGate = gate
+func (s *Service) UseProactiveVoiceGate(_ sharedtypes.ProactiveVoiceGate) {
+	// Child messages are point-to-point and must not be throttled by the proactive voice quota.
 }
 
 func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
@@ -62,42 +52,23 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
 		return Message{}, err
 	}
 
-	if err := s.play(ctx, &msg, now); err != nil {
+	if err := s.play(ctx, &msg); err != nil {
 		return msg, err
 	}
 	return msg, nil
 }
 
-func (s *Service) play(ctx context.Context, msg *Message, at time.Time) error {
+func (s *Service) play(ctx context.Context, msg *Message) error {
 	speakText := msg.Text
 	if msg.FromName != "" {
 		speakText = "刚才" + msg.FromName + "发来留言：" + msg.Text
 	}
 
-	lease, err := s.tryAcquireProactiveVoice(ctx, msg.DeviceID, at)
-	if err != nil {
-		if errors.Is(err, sharedtypes.ErrProactiveVoiceThrottled) {
-			if queueErr := s.queueRetry(ctx, msg, at, err); queueErr == nil {
-				return nil
-			}
-		}
-		msg.Status = StatusFailed
-		msg.ErrorMessage = err.Error()
-		_ = s.store.Update(ctx, msg)
-		return err
-	}
-
 	if err := s.xc.InjectSpeak(ctx, msg.DeviceID, speakText, messageSpeakOptions()); err != nil {
-		if lease != nil {
-			_ = lease.Rollback(ctx)
-		}
 		msg.Status = StatusFailed
 		msg.ErrorMessage = err.Error()
 		_ = s.store.Update(ctx, msg)
 		return err
-	}
-	if lease != nil {
-		_ = lease.Commit(ctx)
 	}
 
 	playedAt := s.now().UTC()
@@ -108,42 +79,6 @@ func (s *Service) play(ctx context.Context, msg *Message, at time.Time) error {
 		return err
 	}
 	return nil
-}
-
-func (s *Service) queueRetry(ctx context.Context, msg *Message, at time.Time, cause error) error {
-	if s.retrySch == nil {
-		return cause
-	}
-
-	retryAt := at.UTC().Add(messageRetryDelay)
-	if _, err := s.retrySch.ScheduleAt(retryAt, func() {
-		s.retryQueuedMessage(msg.ID)
-	}); err != nil {
-		msg.Status = StatusFailed
-		msg.ErrorMessage = err.Error()
-		_ = s.store.Update(ctx, msg)
-		return err
-	}
-
-	msg.Status = StatusPending
-	msg.ErrorMessage = cause.Error()
-	return s.store.Update(ctx, msg)
-}
-
-func (s *Service) retryQueuedMessage(id uint) {
-	ctx := context.Background()
-	msg, err := s.store.Get(ctx, id)
-	if err != nil || msg.Status != StatusPending {
-		return
-	}
-	_ = s.play(ctx, &msg, s.now().UTC())
-}
-
-func (s *Service) tryAcquireProactiveVoice(ctx context.Context, deviceID string, at time.Time) (sharedtypes.ProactiveVoiceLease, error) {
-	if s.voiceGate == nil {
-		return nil, nil
-	}
-	return s.voiceGate.TryAcquireProactiveVoice(ctx, deviceID, at)
 }
 
 func messageSpeakOptions() xiaozhiclient.InjectOptions {

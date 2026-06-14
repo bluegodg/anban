@@ -12,6 +12,14 @@
 - 边界：仅锁住 message 域对主动语音配额的免疫；不改变问候/提醒/视觉共享配额，不改变留言长度、状态摘要或 `xiaozhiclient` 契约。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/message`，按预期失败于 `Status = "pending", want "played"`。
 
+### PRD #3 留言绕过主动语音配额 GREEN 实现
+
+- 文件：`server/internal/domains/message/service.go`、`server/internal/domains/message/service_test.go`、`server/internal/domains/message/handler_test.go`
+- 内容：message 域保留兼容的 `UseProactiveVoiceGate` 入口但实现为 no-op；留言播放路径不再尝试获取主动语音 lease，也不再因主动配额 throttled 进入 pending/retry。handler 测试同步要求误挂 gate 时仍返回已播报的 `201/played`。
+- 目的：把真机已验证的“子女留言点对点必达，不走主动语音 10 分钟配额”从 `main.go` 装配约束下沉为 message 域防回归语义。
+- 边界：不改变问候/提醒/视觉的主动配额；不改变留言失败落 `failed`、AutoListen、长度截断、状态摘要或 xiaozhi manager 调用契约。
+- 验证：`go test -count=1 ./internal/domains/message`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #2 问候触发 5 秒下发边界 RED 测试
 
 - 文件：`server/internal/domains/greeting/service_test.go`
