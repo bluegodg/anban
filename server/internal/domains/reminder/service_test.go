@@ -93,6 +93,112 @@ func TestServiceCreateSchedulesAndFiresReminder(t *testing.T) {
 	}
 }
 
+func TestServiceCreateStoresRecurrenceAndImportant(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+
+	got, err := svc.Create(context.Background(), CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 1, 30, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+		Recurrence:  RecurrenceDaily,
+		Important:   true,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got.Recurrence != RecurrenceDaily {
+		t.Fatalf("Recurrence = %q, want %q", got.Recurrence, RecurrenceDaily)
+	}
+	if !got.Important {
+		t.Fatal("Important = false, want true")
+	}
+	if len(fakeSch.jobs) != 1 {
+		t.Fatalf("scheduled jobs = %d, want 1", len(fakeSch.jobs))
+	}
+}
+
+func TestServiceFireRecurringReminderSchedulesNextOccurrence(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, fakeXC, fakeSch)
+	ctx := context.Background()
+
+	firstAt := time.Date(2026, 6, 1, 9, 1, 30, 0, time.UTC)
+	created, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: firstAt,
+		Content:     "测血压",
+		Category:    CategoryMed,
+		Recurrence:  RecurrenceDaily,
+		Important:   true,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	fakeSch.fire(0)
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want 1", len(fakeXC.InjectCalls))
+	}
+
+	played, err := svc.store.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("Get played: %v", err)
+	}
+	if played.Status != StatusPlayed {
+		t.Fatalf("played status = %q, want %q", played.Status, StatusPlayed)
+	}
+
+	scheduled, err := svc.List(ctx, ListFilter{DeviceID: "dev-001", Status: StatusScheduled})
+	if err != nil {
+		t.Fatalf("List scheduled: %v", err)
+	}
+	if len(scheduled) != 1 {
+		t.Fatalf("scheduled reminders = %+v, want one next occurrence", scheduled)
+	}
+	next := scheduled[0]
+	if !next.ScheduledAt.Equal(firstAt.AddDate(0, 0, 1)) {
+		t.Fatalf("next scheduledAt = %s, want %s", next.ScheduledAt, firstAt.AddDate(0, 0, 1))
+	}
+	if next.Recurrence != RecurrenceDaily || !next.Important {
+		t.Fatalf("next recurrence/important = %q/%v, want daily/true", next.Recurrence, next.Important)
+	}
+	if next.ID == created.ID {
+		t.Fatal("next occurrence reused played row; want separate scheduled occurrence for history")
+	}
+}
+
+func TestNextRecurringScheduledAt(t *testing.T) {
+	base := time.Date(2026, 6, 5, 8, 0, 0, 0, time.UTC) // Friday
+	after := time.Date(2026, 6, 5, 9, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		recurrence Recurrence
+		dates      []string
+		want       time.Time
+	}{
+		{name: "daily", recurrence: RecurrenceDaily, want: time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC)},
+		{name: "weekdays skips weekend", recurrence: RecurrenceWeekdays, want: time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)},
+		{name: "weekends", recurrence: RecurrenceWeekends, want: time.Date(2026, 6, 6, 8, 0, 0, 0, time.UTC)},
+		{name: "custom dates", recurrence: RecurrenceCustomDates, dates: []string{"2026-06-07", "2026-06-09"}, want: time.Date(2026, 6, 7, 8, 0, 0, 0, time.UTC)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := nextRecurringScheduledAt(base, tt.recurrence, tt.dates, after)
+			if !ok {
+				t.Fatal("ok = false, want true")
+			}
+			if !got.Equal(tt.want) {
+				t.Fatalf("next = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestServiceFireBoundsInjectForPRDDeliveryWindow(t *testing.T) {
 	fakeXC := &deadlineReminderClient{}
 	fakeSch := &fakeScheduler{}

@@ -3803,3 +3803,10 @@
 - 内容：新增 `formatGreetingTriggerResult` 与 `normalizeGreetingSlots`；首页增加“问候老人”按钮并接 `triggerGreeting`；设置页增加早/午/晚问候时段表单，进入设置时读取 `getGreetingSchedule`，保存时写 `updateGreetingSchedule`。
 - 功能：PRD #2 的子女触发问候和三时段定时配置在 childweb 可见可操作；缺省 slots 与后端默认 08:00/12:30/18:00 对齐。
 - 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 29 个测试全绿。
+
+### 02:40 W1.2 提醒重复+重要 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`、`server/internal/domains/reminder/handler_test.go`、`childweb/smoke.test.mjs`
+- 内容：要求 reminder 创建保存 `recurrence` 与 `important`，重复提醒触发后生成下一次 scheduled occurrence，`nextRecurringScheduledAt` 覆盖 daily/weekdays/weekends/custom-dates；HTTP 创建响应透出字段；childweb 将频率与重要开关写入 `createReminder` payload。
+- 目的：把 PRD #6 从单次提醒补到重复提醒和重要标记，且保持历史 occurrence 与下一次 scheduled occurrence 同时存在。
+- 功能影响：暂无；当前后端类型/字段与前端映射尚不存在，测试应保持 RED。

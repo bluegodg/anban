@@ -20,7 +20,7 @@ func TestHandlerCreateAndListReminders(t *testing.T) {
 	r := gin.New()
 	NewHandler(svc).RegisterRoutes(r.Group("/api"))
 
-	body := `{"deviceId":"dev-001","scheduledAt":"2026-06-01T09:01:30Z","content":"测血压","category":"med"}`
+	body := `{"deviceId":"dev-001","scheduledAt":"2026-06-01T09:01:30Z","content":"测血压","category":"med","recurrence":"daily","important":true}`
 	req := httptest.NewRequest(http.MethodPost, "/api/reminders", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -34,6 +34,9 @@ func TestHandlerCreateAndListReminders(t *testing.T) {
 	}
 	if created.Status != StatusScheduled {
 		t.Fatalf("Status = %q, want %q", created.Status, StatusScheduled)
+	}
+	if created.Recurrence != RecurrenceDaily || !created.Important {
+		t.Fatalf("recurrence/important = %q/%v, want daily/true", created.Recurrence, created.Important)
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/reminders?deviceId=dev-001", nil)

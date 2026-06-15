@@ -163,17 +163,49 @@ test('P5 computes the next one-time reminder in UTC', async () => {
   assert.equal(tomorrow.getMinutes(), 30);
 });
 
+test('W1.2 maps reminder frequency labels to recurrence payload fields', async () => {
+  const { buildReminderScheduleOptions } = await import('./integration-core.js');
+
+  assert.deepEqual(buildReminderScheduleOptions('仅一次'), {
+    recurrence: 'none',
+    customDates: [],
+  });
+  assert.deepEqual(buildReminderScheduleOptions('每天'), {
+    recurrence: 'daily',
+    customDates: [],
+  });
+  assert.deepEqual(buildReminderScheduleOptions('工作日'), {
+    recurrence: 'weekdays',
+    customDates: [],
+  });
+  assert.deepEqual(buildReminderScheduleOptions('周末'), {
+    recurrence: 'weekends',
+    customDates: [],
+  });
+  assert.deepEqual(buildReminderScheduleOptions('6月20日 等2天', ['2026-06-20', '2026-06-22']), {
+    recurrence: 'custom-dates',
+    customDates: ['2026-06-20', '2026-06-22'],
+  });
+});
+
 test('P5 connects one-time reminder list, create, and delete APIs', () => {
   assert.match(appJS, /anbanClient\.listReminders\(\{ deviceId: anbanConfig\.deviceId, status: 'scheduled' \}\)/);
   assert.match(appJS, /anbanClient\.createReminder\(\{[\s\S]*scheduledAt:[\s\S]*content:[\s\S]*category:/);
   assert.match(appJS, /anbanClient\.deleteReminder\(reminderId\)/);
 });
 
-test('P5 defaults to one-time reminders and rejects unsupported controls', () => {
+test('P5 defaults to one-time reminders and keeps pause unsupported', () => {
   assert.match(indexHTML, /id="freqDisplay">仅一次</);
-  assert.match(indexHTML, /id="importantToggle" onclick="notImplemented\('重要提醒'\)"/);
-  assert.match(appJS, /notImplemented\('重复提醒'\)/);
   assert.match(appJS, /notImplemented\('暂停提醒'\)/);
+});
+
+test('W1.2 childweb sends recurrence and important reminder fields', () => {
+  assert.doesNotMatch(indexHTML, /id="importantToggle" onclick="notImplemented\('重要提醒'\)"/);
+  assert.doesNotMatch(appJS, /notImplemented\('重复提醒'\)|notImplemented\('重要提醒'\)/);
+  assert.match(appJS, /buildReminderScheduleOptions\(freq, customDates\)/);
+  assert.match(appJS, /recurrence: scheduleOptions\.recurrence/);
+  assert.match(appJS, /customDates: scheduleOptions\.customDates/);
+  assert.match(appJS, /important: isImportant/);
 });
 
 test('P6 maps Stitch profile data to backend fields without changing the contract', async () => {
