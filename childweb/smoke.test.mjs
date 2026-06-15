@@ -175,3 +175,46 @@ test('P5 defaults to one-time reminders and rejects unsupported controls', () =>
   assert.match(appJS, /notImplemented\('重复提醒'\)/);
   assert.match(appJS, /notImplemented\('暂停提醒'\)/);
 });
+
+test('P6 maps Stitch profile data to backend fields without changing the contract', async () => {
+  const { mapStitchProfileToFields } = await import('./integration-core.js');
+  assert.deepEqual(mapStitchProfileToFields({
+    name: '妈妈',
+    hobbies: ['园艺'],
+    habits: [{ icon: 'park', text: '每天散步' }],
+    health: [{ name: '血压', detail: '每日测量' }],
+    communicationDos: ['多聊家常'],
+    communicationDonts: ['不要催促'],
+    aiPortrait: '性格温和',
+  }), {
+    name: '妈妈',
+    nickname: '妈妈',
+    hobbies: ['园艺'],
+    schedule: '每天散步\n沟通建议：多聊家常',
+    health: 'AI画像：性格温和\n血压：每日测量',
+    taboos: ['不要催促'],
+  });
+});
+
+test('P6 maps backend fields back to the Stitch form and keeps local demographics', async () => {
+  const { mapFieldsToStitchProfile } = await import('./integration-core.js');
+  const result = mapFieldsToStitchProfile({
+    name: '爸爸',
+    hobbies: ['听戏'],
+    schedule: '早上六点起床\n沟通建议：说慢一点',
+    health: 'AI画像：开朗\n膝盖：避免久站',
+    taboos: ['不要提旧伤'],
+  }, { age: 75, livingSituation: '独居', occupation: '退休工人' });
+
+  assert.equal(result.name, '爸爸');
+  assert.equal(result.age, 75);
+  assert.equal(result.habits[0].text, '早上六点起床');
+  assert.deepEqual(result.communicationDos, ['说慢一点']);
+  assert.equal(result.health[0].name, '膝盖');
+  assert.equal(result.aiPortrait, '开朗');
+});
+
+test('P6 loads and saves profiles through the shared client', () => {
+  assert.match(appJS, /anbanClient\.getProfile\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanClient\.updateProfile\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*fields:/);
+});

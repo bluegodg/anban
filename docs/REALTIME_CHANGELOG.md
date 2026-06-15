@@ -3747,3 +3747,17 @@
 - 内容：新增 `nextOccurrenceUTC`；待执行列表接 `listReminders(status=scheduled)`，创建接 `createReminder`，详情删除接 `deleteReminder`，历史页接完整提醒列表；主表单和快速表单均只允许一次性提醒。
 - 降级：重复、重要、暂停和编辑提醒统一提示“该功能未实现”，不再模拟不存在的后端能力。
 - 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 16 个测试全绿。
+
+### 23:36 childweb P6 画像 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：新增双向画像映射测试，锁定 name/nickname/hobbies/schedule/health/taboos 契约，并要求年龄、居住、职业仅本地保留；页面加载/保存必须走 profile API。
+- 目的：在不扩展后端 Fields 的前提下接通 Stitch 画像表单。
+- 功能影响：暂无；当前家人页仍只读写 localStorage，测试应保持 RED。
+
+### 23:42 childweb P6 画像 GREEN 实现
+
+- 文件：`childweb/app.js`、`childweb/integration-core.js`、`childweb/smoke.test.mjs`
+- 内容：实现 `mapStitchProfileToFields` / `mapFieldsToStitchProfile`；家人页和编辑页通过 `getProfile` 回填，通过 `updateProfile` 保存；人口信息单独保存在本地。
+- 映射：习惯与建议合并到 schedule，AI 画像与健康项目合并到 health，忌讳写入 taboos，姓名同时写 name/nickname。
+- 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 19 个测试全绿。

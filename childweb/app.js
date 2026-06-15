@@ -5,6 +5,8 @@ import {
   buildHomeStatus,
   formatLoginError,
   formatRelativeTime,
+  mapFieldsToStitchProfile,
+  mapStitchProfileToFields,
   nextOccurrenceUTC,
   normalizeHistoryMessages,
 } from './integration-core.js';
@@ -1313,7 +1315,7 @@ function initWarn() {
 // ============================
 // initFamily
 // ============================
-function initFamily() {
+async function initFamily() {
   var defaultProfile = {
     name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
     aiPortrait: '性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。',
@@ -1332,8 +1334,16 @@ function initFamily() {
     communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
   };
 
-  var stored = localStorage.getItem('anban_family_profile');
-  var profile = stored ? JSON.parse(stored) : defaultProfile;
+  var localStored = localStorage.getItem('anban_family_profile_local');
+  var localProfile = localStored ? JSON.parse(localStored) : {};
+  var profile;
+  try {
+    var backendProfile = await anbanClient.getProfile({ deviceId: anbanConfig.deviceId });
+    profile = mapFieldsToStitchProfile(backendProfile.fields || {}, localProfile);
+  } catch (error) {
+    var legacyStored = localStorage.getItem('anban_family_profile');
+    profile = legacyStored ? JSON.parse(legacyStored) : { ...defaultProfile, ...localProfile };
+  }
 
   document.getElementById('profileName').textContent = profile.name || '妈妈';
   document.getElementById('profileSubtitle').innerHTML = (profile.age || 72) + '岁 · ' + (profile.livingSituation || '与爸爸同住') + ' · ' + (profile.occupation || '退休教师');
@@ -1434,7 +1444,7 @@ function initMine() {
 // ============================
 // initFamilyEdit
 // ============================
-function initFamilyEdit() {
+async function initFamilyEdit() {
   var habitIcons = ['wb_twilight','local_cafe','music_note','directions_walk','self_improvement','menu_book','potted_plant','tv','pets','shopping_bag','exercise','park'];
 
   var defaultData = {
@@ -1455,13 +1465,20 @@ function initFamilyEdit() {
     communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
   };
 
-  function loadData() {
-    var stored = localStorage.getItem('anban_family_profile');
-    if (stored) { try { return JSON.parse(stored); } catch(e) {} }
-    return JSON.parse(JSON.stringify(defaultData));
+  async function loadData() {
+    var localStored = localStorage.getItem('anban_family_profile_local');
+    var localProfile = localStored ? JSON.parse(localStored) : {};
+    try {
+      var backendProfile = await anbanClient.getProfile({ deviceId: anbanConfig.deviceId });
+      return mapFieldsToStitchProfile(backendProfile.fields || {}, localProfile);
+    } catch (error) {
+      var legacyStored = localStorage.getItem('anban_family_profile');
+      if (legacyStored) { try { return JSON.parse(legacyStored); } catch(e) {} }
+      return { ...JSON.parse(JSON.stringify(defaultData)), ...localProfile };
+    }
   }
 
-  var data = loadData();
+  var data = await loadData();
 
   function populateForm() {
     document.getElementById('editName').value = data.name || '';
@@ -1702,12 +1719,27 @@ function initFamilyEdit() {
     data.aiPortrait = document.getElementById('editAiPortrait').value.trim();
   }
 
-  document.getElementById('saveBtn').addEventListener('click', function() {
+  document.getElementById('saveBtn').addEventListener('click', async function() {
     collectFormData();
-    localStorage.setItem('anban_family_profile', JSON.stringify(data));
-    // Reset family init so it re-renders on next visit
-    SPA.initialized['family'] = false;
-    showToast('已保存');
+    var localProfile = {
+      age: data.age,
+      livingSituation: data.livingSituation,
+      occupation: data.occupation,
+    };
+    localStorage.setItem('anban_family_profile_local', JSON.stringify(localProfile));
+    var fields = mapStitchProfileToFields(data);
+    try {
+      var savedProfile = await anbanClient.updateProfile({
+        deviceId: anbanConfig.deviceId,
+        fields: fields,
+      });
+      data = mapFieldsToStitchProfile(savedProfile.fields || fields, localProfile);
+      localStorage.setItem('anban_family_profile', JSON.stringify(data));
+      SPA.initialized['family'] = false;
+      showToast('已保存');
+    } catch (error) {
+      showToast(error.message || '画像保存失败');
+    }
   });
 
   // Close icon pickers on outside click
