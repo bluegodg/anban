@@ -3,6 +3,7 @@ package reminder
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -75,29 +76,23 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Reminder, erro
 	}
 
 	category := normalizeCategory(req.Category)
+	recurrence, customDates := normalizeRecurrence(req.Recurrence, req.CustomDates)
 	rem := Reminder{
 		DeviceID:    deviceID,
 		ScheduledAt: scheduledAt,
 		Content:     content,
 		Category:    category,
-		Text:        reminderText(content, category),
+		Recurrence:  recurrence,
+		CustomDates: customDates,
+		Important:   req.Important,
+		Text:        reminderPlaybackText(content, category, req.Important),
 		Status:      StatusScheduled,
 	}
 	if err := s.store.Create(ctx, &rem); err != nil {
 		return Reminder{}, err
 	}
 
-	jobID, err := s.sch.ScheduleAt(rem.ScheduledAt, func() {
-		s.fire(rem.ID)
-	})
-	if err != nil {
-		rem.Status = StatusFailed
-		rem.ErrorMessage = err.Error()
-		_ = s.store.Update(ctx, &rem)
-		return rem, err
-	}
-	rem.JobID = string(jobID)
-	if err := s.store.Update(ctx, &rem); err != nil {
+	if err := s.scheduleReminder(ctx, &rem); err != nil {
 		return Reminder{}, err
 	}
 	return rem, nil
@@ -147,17 +142,7 @@ func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 	restored := 0
 	for i := range reminders {
 		rem := reminders[i]
-		jobID, err := s.sch.ScheduleAt(rem.ScheduledAt, func() {
-			s.fire(rem.ID)
-		})
-		if err != nil {
-			rem.Status = StatusFailed
-			rem.ErrorMessage = err.Error()
-			_ = s.store.Update(ctx, &rem)
-			return restored, err
-		}
-		rem.JobID = string(jobID)
-		if err := s.store.Update(ctx, &rem); err != nil {
+		if err := s.scheduleReminder(ctx, &rem); err != nil {
 			return restored, err
 		}
 		restored++
@@ -258,7 +243,48 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 	if err := s.store.Update(ctx, rem); err != nil {
 		return
 	}
+	_ = s.scheduleNextOccurrence(ctx, rem, playedAt)
 	s.scheduleVoiceAckPoll(rem.ID, playedAt.Add(voiceAckPollInterval))
+}
+
+func (s *Service) scheduleReminder(ctx context.Context, rem *Reminder) error {
+	if s.sch == nil {
+		return nil
+	}
+	jobID, err := s.sch.ScheduleAt(rem.ScheduledAt, func() {
+		s.fire(rem.ID)
+	})
+	if err != nil {
+		rem.Status = StatusFailed
+		rem.ErrorMessage = err.Error()
+		rem.JobID = ""
+		_ = s.store.Update(ctx, rem)
+		return err
+	}
+	rem.JobID = string(jobID)
+	return s.store.Update(ctx, rem)
+}
+
+func (s *Service) scheduleNextOccurrence(ctx context.Context, rem *Reminder, after time.Time) error {
+	nextAt, ok := nextRecurringScheduledAt(rem.ScheduledAt, rem.Recurrence, rem.CustomDates, after)
+	if !ok {
+		return nil
+	}
+	next := Reminder{
+		DeviceID:    rem.DeviceID,
+		ScheduledAt: nextAt,
+		Content:     rem.Content,
+		Category:    rem.Category,
+		Recurrence:  rem.Recurrence,
+		CustomDates: append([]string(nil), rem.CustomDates...),
+		Important:   rem.Important,
+		Text:        reminderPlaybackText(rem.Content, rem.Category, rem.Important),
+		Status:      StatusScheduled,
+	}
+	if err := s.store.Create(ctx, &next); err != nil {
+		return err
+	}
+	return s.scheduleReminder(ctx, &next)
 }
 
 func (s *Service) requeueProactiveVoice(ctx context.Context, rem *Reminder, at time.Time, cause error) {
@@ -425,6 +451,90 @@ func normalizeCategory(category Category) Category {
 	default:
 		return CategoryCustom
 	}
+}
+
+func normalizeRecurrence(recurrence Recurrence, customDates []string) (Recurrence, []string) {
+	switch recurrence {
+	case RecurrenceDaily, RecurrenceWeekdays, RecurrenceWeekends:
+		return recurrence, nil
+	case RecurrenceCustomDates:
+		dates := normalizeCustomDates(customDates)
+		if len(dates) == 0 {
+			return RecurrenceNone, nil
+		}
+		return RecurrenceCustomDates, dates
+	default:
+		return RecurrenceNone, nil
+	}
+}
+
+func normalizeCustomDates(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		date := strings.TrimSpace(value)
+		if _, err := time.Parse("2006-01-02", date); err != nil {
+			continue
+		}
+		if _, ok := seen[date]; ok {
+			continue
+		}
+		seen[date] = struct{}{}
+		out = append(out, date)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func nextRecurringScheduledAt(scheduledAt time.Time, recurrence Recurrence, customDates []string, after time.Time) (time.Time, bool) {
+	scheduledAt = scheduledAt.UTC()
+	after = after.UTC()
+	switch recurrence {
+	case RecurrenceDaily:
+		return nextMatchingDay(scheduledAt, after, func(time.Time) bool { return true })
+	case RecurrenceWeekdays:
+		return nextMatchingDay(scheduledAt, after, func(t time.Time) bool {
+			weekday := t.Weekday()
+			return weekday >= time.Monday && weekday <= time.Friday
+		})
+	case RecurrenceWeekends:
+		return nextMatchingDay(scheduledAt, after, func(t time.Time) bool {
+			weekday := t.Weekday()
+			return weekday == time.Saturday || weekday == time.Sunday
+		})
+	case RecurrenceCustomDates:
+		hour, minute, second := scheduledAt.Clock()
+		for _, date := range normalizeCustomDates(customDates) {
+			day, err := time.ParseInLocation("2006-01-02", date, time.UTC)
+			if err != nil {
+				continue
+			}
+			candidate := time.Date(day.Year(), day.Month(), day.Day(), hour, minute, second, scheduledAt.Nanosecond(), time.UTC)
+			if candidate.After(after) {
+				return candidate, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+func nextMatchingDay(scheduledAt time.Time, after time.Time, matches func(time.Time) bool) (time.Time, bool) {
+	candidate := scheduledAt.AddDate(0, 0, 1)
+	for i := 0; i < 370; i++ {
+		if candidate.After(after) && matches(candidate) {
+			return candidate, true
+		}
+		candidate = candidate.AddDate(0, 0, 1)
+	}
+	return time.Time{}, false
+}
+
+func reminderPlaybackText(content string, category Category, important bool) string {
+	text := reminderText(content, category)
+	if !important {
+		return text
+	}
+	return truncateRunes("重要提醒，"+text, maxReminderTextRunes)
 }
 
 func reminderText(content string, category Category) string {

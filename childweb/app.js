@@ -3,6 +3,7 @@ import { loadConfig, saveConfig } from './config.js';
 import {
   buildConversationBubbles,
   buildHomeStatus,
+  buildReminderScheduleOptions,
   formatGreetingTriggerResult,
   formatLoginError,
   formatRelativeTime,
@@ -517,13 +518,16 @@ function initHome() {
     var text = input.value.trim();
     if (!text) return;
     var freq = document.getElementById('sheetFreqDisplay').textContent;
-    if (freq !== '仅一次') return notImplemented('重复提醒');
+    var scheduleOptions = buildReminderScheduleOptions(freq, []);
     try {
       await anbanClient.createReminder({
         deviceId: anbanConfig.deviceId,
         scheduledAt: nextOccurrenceUTC(reminderHour, reminderMinute),
         content: text,
         category: text.includes('药') ? 'med' : 'custom',
+        recurrence: scheduleOptions.recurrence,
+        customDates: scheduleOptions.customDates,
+        important: false,
       });
       input.value = '';
       closeSheet();
@@ -534,7 +538,6 @@ function initHome() {
     }
   };
   window.selectSheetFreq = function(el) {
-    if (el.textContent.trim() !== '仅一次') return notImplemented('重复提醒');
     var items = document.querySelectorAll('#sheetFreqPickerPanel .freq-dropdown-item');
     for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
     el.classList.add('selected');
@@ -656,7 +659,6 @@ window.editDetailTime = function() {
 };
 
 window.editDetailFreq = function() {
-  return notImplemented('重复提醒');
   var freqEl = document.getElementById('detailFreq');
   if (!freqEl) return;
   _detailEditTarget = 'detail';
@@ -673,7 +675,6 @@ window.editDetailFreq = function() {
 };
 
 window.toggleDetailImportant = function() {
-  return notImplemented('重要提醒');
   var toggle = document.getElementById('detailImportantToggle');
   if (!toggle) return;
   toggle.classList.toggle('on');
@@ -755,6 +756,12 @@ window.doDeleteReminder = async function() {
   } catch (error) {
     showToast(error.message || '提醒删除失败');
   }
+};
+
+window.toggleImportant = function(el) {
+  if (!el) return;
+  el.classList.toggle('on');
+  el.classList.toggle('off');
 };
 
 
@@ -1055,7 +1062,6 @@ function initWarn() {
   };
   
   window.selectFreqOption = function(el) {
-    if (el.getAttribute('data-value') !== '仅一次') return notImplemented('重复提醒');
     var options = document.querySelectorAll('#freqPickerOptions .freq-option');
     for (var i = 0; i < options.length; i++) options[i].classList.remove('selected');
     el.classList.add('selected');
@@ -1131,8 +1137,7 @@ function initWarn() {
     var freq = document.getElementById('freqDisplay').textContent;
     var importantToggle = document.getElementById('importantToggle');
     var isImportant = importantToggle && importantToggle.classList.contains('on');
-    if (freq !== '仅一次') return notImplemented('重复提醒');
-    if (isImportant) return notImplemented('重要提醒');
+    var scheduleOptions = buildReminderScheduleOptions(freq, customDates);
     var timeParts = document.getElementById('timeDisplay').textContent.split(':');
     try {
       await anbanClient.createReminder({
@@ -1140,6 +1145,9 @@ function initWarn() {
         scheduledAt: nextOccurrenceUTC(Number(timeParts[0]), Number(timeParts[1])),
         content: text,
         category: text.includes('药') ? 'med' : 'custom',
+        recurrence: scheduleOptions.recurrence,
+        customDates: scheduleOptions.customDates,
+        important: isImportant,
       });
       input.value = '';
       input.setAttribute('placeholder', '例如：吃早饭、吃降压药、喝水等');
@@ -1155,22 +1163,40 @@ function initWarn() {
     var scheduled = new Date(reminder.scheduledAt);
     var time = Number.isNaN(scheduled.getTime()) ? '--:--' : scheduled.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
     var text = reminder.content || reminder.text || '提醒';
+    var freqLabel = reminderFrequencyLabel(reminder);
+    var isImportant = reminder.important === true;
     var div = document.createElement('div');
     div.className = 'bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between';
     div.setAttribute('data-reminder-id', reminder.reminderId || '');
-    div.setAttribute('data-important', '0');
+    div.setAttribute('data-important', isImportant ? '1' : '0');
     div.setAttribute('data-name', text);
     div.setAttribute('data-time', time);
-    div.setAttribute('data-freq', '仅一次');
+    div.setAttribute('data-freq', freqLabel);
     div.setAttribute('data-note', reminder.status || 'scheduled');
     div.setAttribute('data-icon', reminder.category === 'med' ? 'medication' : 'notifications');
     div.setAttribute('data-iconcolor', 'primary');
-    div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-primary"></span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface"></h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">仅一次</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1"></p><p class="font-label-sm text-label-sm text-text-secondary"></p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
+    div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-primary"></span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface"></h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold reminder-freq"></span><span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold items-center gap-0.5 reminder-important" style="display:none"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1"></p><p class="font-label-sm text-label-sm text-text-secondary"></p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
     div.querySelector('.material-symbols-outlined').textContent = reminder.category === 'med' ? 'medication' : 'notifications';
     div.querySelector('h4').textContent = text;
+    div.querySelector('.reminder-freq').textContent = freqLabel;
+    if (isImportant) {
+      var importantTag = div.querySelector('.reminder-important');
+      importantTag.style.display = 'inline-flex';
+    }
     div.querySelector('p.font-bold').textContent = time;
     div.querySelector('p.font-label-sm').textContent = formatRelativeTime(reminder.scheduledAt);
     return div;
+  }
+
+  function reminderFrequencyLabel(reminder) {
+    if (reminder.recurrence === 'daily') return '每天';
+    if (reminder.recurrence === 'weekdays') return '工作日';
+    if (reminder.recurrence === 'weekends') return '周末';
+    if (reminder.recurrence === 'custom-dates') {
+      var dates = Array.isArray(reminder.customDates) ? reminder.customDates : [];
+      return dates.length ? dates[0].slice(5).replace('-', '月') + '日 等' + dates.length + '天' : '自定义';
+    }
+    return '仅一次';
   }
 
   async function loadSavedReminders() {

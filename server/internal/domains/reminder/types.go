@@ -19,6 +19,16 @@ const (
 	CategoryCustom   Category = "custom"
 )
 
+type Recurrence string
+
+const (
+	RecurrenceNone        Recurrence = "none"
+	RecurrenceDaily       Recurrence = "daily"
+	RecurrenceWeekdays    Recurrence = "weekdays"
+	RecurrenceWeekends    Recurrence = "weekends"
+	RecurrenceCustomDates Recurrence = "custom-dates"
+)
+
 type Status string
 
 const (
@@ -44,6 +54,9 @@ type Reminder struct {
 	ScheduledAt    time.Time  `gorm:"index;not null" json:"scheduledAt"`
 	Content        string     `gorm:"size:120;not null" json:"content"`
 	Category       Category   `gorm:"size:20;not null" json:"category"`
+	Recurrence     Recurrence `gorm:"size:20;not null;default:none" json:"recurrence"`
+	CustomDates    []string   `gorm:"serializer:json" json:"customDates,omitempty"`
+	Important      bool       `gorm:"not null;default:false" json:"important"`
 	Text           string     `gorm:"size:160;not null" json:"text"`
 	Status         Status     `gorm:"size:20;index;not null" json:"status"`
 	JobID          string     `gorm:"size:64" json:"jobId,omitempty"`
@@ -57,10 +70,13 @@ type Reminder struct {
 }
 
 type CreateRequest struct {
-	DeviceID    string    `json:"deviceId"`
-	ScheduledAt time.Time `json:"scheduledAt"`
-	Content     string    `json:"content"`
-	Category    Category  `json:"category"`
+	DeviceID    string     `json:"deviceId"`
+	ScheduledAt time.Time  `json:"scheduledAt"`
+	Content     string     `json:"content"`
+	Category    Category   `json:"category"`
+	Recurrence  Recurrence `json:"recurrence"`
+	CustomDates []string   `json:"customDates"`
+	Important   bool       `json:"important"`
 }
 
 type ListFilter struct {

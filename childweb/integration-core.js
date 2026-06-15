@@ -146,6 +146,24 @@ export function nextOccurrenceUTC(hour, minute, now = new Date()) {
   return scheduled.toISOString();
 }
 
+export function buildReminderScheduleOptions(frequency = '仅一次', customDates = []) {
+  const label = String(frequency || '').trim();
+  const dates = normalizeReminderCustomDates(customDates);
+
+  if (label === '每天') return { recurrence: 'daily', customDates: [] };
+  if (label === '工作日') return { recurrence: 'weekdays', customDates: [] };
+  if (label === '周末') return { recurrence: 'weekends', customDates: [] };
+  if (dates.length > 0) return { recurrence: 'custom-dates', customDates: dates };
+  return { recurrence: 'none', customDates: [] };
+}
+
+function normalizeReminderCustomDates(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)))]
+    .sort();
+}
+
 function cleanList(values) {
   return (Array.isArray(values) ? values : [])
     .map((value) => String(value || '').trim())
