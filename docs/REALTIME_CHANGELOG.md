@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 子女端附加面板不阻断核心连接 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增纯函数测试，要求提醒/问候时段/画像加载器中任一失败时仍等待全部加载器并返回 settled 结果；新增连接流程烟测，要求 `refreshMessages` 使用该隔离器加载三个附加面板。
+- 目的：落实 PRD 路演风险降级顺序，确保画像、提醒等附加能力临时 502 时，不会让绝对必须现场的留言链路和状态/留言轮询一起停止。
+- 边界：只约束子女端初次连接的附加面板加载；不改变留言发送、状态读取、访问码、后端业务域、manager 调用或真机播报行为。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 均通过；RED 阶段 `npm test --prefix web` 共 80 项，新增 2 项按预期失败于 `optional-loads.js` 不存在且连接流程未调用 `settleOptionalLoads`。
+
 ### PRD #7 视觉整链路 8 秒预算 RED 测试
 
 - 文件：`server/internal/domains/vision/service_test.go`

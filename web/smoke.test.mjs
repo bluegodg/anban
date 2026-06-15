@@ -858,6 +858,34 @@ test('child web keeps optional history failures out of the core connection path'
   assert.doesNotMatch(refreshHistory, /throw error/);
 });
 
+test('optional section loader settles failures without rejecting core connection', async () => {
+  const { settleOptionalLoads } = await import('./optional-loads.js');
+  const calls = [];
+
+  const results = await settleOptionalLoads([
+    async () => { calls.push('reminders'); },
+    async () => { calls.push('greeting'); throw new Error('manager unavailable'); },
+    async () => { calls.push('profile'); },
+  ]);
+
+  assert.deepEqual(calls, ['reminders', 'greeting', 'profile']);
+  assert.deepEqual(results.map((result) => result.status), ['fulfilled', 'rejected', 'fulfilled']);
+});
+
+test('child web isolates optional panels from the message and status connection path', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const refreshMessages = app.slice(
+    app.indexOf('async function refreshMessages'),
+    app.indexOf('async function refreshBackendStatus'),
+  );
+
+  assert.match(app, /settleOptionalLoads/);
+  assert.match(refreshMessages, /settleOptionalLoads\(\[/);
+  assert.match(refreshMessages, /\(\) => refreshReminders\(\)/);
+  assert.match(refreshMessages, /\(\) => refreshGreetingSchedule\(\)/);
+  assert.match(refreshMessages, /\(\) => refreshProfile\(\)/);
+});
+
 test('status detail surfaces latest message playback state', async () => {
   const { formatStatusDetail, messageStatusLabel } = await import('./status-summary.js');
 
