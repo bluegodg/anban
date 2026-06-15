@@ -82,6 +82,30 @@ func TestStatusRoutesStayPlaceholderWhenDependencyMissing(t *testing.T) {
 	}
 }
 
+func TestStatusRoutesDisableCachingForFreshChildStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := NewRouter(Deps{
+		AccessCode:   "demo",
+		StatusRoutes: statusRoutesStub{},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/device/status?deviceId=dev-001", nil)
+	req.Header.Set("X-Access-Code", "demo")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/device/status status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Cache-Control"); !strings.Contains(got, "no-store") {
+		t.Fatalf("Cache-Control = %q, want no-store for fresh multi-browser status", got)
+	}
+	if got := w.Header().Get("Pragma"); got != "no-cache" {
+		t.Fatalf("Pragma = %q, want no-cache", got)
+	}
+}
+
 type statusRoutesStub struct{}
 
 func (statusRoutesStub) RegisterRoutes(r gin.IRoutes) {

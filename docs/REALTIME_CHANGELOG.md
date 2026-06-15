@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 子女端 API 防缓存 RED 测试
+
+- 文件：`server/internal/childapi/status_routes_test.go`
+- 内容：新增 `TestStatusRoutesDisableCachingForFreshChildStatus`，要求 `/api/device/status` 响应带 `Cache-Control: no-store` 与 `Pragma: no-cache`。
+- 目的：对齐 PRD #4 “同时打开 2 个浏览器都能看到一致状态（多端同步）”，避免浏览器缓存让状态、留言、提醒、画像或对话记录显示旧数据。
+- 边界：仅约束 childapi HTTP 响应头；不改变访问码、CORS、业务域路由、status 数据模型或 xiaozhi manager 契约。
+- 验证：RED 阶段运行 `go test -count=1 ./internal/childapi`，按预期失败于 `Cache-Control = ""`。
+
 ### 方案 C 部署入口与阶段对齐 README
 
 - 文件：`docs/deployment/README.md`
