@@ -3789,3 +3789,10 @@
 - 内容：移除最近留言、提醒历史、天气抓取和暂停迁移里的本地 mock 路径；把忘记访问码、新设备激活、帮助、客服、环境状态和编辑提醒统一接到 `notImplemented`；补充 childweb 启动、部署、已实现与未实现范围说明。
 - 功能：P8 后页面不再保留会伪造业务状态的 localStorage demo 入口，缺后端能力统一提示“该功能未实现”。
 - 验证：先运行 `npm test --prefix childweb` 确认 P8 mock 清理测试 RED（25/26 pass、1 fail），清理后 `node --check childweb/app.js` 通过，`npm test --prefix childweb` 26 个测试全绿。
+
+### 02:33 W1.1 问候前端 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：要求新增问候触发结果 formatter、早/午/晚问候时段 slots 归一化，以及 childweb 首页“问候老人”按钮和设置页问候时段表单接 `triggerGreeting` / `getGreetingSchedule` / `updateGreetingSchedule`。
+- 目的：把 PRD #2 的后端已具备能力补到 childweb 可见链路，避免继续停留在“接口存在但子女端不可用”。
+- 功能影响：暂无；当前 childweb 尚无问候入口和 slots 纯函数，测试应保持 RED。

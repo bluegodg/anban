@@ -276,3 +276,53 @@ test('P8 documents startup, deployment, and supported scope', async () => {
   assert.match(readme, /已实现/);
   assert.match(readme, /未实现/);
 });
+
+test('W1.1 formats greeting trigger result for played and queued greetings', async () => {
+  const { formatGreetingTriggerResult } = await import('./integration-core.js');
+
+  assert.deepEqual(formatGreetingTriggerResult({
+    status: 'played',
+    text: '王阿姨，下午好~ 今天精神咋样？',
+  }), {
+    label: '在线',
+    detail: '刚刚触发一次主动问候',
+    notice: '问候已触发：王阿姨，下午好~ 今天精神咋样？',
+  });
+
+  assert.deepEqual(formatGreetingTriggerResult({
+    status: 'pending',
+    text: '王阿姨，下午好~ 今天精神咋样？',
+  }), {
+    label: '在线',
+    detail: '主动问候已排队',
+    notice: '问候已排队：王阿姨，下午好~ 今天精神咋样？',
+  });
+});
+
+test('W1.1 normalizes morning noon and evening greeting slots', async () => {
+  const { normalizeGreetingSlots } = await import('./integration-core.js');
+
+  assert.deepEqual(normalizeGreetingSlots([
+    { label: 'morning', time: ' 07:30 ', enabled: true, tonePreset: 'warm' },
+    { label: 'noon', time: 'bad', enabled: true, tonePreset: 'unknown' },
+  ]), [
+    { label: 'morning', time: '07:30', enabled: true, tonePreset: 'warm' },
+    { label: 'noon', time: '12:30', enabled: false, tonePreset: 'casual' },
+    { label: 'evening', time: '18:30', enabled: false, tonePreset: 'warm' },
+  ]);
+});
+
+test('W1.1 childweb can trigger greetings and configure greeting schedule', () => {
+  assert.match(indexHTML, /id="greetingTriggerBtn"/);
+  assert.match(indexHTML, /id="greetingStatusText"/);
+  assert.match(indexHTML, /id="greetingScheduleForm"/);
+  for (const id of ['morningGreetingTime', 'noonGreetingTime', 'eveningGreetingTime']) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
+
+  assert.match(appJS, /anbanClient\.triggerGreeting\(\{ deviceId: anbanConfig\.deviceId, tonePreset: 'warm' \}\)/);
+  assert.match(appJS, /formatGreetingTriggerResult\(greeting\)/);
+  assert.match(appJS, /anbanClient\.getGreetingSchedule\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanClient\.updateGreetingSchedule\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*slots:/);
+  assert.match(appJS, /问候时段已保存/);
+});
