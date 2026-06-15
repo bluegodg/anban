@@ -1,0 +1,2785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>AnBan 安伴</title>
+<link href="dist.css" rel="stylesheet"/>
+<link href="fonts/fonts.css" rel="stylesheet"/>
+<link href="fonts/icons.css" rel="stylesheet"/>
+<style>
+  body {-webkit-tap-highlight-color:transparent;font-family:'Be Vietnam Pro',sans-serif;margin:0;background:#e8e5e0}
+  .material-symbols-outlined {font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+  .primary-gradient {background:linear-gradient(135deg,#F78C6B 0%,#FF9B7A 100%)}
+  .soft-shadow {box-shadow:0 4px 20px rgba(0,0,0,0.04)}
+
+  /* Phone Frame */
+  .phone-frame {background:#1a1a1a;border-radius:48px;padding:14px;box-shadow:0 0 0 3px #2a2a2a,0 0 0 6px #1a1a1a,0 0 0 8px #333,0 20px 60px rgba(0,0,0,0.4);max-width:466px;width:fit-content;margin:0 auto}
+  .phone-screen {border-radius:36px;overflow:hidden;width:430px;height:932px;background:#FAF6F0;position:relative}
+  .phone-notch {position:absolute;top:0;left:50%;transform:translateX(-50%);width:126px;height:34px;background:#1a1a1a;border-radius:0 0 20px 20px;z-index:200}
+  .status-bar {width:100%;height:54px;flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 28px 8px;background:transparent;position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none;transition:color 0.3s ease}
+  .status-bar.light {color:#fff;background:transparent}
+  .status-bar.dark {color:#1b1c1c;background:#FAF6F0}
+  .spa-section {padding-top:54px}
+  #s-login {padding-top:0}
+  .spa-section > header {top:54px;position:sticky}
+  .status-bar-time {font-size:15px;font-weight:600;color:inherit;letter-spacing:0.02em}
+  .status-bar-icons {display:flex;align-items:center;gap:6px}
+  .status-bar-icons svg {display:block}
+  .phone-screen-inner {width:100%;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  /* WeChat-style thin scrollbar */
+  ::-webkit-scrollbar {width:3px;height:3px}
+  ::-webkit-scrollbar-track {background:transparent}
+  ::-webkit-scrollbar-thumb {background:rgba(0,0,0,0.12);border-radius:10px}
+  ::-webkit-scrollbar-thumb:hover {background:rgba(0,0,0,0.2)}
+  ::-webkit-scrollbar-thumb:active {background:rgba(0,0,0,0.25)}
+  .phone-screen-inner::-webkit-scrollbar {width:3px}
+
+  /* SPA section */
+  .spa-section {display:none}
+  .spa-section.active {display:flex;flex-direction:column;min-height:100%}
+  #s-message.active {height:100%;min-height:0}
+
+  /* Home - quick msg modal */
+  .quick-msg-overlay {position:absolute;inset:0;background:rgba(0,0,0,0.3);z-index:85;opacity:0;pointer-events:none;transition:opacity 0.25s ease}
+  .quick-msg-overlay.open {opacity:1;pointer-events:auto}
+  .quick-msg-card {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);background:#FFF;border-radius:20px;padding:24px;width:calc(100% - 48px);max-width:380px;z-index:86;opacity:0;pointer-events:none;transition:all 0.25s cubic-bezier(0.32,0.72,0,1);box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+  .quick-msg-card.open {opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+
+  /* Home - bottom sheet */
+  .sheet-overlay {position:absolute;inset:0;background:rgba(0,0,0,0);z-index:80;pointer-events:none;transition:background 0.3s ease}
+  .sheet-overlay.open {background:rgba(0,0,0,0.3);pointer-events:auto}
+  .bottom-sheet {position:absolute;bottom:0;left:0;right:0;height:75%;background:#FFFFFF;border-radius:28px 28px 0 0;z-index:90;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.32,0.72,0,1);display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,0.12)}
+  .bottom-sheet.open {transform:translateY(0)}
+  .sheet-handle {width:36px;height:5px;background:#dcc1b9;border-radius:3px;margin:14px auto 10px;flex-shrink:0}
+  .sheet-body {flex:1;overflow-y:auto;padding:0 20px 20px}
+  .quick-template {background:#FAF6F0;border:1px solid #EFE8E1;border-radius:16px;padding:12px 16px;cursor:pointer;transition:all 0.2s}
+  .quick-template:active {background:#f6decf;border-color:#F78C6B}
+
+  /* Dropdown / time picker */
+  .dropdown-panel {position:absolute;top:100%;right:0;margin-top:4px;background:#FFF;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:50;display:none;min-width:180px;overflow:hidden}
+  .dropdown-panel.show {display:block}
+  .freq-dropdown-item {padding:12px 16px;cursor:pointer;font-size:14px;color:#55423d;transition:background 0.15s}
+  .freq-dropdown-item:hover {background:#FAF6F0}
+  .freq-dropdown-item.selected {background:#f6decf;color:#9a4429;font-weight:600}
+
+  /* Time Picker Modal */
+  .time-picker-overlay {position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:85;opacity:0;pointer-events:none;transition:opacity 0.25s ease}
+  .time-picker-overlay.open {opacity:1;pointer-events:auto}
+  .time-picker-modal {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);background:#FFF;border-radius:24px;padding:28px 24px 20px;width:calc(100% - 40px);max-width:380px;z-index:86;opacity:0;pointer-events:none;transition:all 0.25s cubic-bezier(0.32,0.72,0,1);box-shadow:0 20px 60px rgba(0,0,0,0.18)}
+  .time-picker-modal.open {opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  .time-picker-display {text-align:center;font-size:40px;font-weight:600;color:#55423d;letter-spacing:0.04em;margin-bottom:20px}
+  .time-picker-display .tp-colon {color:#dcc1b9;margin:0 2px}
+  .time-picker-body {display:flex;align-items:stretch;justify-content:center;gap:0;position:relative;height:220px;overflow:hidden;border-radius:16px;background:#FAF6F0;margin-bottom:20px}
+  .time-picker-highlight {position:absolute;top:50%;left:12px;right:12px;height:44px;transform:translateY(-50%);background:rgba(247,140,107,0.15);border-radius:12px;pointer-events:none;z-index:1;border:1px solid rgba(247,140,107,0.2)}
+  .tp-col {flex:1;height:100%;overflow-y:auto;text-align:center;-webkit-overflow-scrolling:touch;scroll-snap-type:y mandatory;padding:88px 0}
+  .tp-col::-webkit-scrollbar {display:none}
+  .tp-col-label {font-size:11px;color:#88726c;letter-spacing:0.08em;padding:10px 0 6px;font-weight:500}
+  .tp-col-item {height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#88726c;cursor:pointer;transition:all 0.15s;scroll-snap-align:center;flex-shrink:0}
+  .tp-col-item.selected {color:#9a4429;font-weight:600;font-size:22px}
+  .tp-col-divider {width:1px;height:60%;background:#EFE8E1;flex-shrink:0}
+  .time-picker-actions {display:flex;gap:12px;flex-direction:row}
+  .time-picker-actions button {flex:1;height:48px;border-radius:14px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.15s}
+  .time-picker-actions button:active {transform:scale(0.97)}
+  .tp-btn-cancel {background:#FAF6F0;border:1px solid #EFE8E1;color:#55423d}
+  .tp-btn-confirm {background:linear-gradient(135deg,#F78C6B 0%,#FF9B7A 100%);border:none;color:#fff;box-shadow:0 4px 16px rgba(247,140,107,0.3)}
+
+  /* Freq Picker Modal */
+  .freq-picker-overlay {position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:85;opacity:0;pointer-events:none;transition:opacity 0.25s ease}
+  .freq-picker-overlay.open {opacity:1;pointer-events:auto}
+  .freq-picker-modal {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);background:#FFF;border-radius:24px;padding:28px 24px 20px;width:calc(100% - 40px);max-width:340px;max-height:calc(100% - 80px);overflow-y:auto;z-index:86;opacity:0;pointer-events:none;transition:all 0.25s cubic-bezier(0.32,0.72,0,1);box-shadow:0 20px 60px rgba(0,0,0,0.18)}
+.freq-picker-modal::-webkit-scrollbar {display:none}
+  .freq-picker-modal.open {opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  .freq-picker-title {text-align:center;font-size:18px;font-weight:500;color:#55423d;margin-bottom:16px}
+  .freq-picker-options {display:flex;flex-direction:column;gap:4px;margin-bottom:20px}
+  .freq-option {display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;cursor:pointer;transition:all 0.15s;background:#FAF6F0;border:1.5px solid transparent}
+  .freq-option:hover {background:#f6decf}
+  .freq-option:active {transform:scale(0.98)}
+  .freq-option.selected {background:rgba(247,140,107,0.12);border-color:rgba(247,140,107,0.4)}
+  .freq-option .freq-check {width:22px;height:22px;border-radius:50%;border:2px solid #dcc1b9;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s}
+  .freq-option.selected .freq-check {background:#F78C6B;border-color:#F78C6B}
+  .freq-option .freq-check .material-symbols-outlined {font-size:16px;color:#fff;opacity:0;transition:opacity 0.15s}
+  .freq-option.selected .freq-check .material-symbols-outlined {opacity:1}
+  .freq-option .freq-text {font-size:16px;color:#55423d;font-weight:500}
+  .freq-option.selected .freq-text {color:#9a4429;font-weight:600}
+  .freq-option .freq-desc {font-size:12px;color:#88726c;margin-top:2px}
+  .freq-picker-actions {display:flex;gap:12px;flex-direction:row}
+  .freq-picker-actions button {flex:1;height:48px;border-radius:14px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.15s}
+  .freq-picker-actions button:active {transform:scale(0.97)}
+
+  /* Calendar for custom freq */
+  .freq-calendar-wrap {max-height:0;overflow:hidden;transition:max-height 0.3s ease,margin 0.3s ease;margin-top:0}
+  .freq-calendar-wrap.show {max-height:300px;margin-top:12px}
+  .freq-cal-nav {display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .freq-cal-nav button {width:32px;height:32px;border-radius:50%;border:none;background:#FAF6F0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s}
+  .freq-cal-nav button:hover {background:#f6decf}
+  .freq-cal-nav button:active {transform:scale(0.92)}
+  .freq-cal-nav button .material-symbols-outlined {font-size:18px;color:#55423d}
+  .freq-cal-month {font-size:15px;font-weight:600;color:#55423d}
+  .freq-cal-weekdays {display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:4px}
+  .freq-cal-weekdays span {font-size:11px;color:#88726c;font-weight:500;padding:4px 0}
+  .freq-cal-grid {display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+  .freq-cal-day {width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#55423d;cursor:pointer;transition:all 0.15s;margin:0 auto}
+  .freq-cal-day:hover {background:#FAF6F0}
+  .freq-cal-day:active {transform:scale(0.92)}
+  .freq-cal-day.selected {background:#F78C6B;color:#fff;font-weight:600;box-shadow:0 2px 8px rgba(247,140,107,0.3)}
+  .freq-cal-day.today {border:1.5px solid #F78C6B}
+  .freq-cal-day.past {color:#d4c8c0;background:#FAFAFA;cursor:not-allowed;pointer-events:none;text-decoration:line-through}
+  .freq-cal-day.empty {cursor:default;pointer-events:none}
+  .freq-cal-day.other-month {color:#d4c8c0}
+  .freq-cal-hint {text-align:center;font-size:12px;color:#F78C6B;margin-top:8px;min-height:18px}
+
+  /* Warn - toggle */
+  .toggle-track {width:48px;height:28px;border-radius:14px;position:relative;cursor:pointer;transition:background 0.25s ease}
+  .toggle-track.on {background:#f78c6b}
+  .toggle-track.off {background:#EFE8E1}
+  .toggle-thumb {width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:3px;transition:left 0.25s ease;box-shadow:0 1px 4px rgba(0,0,0,0.12)}
+  .toggle-track.on .toggle-thumb {left:23px}
+  .toggle-track.off .toggle-thumb {left:3px}
+/* Reminder paused state */
+  .reminder-paused { opacity: 0.45; }
+  .reminder-paused h4, .reminder-paused p, .reminder-paused span:not(.toggle-thumb) { color: #9E9E9E !important; }
+  .reminder-paused .material-symbols-outlined { color: #BDBDBD !important; }
+  .reminder-paused .bg-primary-container\/20, .reminder-paused .bg-primary-container\/10 { background: #E0E0E0 !important; }
+  .reminder-paused span[class*="text-on-primary-container"] { color: #9E9E9E !important; }
+
+  /* Settings */
+  .settings-row {transition:background 0.15s}
+  .settings-row:active {background:#FAF6F0}
+
+  /* Family edit */
+  .hobby-chip {transition:all 0.2s ease}
+  .hobby-chip:active {transform:scale(0.95)}
+  .habit-row {transition:background 0.15s}
+  .habit-row:focus-within {background:#FAF6F0}
+  .do-dont-item {transition:all 0.2s}
+  .icon-picker {animation:fadeIn 0.15s ease}
+
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+  /* Message bubbles */
+  .bubble-right {border-bottom-right-radius:4px !important}
+  .bubble-left {border-bottom-left-radius:4px !important}
+
+  /* Toast */
+  .spa-toast {position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b1c1c;color:#fff;padding:12px 24px;border-radius:999px;font-size:14px;z-index:200;opacity:0;pointer-events:none;transition:all 0.3s ease}
+  .spa-toast.show {opacity:1;pointer-events:auto}
+</style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+<div class="phone-frame">
+  <div class="phone-screen">
+    <div class="phone-notch"></div>
+    <div class="status-bar dark" id="globalStatusBar" style="position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none"><span class="status-bar-time">9:41</span><div class="status-bar-icons"><svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="4" width="3" height="8" rx="1" fill="currentColor"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="3" height="11" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg><svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 3C5.5 3 3.2 3.8 1.4 5.2L0 3.8C2.2 2 5 1 8 1s5.8 1 8 2.8L14.6 5.2C12.8 3.8 10.5 3 8 3z" fill="currentColor"/><path d="M8 6.5c-1.7 0-3.2.6-4.4 1.6L2.2 6.7C3.8 5.3 5.8 4.5 8 4.5s4.2.8 5.8 2.2L12.4 8.1C11.2 7.1 9.7 6.5 8 6.5z" fill="currentColor"/><circle cx="8" cy="10.5" r="1.5" fill="currentColor"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0" y="0.5" width="23" height="12" rx="3.5" stroke="currentColor" stroke-width="1" fill="none"/><rect x="24" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/><rect x="2" y="2.5" width="18" height="8" rx="1.5" fill="currentColor"/></svg></div></div>
+<div class="time-picker-overlay" id="timePickerOverlay" onclick="closeTimePickerModal()"></div>
+    <div class="time-picker-modal" id="timePickerModal">
+      <div class="time-picker-display"><span id="tpHourDisplay">08</span><span class="tp-colon">:</span><span id="tpMinDisplay">30</span></div>
+      <div class="flex justify-center gap-6 mb-2">
+        <span class="font-label-md text-label-md text-text-secondary">时</span>
+        <span class="font-label-md text-label-md text-text-secondary">分</span>
+      </div>
+      <div class="time-picker-body">
+        <div class="time-picker-highlight"></div>
+        <div class="tp-col" id="tpHourCol"><div id="hourList"></div></div>
+        <div class="tp-col-divider"></div>
+        <div class="tp-col" id="tpMinCol"><div id="minuteList"></div></div>
+      </div>
+      <div class="time-picker-actions">
+        <button class="tp-btn-cancel" onclick="closeTimePickerModal()">取消</button>
+        <button class="tp-btn-confirm" onclick="confirmTimePicker()">确认</button>
+      </div>
+    </div>
+
+    <!-- Freq Picker Modal -->
+    <div class="freq-picker-overlay" id="freqPickerOverlay" onclick="closeFreqPickerModal()"></div>
+    <div class="freq-picker-modal" id="freqPickerModal">
+      <div class="freq-picker-handle"></div>
+      <div class="freq-picker-title">选择频率</div>
+      <div class="freq-picker-options" id="freqPickerOptions">
+        <div class="freq-option selected" data-value="每天" onclick="selectFreqOption(this)">
+          <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
+          <div><div class="freq-text">每天</div><div class="freq-desc">每天重复提醒</div></div>
+        </div>
+        <div class="freq-option" data-value="仅一次" onclick="selectFreqOption(this)">
+          <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
+          <div><div class="freq-text">仅一次</div><div class="freq-desc">仅提醒一次</div></div>
+        </div>
+        <div class="freq-option" data-value="工作日" onclick="selectFreqOption(this)">
+          <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
+          <div><div class="freq-text">工作日</div><div class="freq-desc">周一至周五</div></div>
+        </div>
+        <div class="freq-option" data-value="周末" onclick="selectFreqOption(this)">
+          <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
+          <div><div class="freq-text">周末</div><div class="freq-desc">周六和周日</div></div>
+        </div>
+        <div class="freq-option" data-value="自定义" onclick="selectFreqOption(this)">
+          <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
+          <div><div class="freq-text">自定义</div><div class="freq-desc">选择指定日期</div></div>
+        </div>
+      </div>
+        <div class="freq-calendar-wrap" id="freqCalendarWrap">
+          <div class="freq-cal-nav">
+            <button onclick="freqCalPrev()"><span class="material-symbols-outlined">chevron_left</span></button>
+            <span class="freq-cal-month" id="freqCalMonth"></span>
+            <button onclick="freqCalNext()"><span class="material-symbols-outlined">chevron_right</span></button>
+          </div>
+          <div class="freq-cal-weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+          <div class="freq-cal-grid" id="freqCalGrid"></div>
+          <div class="freq-cal-hint" id="freqCalHint"></div>
+        </div>
+      <div class="freq-picker-actions">
+        <button class="tp-btn-cancel" onclick="closeFreqPickerModal()">取消</button>
+        <button class="tp-btn-confirm" onclick="confirmFreqPicker()">确认</button>
+      </div>
+    </div>
+
+    <div class="phone-screen-inner bg-background-cream text-on-surface" id="screenInner">
+
+      <!-- ============ LOGIN ============ -->
+      <section class="spa-section" id="s-login" data-statusbar="light">
+        <div class="relative w-full overflow-hidden flex-shrink-0" style="height:394px;margin-top:-54px">
+          <div class="w-full h-full primary-gradient"></div>
+          <div class="absolute inset-0 bg-gradient-to-b from-transparent to-background-cream/90"></div>
+        </div>
+        <div class="px-page-margin -mt-10 relative z-10 flex flex-col" style="min-height:calc(100% - 340px)">
+          <div class="text-center mb-section-gap">
+            <div class="inline-flex items-center justify-center bg-white/50 p-3 rounded-full mb-4 soft-shadow">
+              <span class="material-symbols-outlined text-primary text-[32px]">nest_eco_leaf</span>
+            </div>
+            <h1 class="font-display-lg-mobile text-display-lg-mobile text-on-surface mb-2">设备登录</h1>
+            <p class="font-body-md text-body-md text-text-secondary">连接您的安伴设备，守护家人的每一刻</p>
+          </div>
+          <div class="bg-surface-white rounded-2xl p-6 soft-shadow flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label class="font-label-md text-label-md text-on-surface-variant px-1" for="accessCode">设备访问码</label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">key</span>
+                <input class="w-full h-[52px] pl-12 pr-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all font-body-md" id="accessCode" placeholder="请输入 8 位访问码" type="text" autocomplete="off"/>
+              </div>
+            </div>
+            <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" id="loginBtn" type="button">
+              <span id="loginBtnText">登录</span>
+              <span class="material-symbols-outlined" id="loginBtnIcon">arrow_forward</span>
+            </button>
+            <div class="flex justify-between items-center pt-1 px-1">
+              <button class="text-on-secondary-fixed-variant/70 font-label-md text-label-md active:opacity-60">忘记访问码？</button>
+              <button class="text-primary font-label-md text-label-md active:opacity-60">新设备激活</button>
+            </div>
+          </div>
+          <div class="mt-auto pb-8 pt-section-gap text-center">
+            <div class="inline-flex items-center gap-2 text-text-secondary/40 font-label-sm text-label-sm uppercase tracking-wider">
+              <span class="w-8 h-[1px] bg-divider-warm"></span>
+              <span>AnBan 智能守护</span>
+              <span class="w-8 h-[1px] bg-divider-warm"></span>
+            </div>
+            <div class="mt-4 flex justify-center gap-6">
+              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">help</span>
+              </a>
+              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#">
+                <span class="material-symbols-outlined text-[20px]">chat_bubble</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ HOME ============ -->
+      <section class="spa-section" id="s-home" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <div class="w-10"></div>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">首页</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+          </button>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <section class="mb-section-gap">
+            <div class="bg-secondary-container rounded-3xl p-6 soft-shadow relative overflow-hidden">
+              <div class="absolute -top-12 -right-12 w-32 h-32 bg-primary-container/20 rounded-full blur-3xl"></div>
+              <div class="relative z-10">
+                <div class="flex justify-between items-start mb-4">
+                  <span class="inline-flex items-center px-3 py-1 bg-success/10 text-success rounded-full font-label-sm text-label-sm">
+                    <span class="w-2 h-2 rounded-full bg-success mr-2 animate-pulse"></span>在线
+                  </span>
+                  <span class="font-label-md text-label-md text-on-secondary-container/60" id="statusTime">3分钟前</span>
+                </div>
+                <h2 class="font-headline-md text-headline-md text-on-secondary-container mb-2" id="statusTitle">家人今天状态很好</h2>
+                <p class="font-body-md text-body-md text-on-secondary-container/80" id="statusDesc">正在加载中...</p>
+              </div>
+            </div>
+          </section>
+          
+          <section class="mb-section-gap">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="font-title-lg text-title-lg text-on-surface">最近留言</h3>
+              <a class="text-primary font-label-md text-label-md" href="#message" style="text-decoration:none">查看全部</a>
+            </div>
+            <div class="space-y-card-gap" id="recentMsgList">
+              <div class="bg-surface-white p-5 rounded-2xl soft-shadow flex gap-4 items-center">
+                <div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0">
+                  <span class="material-symbols-outlined text-on-secondary-container">mic</span>
+                </div>
+                <div class="flex-grow">
+                  <div class="flex justify-between items-start mb-1">
+                    <span class="font-label-md text-label-md text-on-surface">记得吃降压药</span>
+                    <span class="px-2 py-0.5 bg-success/10 text-success rounded-md font-label-sm text-label-sm">已播报</span>
+                  </div>
+                  <p class="font-body-md text-body-md text-text-secondary">今天 09:15 · 语音留言</p>
+                </div>
+              </div>
+              <div class="bg-surface-white p-5 rounded-2xl soft-shadow flex gap-4 items-center">
+                <div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0">
+                  <span class="material-symbols-outlined text-primary">campaign</span>
+                </div>
+                <div class="flex-grow">
+                  <div class="flex justify-between items-start mb-1">
+                    <span class="font-label-md text-label-md text-on-surface">下午我有空过去</span>
+                    <span class="px-2 py-0.5 bg-warning/20 text-on-secondary-container rounded-md font-label-sm text-label-sm">待播报</span>
+                  </div>
+                  <p class="font-body-md text-body-md text-text-secondary">刚才 · 文本转语音</p>
+                </div>
+              </div>
+              <div class="bg-surface-white/60 p-5 rounded-2xl border border-dashed border-divider-warm flex gap-4 items-center justify-center cursor-pointer active:bg-surface-white/80 transition-all" onclick="openQuickMsg()">
+                <span class="material-symbols-outlined text-outline">add_circle</span>
+                <span class="font-label-md text-label-md text-text-secondary">添加新留言</span>
+              </div>
+            </div>
+          </section>
+          <section class="mb-4">
+            <h3 class="font-title-lg text-title-lg text-on-surface mb-4">环境状态</h3>
+            <div class="grid grid-cols-2 gap-card-gap">
+              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                  <span class="material-symbols-outlined text-blue-500">thermostat</span>
+                </div>
+                <div>
+                  <p class="font-label-sm text-label-sm text-text-secondary">温度</p>
+                  <p class="font-title-lg text-title-lg text-on-surface" id="envTemp">24°C</p>
+                </div>
+              </div>
+              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                  <span class="material-symbols-outlined text-orange-400">humidity_mid</span>
+                </div>
+                <div>
+                  <p class="font-label-sm text-label-sm text-text-secondary">湿度</p>
+                  <p class="font-title-lg text-title-lg text-on-surface" id="envHumidity">45%</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+        <!-- Home Bottom Nav -->
+        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
+          <div class="relative flex flex-col items-center justify-center w-16 h-16">
+            <div class="absolute inset-0 bg-primary-container/10 rounded-full scale-90"></div>
+            <a class="relative z-10 flex flex-col items-center justify-center text-primary transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
+              <span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">home</span>
+              <span class="font-label-sm text-label-sm font-medium">首页</span>
+            </a>
+          </div>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
+            <span class="material-symbols-outlined mb-1">chat_bubble</span>
+            <span class="font-label-sm text-label-sm">消息</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
+            <span class="material-symbols-outlined mb-1">notifications</span>
+            <span class="font-label-sm text-label-sm">提醒</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
+            <span class="material-symbols-outlined mb-1">group</span>
+            <span class="font-label-sm text-label-sm">家人</span>
+          </a>
+        </nav>
+      </section>
+
+      <!-- ============ MESSAGE ============ -->
+      <section class="spa-section" id="s-message" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <div class="w-10"></div>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">消息</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+          </button>
+        </header>
+        <main class="flex-1 px-page-margin pt-4 pb-4 overflow-y-auto" id="messagesContainer">
+          <section class="mb-section-gap">
+            <div class="bg-secondary-container rounded-3xl p-6 soft-shadow relative overflow-hidden">
+              <div class="absolute -top-12 -right-12 w-32 h-32 bg-primary-container/20 rounded-full blur-3xl"></div>
+              <div class="relative z-10">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <p class="font-label-md text-label-md text-on-secondary-container/70 mb-1">语音伴侣</p>
+                    <h2 class="font-headline-md text-headline-md text-on-secondary-container">留言已就绪</h2>
+                  </div>
+                  <span class="material-symbols-outlined text-primary text-[32px]">spatial_audio</span>
+                </div>
+                <p class="font-body-md text-body-md text-on-secondary-container/80 mt-3">您的每一条留言都会通过柔和的语音准时传达给家中的长辈。</p>
+              </div>
+            </div>
+          </section>
+          <section class="space-y-6 flex flex-col mb-4" id="chatArea">
+            <!-- 消息1: 子女发的关怀消息 - 已播报 -->
+            <div class="flex flex-col items-end max-w-[85%] self-end">
+              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
+                <p class="font-body-md text-body-md">妈，今天降温了，出门记得多穿件衣服，别着凉了。晚上我给你视频。</p>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 px-1">
+                <span class="text-[11px] text-on-surface-variant/50">昨天 08:30</span>
+                <span class="text-[11px] font-medium text-success flex items-center gap-0.5">
+                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 700">done_all</span>已播报
+                </span>
+              </div>
+            </div>
+            <!-- 消息2: 老人回复 -->
+            <div class="flex flex-col items-start max-w-[85%] self-start">
+              <div class="bg-surface-white text-on-surface bubble-left soft-shadow p-4 rounded-2xl">
+                <p class="font-body-md text-body-md">好嘞，我加了件外套，你放心吧。</p>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 px-1">
+                <span class="text-[11px] text-on-surface-variant/50">昨天 08:35</span>
+              </div>
+            </div>
+            <!-- 消息3: 子女发的提醒 - 已播报 -->
+            <div class="flex flex-col items-end max-w-[85%] self-end">
+              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
+                <p class="font-body-md text-body-md">妈，下午两点社区有免费体检，别忘了去，就在小区门口。</p>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 px-1">
+                <span class="text-[11px] text-on-surface-variant/50">今天 09:00</span>
+                <span class="text-[11px] font-medium text-success flex items-center gap-0.5">
+                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 700">done_all</span>已播报
+                </span>
+              </div>
+            </div>
+            <!-- 消息4: 老人回复 -->
+            <div class="flex flex-col items-start max-w-[85%] self-start">
+              <div class="bg-surface-white text-on-surface bubble-left soft-shadow p-4 rounded-2xl">
+                <p class="font-body-md text-body-md">我去啦，量了血压正常的，你安心上班。</p>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 px-1">
+                <span class="text-[11px] text-on-surface-variant/50">今天 14:30</span>
+              </div>
+            </div>
+            <!-- 消息5: 子女发的提醒 - 老人忙碌，延期待播 -->
+            <div class="flex flex-col items-end max-w-[85%] self-end">
+              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
+                <p class="font-body-md text-body-md">妈，该吃降压药了，温水服药，饭后半小时再吃。</p>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 px-1">
+                <span class="text-[11px] text-on-surface-variant/50">今天 15:00</span>
+                <span class="text-[11px] font-medium text-on-surface-variant/60 flex items-center gap-0.5">
+                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 500">radio_button_unchecked</span>未播报
+                </span>
+              </div>
+            </div>
+            <!-- 消息7: 预设提醒 - 待播报 -->
+            <div class="flex flex-col items-end max-w-[85%] self-end">
+              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
+                <p class="font-body-md text-body-md">爸，明天你生日，我和小宇中午就到家，想吃什么提前跟我说！</p>
+              </div>
+              <div class="flex items-center gap-2 mt-1.5 px-1">
+                <span class="text-[11px] text-on-surface-variant/50">今天 18:00</span>
+                <span class="text-[11px] font-medium text-on-surface-variant/60 flex items-center gap-0.5">
+                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 500">radio_button_unchecked</span>未播报
+                </span>
+              </div>
+            </div>
+          </section>
+        </main>
+        <div class="flex-shrink-0 bg-surface-white/80 backdrop-blur-xl px-page-margin pt-3 pb-4" style="box-shadow:0 -4px 20px rgba(0,0,0,0.04)">
+          <div class="flex items-end gap-3">
+            <button class="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container/30 text-primary active:scale-90 transition-transform"><span class="material-symbols-outlined">image</span></button>
+            <button class="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container/30 text-primary active:scale-90 transition-transform"><span class="material-symbols-outlined">mic</span></button>
+            <div class="flex-1 relative">
+              <textarea class="w-full bg-background-cream border border-divider-warm rounded-2xl px-4 py-3 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all duration-200" id="messageInput" placeholder="请输入内容" rows="1" style="height:48px;overflow-y:hidden"></textarea>
+            </div>
+            <button class="primary-gradient text-white h-[48px] w-[48px] rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="handleSend()">
+              <span class="material-symbols-outlined">send</span>
+            </button>
+          </div>
+        </div>
+        <!-- Message Bottom Nav -->
+        <nav class="flex-shrink-0 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)]">
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
+            <span class="material-symbols-outlined mb-1">home</span>
+            <span class="font-label-sm text-label-sm">首页</span>
+          </a>
+          <div class="relative flex flex-col items-center justify-center w-16 h-16">
+            <div class="absolute inset-0 bg-primary-container/10 rounded-full scale-90"></div>
+            <a class="relative z-10 flex flex-col items-center justify-center text-primary transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
+              <span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">chat_bubble</span>
+              <span class="font-label-sm text-label-sm font-medium">消息</span>
+            </a>
+          </div>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
+            <span class="material-symbols-outlined mb-1">notifications</span>
+            <span class="font-label-sm text-label-sm">提醒</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
+            <span class="material-symbols-outlined mb-1">group</span>
+            <span class="font-label-sm text-label-sm">家人</span>
+          </a>
+        </nav>
+      </section>
+
+      <!-- ============ WARN (Reminders) ============ -->
+      <section class="spa-section" id="s-warn" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <div class="w-10"></div>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">提醒</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+          </button>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <section class="mb-section-gap">
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <div class="flex items-center gap-2 mb-6">
+                <span class="material-symbols-outlined text-primary">add_circle</span>
+                <h3 class="font-title-lg text-title-lg text-on-surface">创建新提醒</h3>
+              </div>
+              <div class="space-y-4 mb-6">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-on-surface-variant">schedule</span>
+                    <span class="font-label-md text-label-md text-on-surface">时间</span>
+                  </div>
+                  <div class="relative">
+                    <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openTimePickerModal()">
+                      <span class="font-bold text-body-lg text-body-lg" id="timeDisplay">08:30</span>
+                      <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
+                    </button>
+                    
+                  </div>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-on-surface-variant">wb_sunny</span>
+                    <span class="font-label-md text-label-md text-on-surface">频率</span>
+                  </div>
+                  <div class="relative">
+                    <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openFreqPickerModal()">
+                      <span class="font-label-md text-label-md" id="freqDisplay">每天</span>
+                      <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
+                    </button>
+
+                  </div>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-on-surface-variant">description</span>
+                    <span class="font-label-md text-label-md text-on-surface">提醒内容</span>
+                  </div>
+                  <div class="relative">
+                    <textarea class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all h-24" id="reminderContent" placeholder="例如：吃早饭、吃降压药、喝水等" maxlength="20"></textarea>
+                    <span class="absolute bottom-2 right-3 text-[10px] text-on-surface-variant/40" id="charCount">0/20</span>
+                  </div>
+                </div>
+
+              </div>
+              <div class="flex items-center justify-between py-2">
+                <div class="flex items-center gap-3">
+                  <span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">priority_high</span>
+                  <div>
+                    <span class="font-label-md text-label-md text-on-surface">重要提醒</span>
+                    <p class="font-label-sm text-label-sm text-text-secondary">开启后老人忙碌时也会强制播报</p>
+                  </div>
+                </div>
+                <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="this.classList.toggle('on');this.classList.toggle('off')"><div class="toggle-thumb"></div></div>
+              </div>
+              <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="saveReminder()">保存提醒</button>
+            </div>
+          </section>
+          <section>
+            <div class="flex justify-between items-end mb-4">
+              <h3 class="font-title-lg text-title-lg text-on-surface">我的提醒</h3>
+              <a class="font-label-sm text-label-sm text-primary flex items-center gap-1 active:opacity-60" onclick="navigateTo('history')">历史提醒<span class="material-symbols-outlined text-[16px]">chevron_right</span></a>
+            </div>
+            <div class="space-y-card-gap" id="reminderList">
+              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="1" data-name="吃降压药" data-time="08:30" data-freq="每天" data-note="饭后半小时服用" data-icon="medication" data-iconcolor="warning">
+                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">medication</span></div>
+                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">吃降压药</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span><span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:'FILL' 1">priority_high</span>重要</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">08:30</p><p class="font-label-sm text-label-sm text-text-secondary">备注：饭后半小时服用</p></div></div>
+                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
+              </div>
+              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="0" data-name="喝水" data-time="10:00" data-freq="每天" data-note="保持身体水分" data-icon="water_drop" data-iconcolor="tertiary">
+                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-tertiary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-tertiary">water_drop</span></div>
+                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">喝水</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">10:00</p><p class="font-label-sm text-label-sm text-text-secondary">备注：保持身体水分</p></div></div>
+                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
+              </div>
+              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="0" data-name="吃午饭" data-time="12:00" data-freq="每天" data-note="营养均衡，按时吃饭" data-icon="restaurant" data-iconcolor="on-secondary-container">
+                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-secondary-container">restaurant</span></div>
+                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">吃午饭</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">12:00</p><p class="font-label-sm text-label-sm text-text-secondary">备注：营养均衡，按时吃饭</p></div></div>
+                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
+              </div>
+              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between reminder-paused" data-important="0" data-name="睡觉" data-time="21:30" data-freq="每天" data-note="早点休息，养成好习惯" data-icon="bedtime" data-iconcolor="on-surface-variant">
+                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-on-surface-variant/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-surface-variant">bedtime</span></div>
+                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">睡觉</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">21:30</p><p class="font-label-sm text-label-sm text-text-secondary">备注：早点休息，养成好习惯</p></div></div>
+                <div class="toggle-track off flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
+              </div>
+            </div>
+          </section>
+        </main>
+        <!-- Warn Bottom Nav -->
+        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
+            <span class="material-symbols-outlined mb-1">home</span>
+            <span class="font-label-sm text-label-sm">首页</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
+            <span class="material-symbols-outlined mb-1">chat_bubble</span>
+            <span class="font-label-sm text-label-sm">消息</span>
+          </a>
+          <div class="relative flex flex-col items-center justify-center w-16 h-16">
+            <div class="absolute inset-0 bg-primary-container/10 rounded-full scale-90"></div>
+            <a class="relative z-10 flex flex-col items-center justify-center text-primary transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
+              <span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">notifications</span>
+              <span class="font-label-sm text-label-sm font-medium">提醒</span>
+            </a>
+          </div>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
+            <span class="material-symbols-outlined mb-1">group</span>
+            <span class="font-label-sm text-label-sm">家人</span>
+          </a>
+        </nav>
+      </section>
+
+      <!-- ============ HISTORY (Reminders History) ============ -->
+      <section class="spa-section" id="s-history" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('warn')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">arrow_back</span>
+          </button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">历史提醒</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 px-page-margin pt-4 pb-4" id="historyListContainer">
+          <div class="space-y-card-gap" id="historyList"></div>
+          <div class="flex flex-col items-center justify-center py-16" id="historyEmpty">
+            <span class="material-symbols-outlined text-on-surface-variant/30 text-[64px] mb-3">notifications_off</span>
+            <p class="font-body-md text-body-md text-text-secondary">暂无历史提醒</p>
+          </div>
+        </main>
+      </section>
+
+      <!-- ============ DETAIL (Reminder Detail/Edit) ============ -->
+      <section class="spa-section" id="s-detail" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('warn')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">arrow_back</span>
+          </button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">提醒详情</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 px-page-margin pt-5 pb-6">
+          <div class="bg-surface-white rounded-2xl p-5 soft-shadow mb-5">
+            <!-- Icon & Name -->
+            <div class="flex items-center gap-4 mb-5">
+              <div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0" id="detailIconWrap">
+                <span class="material-symbols-outlined text-primary text-[24px]" id="detailIcon">notifications</span>
+              </div>
+              <div class="flex-1">
+                <h2 class="font-bold text-body-lg text-body-lg text-on-surface mb-1" id="detailName">提醒名称</h2>
+                <div class="flex items-center gap-2" id="detailTags"></div>
+              </div>
+            </div>
+
+            <!-- Time -->
+            <div class="flex items-center justify-between py-4 border-b border-divider-warm/30 cursor-pointer active:bg-background-cream -mx-2 px-2 rounded-lg transition-colors" onclick="editDetailTime()">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-primary text-[22px]">schedule</span>
+                <span class="font-body-lg text-body-lg text-on-surface">提醒时间</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-body-lg text-body-lg text-on-surface font-medium" id="detailTime">08:30</span>
+                <span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+              </div>
+            </div>
+
+            <!-- Freq -->
+            <div class="flex items-center justify-between py-4 border-b border-divider-warm/30 cursor-pointer active:bg-background-cream -mx-2 px-2 rounded-lg transition-colors" onclick="editDetailFreq()">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-primary text-[22px]">wb_sunny</span>
+                <span class="font-body-lg text-body-lg text-on-surface">重复频率</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-body-lg text-body-lg text-on-surface font-medium" id="detailFreq">每天</span>
+                <span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+              </div>
+            </div>
+
+            <!-- Important -->
+            <div class="flex items-center justify-between py-4 border-b border-divider-warm/30 cursor-pointer active:bg-background-cream -mx-2 px-2 rounded-lg transition-colors" onclick="toggleDetailImportant()">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-warning text-[22px]" style="font-variation-settings:'FILL' 1">priority_high</span>
+                <div>
+                  <span class="font-body-lg text-body-lg text-on-surface">重要提醒</span>
+                  <p class="font-label-sm text-label-sm text-text-secondary">忙碌时也会强制播报</p>
+                </div>
+              </div>
+              <div class="toggle-track off flex-shrink-0" id="detailImportantToggle"><div class="toggle-thumb"></div></div>
+            </div>
+
+            <!-- Note -->
+            <div class="py-4">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="material-symbols-outlined text-primary text-[22px]">description</span>
+                <span class="font-body-lg text-body-lg text-on-surface">备注</span>
+              </div>
+              <textarea id="detailNote" class="w-full bg-background-cream rounded-xl p-3 font-body-md text-body-md text-on-surface resize-none border border-divider-warm/50 focus:border-primary focus:outline-none transition-colors" rows="2" placeholder="添加备注..."></textarea>
+            </div>
+          </div>
+
+          <!-- Save button -->
+          <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)] mb-4" onclick="saveDetailReminder()">保存修改</button>
+
+          <!-- Delete button -->
+          <button class="w-full py-3 text-on-surface-variant font-body-lg text-body-lg flex items-center justify-center gap-2 active:opacity-60 transition-all" onclick="confirmDeleteReminder()">
+            <span class="material-symbols-outlined text-[20px]">delete_outline</span>
+            删除提醒
+          </button>
+        </main>
+
+        <!-- Delete confirm overlay -->
+        <div class="quick-msg-overlay" id="deleteConfirmOverlay" onclick="closeDeleteConfirm()"></div>
+        <div class="quick-msg-card" id="deleteConfirmCard">
+          <div class="text-center mb-5">
+            <span class="material-symbols-outlined text-error text-[48px] mb-2" style="font-variation-settings:'FILL' 1">warning</span>
+            <h3 class="font-title-lg text-title-lg text-on-surface mb-2">确定删除这条提醒吗？</h3>
+            <p class="font-body-md text-body-md text-text-secondary" id="deleteConfirmText">删除后将无法恢复</p>
+          </div>
+          <div class="flex gap-3">
+            <button class="flex-1 h-[44px] rounded-xl bg-background-cream border border-divider-warm font-body-lg text-body-lg text-on-surface active:scale-95 transition-all" onclick="closeDeleteConfirm()">取消</button>
+            <button class="flex-1 h-[44px] rounded-xl text-white font-body-lg text-body-lg active:scale-95 transition-all" style="background-color:rgb(186,26,26)" onclick="doDeleteReminder()">删除</button>
+          </div>
+        </div>
+      </section>
+
+            <!-- ============ FAMILY ============ -->
+      <section class="spa-section" id="s-family" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <div class="w-10"></div>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">家人</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+          </button>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <section class="mb-section-gap">
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <div class="flex items-center gap-4 mb-4">
+                <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-container/30 flex-shrink-0">
+                  <div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white font-display-lg-mobile text-[14px]">安</div>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <h2 class="font-headline-md text-headline-md text-on-surface" id="profileName">妈妈</h2>
+                    <span class="w-2 h-2 rounded-full bg-success"></span>
+                    <span class="font-label-sm text-label-sm text-success">在线</span>
+                  </div>
+                  <p class="font-body-md text-body-md text-text-secondary" id="profileSubtitle">72岁 · 与爸爸同住 · 退休教师</p>
+                </div>
+                <a class="ml-auto w-10 h-10 rounded-full bg-secondary-container/40 flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform" href="#family-edit">
+                  <span class="material-symbols-outlined text-primary text-[20px]">edit</span>
+                </a>
+              </div>
+              <div class="flex gap-3 text-center">
+                <div class="flex-1 bg-background-cream rounded-xl py-3">
+                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">设备状态</p>
+                  <p class="font-title-lg text-title-lg text-success">已连接</p>
+                </div>
+                <div class="flex-1 bg-background-cream rounded-xl py-3">
+                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">最后活跃</p>
+                  <p class="font-title-lg text-title-lg text-on-surface">3分钟前</p>
+                </div>
+                <div class="flex-1 bg-background-cream rounded-xl py-3">
+                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">本周互动</p>
+                  <p class="font-title-lg text-title-lg text-on-surface">12次</p>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">psychology</span>
+                <h3 class="font-title-lg text-title-lg text-on-surface">AI 认知画像</h3>
+                <span class="ml-auto font-label-sm text-label-sm text-text-secondary">AI 自动生成</span>
+              </div>
+              <p class="font-body-md text-body-md text-on-surface-variant leading-relaxed" id="aiPortraitText">
+                性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。
+              </p>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <div class="flex items-center gap-2 mb-5">
+                <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">favorite</span>
+                <h3 class="font-title-lg text-title-lg text-on-surface">关怀指南</h3>
+              </div>
+              <div class="mb-5">
+                <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">兴趣爱好</p>
+                <div class="flex flex-wrap gap-2" id="hobbyTags">
+                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">园艺</span>
+                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">广场舞</span>
+                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">京剧</span>
+                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">养花</span>
+                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">做手工</span>
+                </div>
+              </div>
+              <div class="mb-5">
+                <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">生活习惯</p>
+                <div class="space-y-2.5" id="habitItems">
+                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">wb_twilight</span> 晨间 6:30 起床，作息规律</div>
+                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">local_cafe</span> 饭后必喝一杯龙井，已养成多年习惯</div>
+                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">music_note</span> 下午固定收听京剧频道</div>
+                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">directions_walk</span> 晚餐后在小区散步 30 分钟</div>
+                </div>
+              </div>
+              <div class="border-t border-divider-warm my-4"></div>
+              <div class="mb-5">
+                <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">健康须知</p>
+                <div class="bg-secondary-container/50 rounded-xl p-4" id="healthItems">
+                  <div class="flex items-start gap-3 mb-3">
+                    <span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">medication</span>
+                    <div>
+                      <p class="font-body-md text-body-md text-on-secondary-container font-medium">降压药管理</p>
+                      <p class="font-body-md text-body-md text-on-secondary-container/80">每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">warning</span>
+                    <div>
+                      <p class="font-body-md text-body-md text-on-secondary-container font-medium">注意事项</p>
+                      <p class="font-body-md text-body-md text-on-secondary-container/80">避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-divider-warm my-4"></div>
+              <div>
+                <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">沟通要点</p>
+                <div class="space-y-3" id="commDos">
+                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span><p class="font-body-md text-body-md text-on-surface-variant">多聊聊她年轻时的教学故事，她会很开心</p></div>
+                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span><p class="font-body-md text-body-md text-on-surface-variant">每周至少视频通话两次，她会很期待</p></div>
+                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0 mt-0.5">cancel</span><p class="font-body-md text-body-md text-on-surface-variant">尽量避免在深夜提及已故的外公，以免引起情绪低落</p></div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <a class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between mb-4 active:scale-[0.98] transition-all" href="#family-edit" style="text-decoration:none">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-primary">edit_note</span>
+              </div>
+              <div>
+                <p class="font-label-md text-label-md text-on-surface">编辑家人信息</p>
+                <p class="font-label-sm text-label-sm text-text-secondary">更新画像、健康信息、生活习惯</p>
+              </div>
+            </div>
+            <span class="material-symbols-outlined text-outline">chevron_right</span>
+          </a>
+          <p class="text-center font-label-sm text-label-sm text-text-secondary/60 mb-4"><span id="updateTime">AI 认知画像更新于 6月 8日 14:30</span></p>
+        </main>
+        <!-- Family Bottom Nav -->
+        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
+            <span class="material-symbols-outlined mb-1">home</span>
+            <span class="font-label-sm text-label-sm">首页</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
+            <span class="material-symbols-outlined mb-1">chat_bubble</span>
+            <span class="font-label-sm text-label-sm">消息</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
+            <span class="material-symbols-outlined mb-1">notifications</span>
+            <span class="font-label-sm text-label-sm">提醒</span>
+          </a>
+          <div class="relative flex flex-col items-center justify-center w-16 h-16">
+            <div class="absolute inset-0 bg-primary-container/10 rounded-full scale-90"></div>
+            <a class="relative z-10 flex flex-col items-center justify-center text-primary transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
+              <span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">group</span>
+              <span class="font-label-sm text-label-sm font-medium">家人</span>
+            </a>
+          </div>
+        </nav>
+      </section>
+
+      <!-- ============ MINE (Settings) ============ -->
+      <section class="spa-section" id="s-mine" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="history.length>1?history.back():navigateTo('home')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">arrow_back</span>
+          </button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">设置</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <section class="mb-section-gap">
+            <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center gap-4 active:scale-[0.98] transition-all cursor-pointer">
+              <div class="w-14 h-14 rounded-full overflow-hidden border-2 border-primary-container/30 flex-shrink-0">
+                <div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white font-display-lg-mobile text-[14px]">安</div>
+              </div>
+              <div class="flex-1">
+                <h3 class="font-title-lg text-title-lg text-on-surface">陈先森</h3>
+                <p class="font-label-md text-label-md text-text-secondary">ID: 88294021</p>
+              </div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">通用设置</h3>
+            <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow">
+
+              <button class="settings-row w-full flex items-center justify-between p-5 border-b border-divider-warm" id="clearCacheBtn">
+                <div class="flex items-center gap-4">
+                  <span class="material-symbols-outlined text-primary">cleaning_services</span>
+                  <span class="font-body-lg text-body-lg text-on-surface">清理缓存</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="font-label-md text-label-md text-text-secondary" id="cacheSize">24.5 MB</span>
+                  <span class="material-symbols-outlined text-outline">chevron_right</span>
+                </div>
+              </button>
+              <button class="settings-row w-full flex items-center justify-between p-5" id="aboutBtn">
+                <div class="flex items-center gap-4">
+                  <span class="material-symbols-outlined text-primary">info</span>
+                  <span class="font-body-lg text-body-lg text-on-surface">关于安伴</span>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="font-label-md text-label-md text-text-secondary">v 2.4.0</span>
+                  <span class="material-symbols-outlined text-outline">chevron_right</span>
+                </div>
+              </button>
+            </div>
+          </section>
+          <section class="mb-6">
+            <button class="w-full bg-surface-white text-danger border border-error-container/20 font-title-lg text-title-lg rounded-2xl py-4 soft-shadow active:scale-[0.98] transition-all flex items-center justify-center gap-2" id="logoutBtn">
+              <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">logout</span>
+              退出登录
+            </button>
+            <p class="text-center mt-4 font-label-sm text-label-sm text-text-secondary/60 px-4">
+              您的健康数据与家人关怀提醒将持续在云端同步
+            </p>
+          </section>
+        </main>
+        <!-- Mine Bottom Nav -->
+        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
+            <span class="material-symbols-outlined mb-1">home</span>
+            <span class="font-label-sm text-label-sm">首页</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
+            <span class="material-symbols-outlined mb-1">chat_bubble</span>
+            <span class="font-label-sm text-label-sm">消息</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
+            <span class="material-symbols-outlined mb-1">notifications</span>
+            <span class="font-label-sm text-label-sm">提醒</span>
+          </a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
+            <span class="material-symbols-outlined mb-1">group</span>
+            <span class="font-label-sm text-label-sm">家人</span>
+          </a>
+        </nav>
+      </section>
+
+      <!-- ============ FAMILY EDIT (secondary page, no nav) ============ -->
+      <section class="spa-section" id="s-family-edit" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('family')">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">arrow_back</span>
+          </button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">编辑家人信息</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <section class="mb-section-gap">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-primary">face</span>
+              <h3 class="font-title-lg text-title-lg text-on-surface">基本信息</h3>
+            </div>
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow space-y-4">
+              <div class="flex flex-col gap-1.5">
+                <label class="font-label-md text-label-md text-on-surface-variant" for="editName">姓名</label>
+                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editName" placeholder="请输入姓名" type="text"/>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="font-label-md text-label-md text-on-surface-variant" for="editAge">年龄</label>
+                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editAge" placeholder="请输入年龄" type="number"/>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="font-label-md text-label-md text-on-surface-variant" for="editLiving">居住情况</label>
+                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editLiving" placeholder="例如：与爸爸同住" type="text"/>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="font-label-md text-label-md text-on-surface-variant" for="editOccupation">职业</label>
+                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editOccupation" placeholder="例如：退休教师" type="text"/>
+              </div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">psychology</span>
+              <h3 class="font-title-lg text-title-lg text-on-surface">AI 认知画像</h3>
+            </div>
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <p class="font-label-md text-label-md text-text-secondary mb-3">描述家人的性格特点、生活态度等，AI 将根据此生成关怀建议</p>
+              <textarea class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-4 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all resize-none" id="editAiPortrait" placeholder="例如：性格温和，心思细腻，是全家人..." rows="5"></textarea>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-primary">interests</span>
+              <h3 class="font-title-lg text-title-lg text-on-surface">兴趣爱好</h3>
+            </div>
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <div class="flex flex-wrap gap-2 mb-4" id="hobbyChips"></div>
+              <div class="flex gap-2">
+                <input class="flex-1 bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="hobbyInput" placeholder="输入新爱好" type="text"/>
+                <button class="primary-gradient w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 active:scale-95 transition-all" id="addHobbyBtn" type="button">
+                  <span class="material-symbols-outlined text-white">add</span>
+                </button>
+              </div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-primary">bedtime</span>
+              <h3 class="font-title-lg text-title-lg text-on-surface">生活习惯</h3>
+            </div>
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <p class="font-label-md text-label-md text-text-secondary mb-4">记录家人的日常作息和习惯，方便关怀提醒</p>
+              <div id="habitList" class="space-y-1"></div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-primary">monitor_heart</span>
+              <h3 class="font-title-lg text-title-lg text-on-surface">健康须知</h3>
+            </div>
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
+              <p class="font-label-md text-label-md text-text-secondary mb-4">记录家人的健康状况、用药提醒和注意事项</p>
+              <div id="healthList" class="space-y-3"></div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-primary">forum</span>
+              <h3 class="font-title-lg text-title-lg text-on-surface">沟通要点</h3>
+            </div>
+            <div class="bg-surface-white rounded-2xl p-6 soft-shadow space-y-5">
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="material-symbols-outlined text-success text-[18px]">check_circle</span>
+                  <p class="font-label-md text-label-md text-on-surface">建议多说</p>
+                </div>
+                <div class="space-y-2 mb-3" id="dosList"></div>
+                <div class="flex gap-2">
+                  <input class="flex-1 bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="doInput" placeholder="添加沟通建议" type="text"/>
+                  <button class="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center flex-shrink-0 active:scale-95 transition-all" id="addDoBtn" type="button">
+                    <span class="material-symbols-outlined text-success">add</span>
+                  </button>
+                </div>
+              </div>
+              <div class="border-t border-divider-warm"></div>
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="material-symbols-outlined text-danger text-[18px]">cancel</span>
+                  <p class="font-label-md text-label-md text-on-surface">尽量避免</p>
+                </div>
+                <div class="space-y-2 mb-3" id="dontsList"></div>
+                <div class="flex gap-2">
+                  <input class="flex-1 bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="dontInput" placeholder="添加注意事项" type="text"/>
+                  <button class="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center flex-shrink-0 active:scale-95 transition-all" id="addDontBtn" type="button">
+                    <span class="material-symbols-outlined text-danger">add</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+          <div class="mb-6">
+            <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" id="saveBtn" type="button">
+              <span>保存家人画像</span>
+              <span class="material-symbols-outlined">save</span>
+            </button>
+          </div>
+        </main>
+      </section>
+
+    </div><!-- /phone-screen-inner -->
+
+    <!-- ===== Shared Modals (at phone-screen level) ===== -->
+
+    <!-- Quick Message Modal (Home) -->
+    <div class="quick-msg-overlay" id="quickMsgOverlay" onclick="closeQuickMsg()"></div>
+    <div class="quick-msg-card" id="quickMsgCard">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-title-lg text-title-lg text-on-surface">快速留言</h3>
+        <button class="w-8 h-8 flex items-center justify-center rounded-full bg-background-cream active:scale-90 transition-transform" onclick="closeQuickMsg()">
+          <span class="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+        </button>
+      </div>
+      <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all mb-4" id="quickMsgInput" placeholder="请输入内容" type="text"/>
+      <div class="flex gap-2">
+        <button class="primary-gradient flex-1 h-[48px] rounded-xl text-white font-label-md text-label-md flex items-center justify-center gap-1.5 active:scale-95 transition-all" id="quickMsgSend">
+          <span>发送</span>
+          <span class="material-symbols-outlined text-[18px]">send</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom Sheet Overlay -->
+    <div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+    <!-- Bottom Sheet with two panels -->
+    <div class="bottom-sheet" id="bottomSheet">
+      <div class="sheet-handle"></div>
+      <!-- Panel 1: Messages -->
+      <div class="sheet-body flex flex-col" id="msgPanel" style="display:none;">
+        <div class="flex justify-between items-center mb-5">
+          <h3 class="font-title-lg text-title-lg text-on-surface">快速留言</h3>
+          <button class="w-8 h-8 flex items-center justify-center rounded-full bg-background-cream active:scale-90 transition-transform" onclick="closeSheet()">
+            <span class="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+          </button>
+        </div>
+        <div class="flex flex-col gap-4 flex-1">
+          <textarea class="w-full bg-background-cream border border-divider-warm rounded-2xl px-4 py-4 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all duration-200 flex-1" id="sheetInput" placeholder="请输入内容" style="min-height:140px;"></textarea>
+          <div class="space-y-3">
+            <p class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider">快捷模板</p>
+            <div class="quick-template" onclick="fillTemplate('记得按时吃药，温水送服。')">
+              <p class="font-body-md text-body-md text-on-surface">记得按时吃药，温水送服。</p>
+            </div>
+            <div class="quick-template" onclick="fillTemplate('今天天气不错，可以出门散散步。')">
+              <p class="font-body-md text-body-md text-on-surface">今天天气不错，可以出门散散步。</p>
+            </div>
+            <div class="quick-template" onclick="fillTemplate('晚上早点休息，别看太久电视。')">
+              <p class="font-body-md text-body-md text-on-surface">晚上早点休息，别看太久电视。</p>
+            </div>
+            <div class="quick-template" onclick="fillTemplate('午饭我安排好了，会准时送到。')">
+              <p class="font-body-md text-body-md text-on-surface">午饭我安排好了，会准时送到。</p>
+            </div>
+          </div>
+          <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="sendFromSheet()">
+            <span>发送留言</span>
+            <span class="material-symbols-outlined">send</span>
+          </button>
+        </div>
+      </div>
+      <!-- Panel 2: Reminders -->
+      <div class="sheet-body flex flex-col" id="reminderPanel" style="display:none;">
+        <div class="flex justify-between items-center mb-5">
+          <h3 class="font-title-lg text-title-lg text-on-surface">快速设提醒</h3>
+          <button class="w-8 h-8 flex items-center justify-center rounded-full bg-background-cream active:scale-90 transition-transform" onclick="closeSheet()">
+            <span class="material-symbols-outlined text-on-surface-variant text-[20px]">close</span>
+          </button>
+        </div>
+        <div class="flex flex-col gap-4 flex-1">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-on-surface-variant">schedule</span>
+              <span class="font-label-md text-label-md text-on-surface">提醒时间</span>
+            </div>
+            <div class="relative">
+              <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="toggleReminderTimePicker()">
+                <span class="font-bold text-body-lg text-body-lg" id="reminderTimeDisplay">08:30</span>
+                <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
+              </button>
+              <div class="dropdown-panel" id="reminderTimePickerPanel">
+                <div class="time-picker-dropdown">
+                  <div class="time-col"><div class="time-col-label">时</div><div id="reminderHourList"></div></div>
+                  <div class="time-col-divider"></div>
+                  <div class="time-col"><div class="time-col-label">分</div><div id="reminderMinuteList"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-on-surface-variant">description</span>
+              <span class="font-label-md text-label-md text-on-surface">提醒内容</span>
+            </div>
+            <textarea class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-4 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all" id="reminderSheetInput" placeholder="例如：提醒妈妈吃降压药" style="min-height:120px;"></textarea>
+          </div>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-on-surface-variant">repeat</span>
+              <span class="font-label-md text-label-md text-on-surface">重复</span>
+            </div>
+            <div class="relative">
+              <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="toggleSheetFreqPicker()">
+                <span class="font-label-md text-label-md" id="sheetFreqDisplay">每天</span>
+                <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
+              </button>
+              <div class="dropdown-panel" id="sheetFreqPickerPanel" style="min-width:110px">
+                <div class="freq-dropdown-item selected" onclick="selectSheetFreq(this)">每天</div>
+                <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">仅一次</div>
+                <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">工作日</div>
+                <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">周末</div>
+              </div>
+            </div>
+          </div>
+          <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="saveQuickReminder()">
+            <span>保存提醒</span>
+            <span class="material-symbols-outlined">add_alarm</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /phone-screen -->
+</div><!-- /phone-frame -->
+
+<!-- Toast -->
+<div class="spa-toast" id="spaToast"></div>
+
+<!-- ===== SCRIPT: Router + all init functions ===== -->
+<script>
+// ============================
+// SPA Router
+// ============================
+var SPA = {
+  currentSection: null,
+  initialized: {},
+  sectionsWithNav: { home:1, warn:1, message:1, family:1, mine:1 },
+  sectionIds: { login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine', 'family-edit':'s-family-edit', history:'s-history', detail:'s-detail' }
+};
+
+function navigateTo(name) {
+  // Save warn scroll position before navigating to sub-pages (detail, history)
+  // Only sub-pages should restore scroll when returning; main pages should reset to top
+  var subPages = ['detail', 'history', 'family-edit'];
+  if (SPA.currentSection === 'warn' && subPages.indexOf(name) >= 0) {
+    var inner = document.getElementById('screenInner');
+    if (inner) SPA._warnScrollTop = inner.scrollTop;
+    SPA._fromWarnSubpage = true;
+  }
+  location.hash = name;
+}
+
+function getRouteFromHash() {
+  var h = location.hash.replace('#','');
+  if (!h || !SPA.sectionIds[h]) return 'login';
+  return h;
+}
+
+function resetLoginUI() {
+  var btn = document.getElementById('loginBtn');
+  var btnText = document.getElementById('loginBtnText');
+  var btnIcon = document.getElementById('loginBtnIcon');
+  var input = document.getElementById('accessCode');
+
+  if (btn) {
+    btn.style.pointerEvents = '';
+    btn.style.opacity = '';
+  }
+  if (btnText) btnText.textContent = '登录';
+  if (btnIcon) {
+    btnIcon.textContent = 'arrow_forward';
+    btnIcon.style.animation = '';
+  }
+  if (input) input.classList.remove('border-danger');
+}
+
+function showSection(name) {
+  // Reset login UI when entering login page
+  if (name === 'login') resetLoginUI();
+
+  // Hide current
+  if (SPA.currentSection) {
+    var oldEl = document.getElementById(SPA.sectionIds[SPA.currentSection]);
+    if (oldEl) oldEl.classList.remove('active');
+  }
+
+  // Show target
+  var el = document.getElementById(SPA.sectionIds[name]);
+  if (el) {
+    el.classList.add('active');
+    // Reset scroll
+    var inner = document.getElementById('screenInner');
+    if (inner) inner.scrollTop = 0;
+  }
+
+  // Ensure history page always refreshes
+  if (name === 'history' && typeof window.initHistory === 'function') {
+    window.initHistory();
+  }
+
+  SPA.currentSection = name;
+  // Restore warn scroll position when returning from a sub-page (detail, history, etc.)
+  if (name === 'warn' && SPA._fromWarnSubpage && typeof SPA._warnScrollTop === 'number' && SPA._warnScrollTop > 0) {
+    var inner = document.getElementById('screenInner');
+    var saved = SPA._warnScrollTop;
+    SPA._warnScrollTop = undefined;
+    SPA._fromWarnSubpage = false;
+    if (inner) setTimeout(function() { inner.scrollTop = saved; }, 50);
+  } else if (name === 'warn') {
+    // Coming from other main pages (not sub-pages) - go to top
+    SPA._warnScrollTop = undefined;
+    SPA._fromWarnSubpage = false;
+  }
+
+  // Hide bottom navs for secondary pages (history, family-edit)
+  var noNavPages = ['history', 'family-edit', 'detail'];
+  var allNavs = document.querySelectorAll('#s-home nav, #s-warn nav, #s-message nav, #s-family nav, #s-mine nav');
+  if (noNavPages.indexOf(name) >= 0) {
+    for (var n = 0; n < allNavs.length; n++) allNavs[n].style.display = 'none';
+  } else {
+    for (var n = 0; n < allNavs.length; n++) allNavs[n].style.display = '';
+    // Also ensure the current section's nav is visible
+    var curSection = document.getElementById(SPA.sectionIds[name]);
+    if (curSection) {
+      var curNav = curSection.querySelector('nav');
+      if (curNav) curNav.style.display = '';
+    }
+  }
+
+  // Update status bar color
+  var sb = document.getElementById('globalStatusBar');
+  if (sb) {
+    if (name === 'login') { sb.className = 'status-bar light'; }
+    else { sb.className = 'status-bar dark'; }
+  }
+
+  // Lazy init
+  var initFn = 'init' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-./g, function(x){return x[1].toUpperCase()});
+  var alwaysRefresh = ['history', 'detail'];
+  if ((!SPA.initialized[name] || alwaysRefresh.indexOf(name) >= 0) && typeof window[initFn] === 'function') {
+    SPA.initialized[name] = true;
+    window[initFn]();
+  }
+
+  // Refresh home title when navigating back
+  if (name === 'home') {
+    var stored = localStorage.getItem('anban_family_profile');
+    var profile = stored ? JSON.parse(stored) : null;
+    var name2 = (profile && profile.name) || '家人';
+    var hour = new Date().getHours();
+    var greeting = hour < 10 ? '今天状态不错' : hour < 14 ? '今天状态不错' : hour < 18 ? '午后状态很好' : '晚上一切安好';
+    var titleEl = document.getElementById('statusTitle');
+    if (titleEl) titleEl.textContent = name2 + '今天状态很好';
+    var descEl = document.getElementById('statusDesc');
+    var timeWord = hour < 10 ? '早上' : hour < 14 ? '上午' : hour < 18 ? '下午' : '晚上';
+    if (descEl) descEl.textContent = timeWord + '好，' + greeting + '。';
+  }
+
+  // Update nav active states
+  updateNavActive(name);
+}
+
+function updateNavActive(name) {
+  var allLinks = document.querySelectorAll('.nav-link');
+  for (var i = 0; i < allLinks.length; i++) {
+    var link = allLinks[i];
+    var nav = link.getAttribute('data-nav');
+    var parent = link.parentElement;
+    var isActive = (nav === name) || (name === 'mine' && nav === 'mine');
+
+    if (isActive) {
+      link.style.color = '#9a4429';
+      var icon = link.querySelector('.material-symbols-outlined');
+      if (icon) icon.style.fontVariationSettings = "'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24";
+      var label = link.querySelector('.font-label-sm');
+      if (label) label.classList.add('font-medium');
+      // Home/warn/message/family use the circle highlight pattern
+      if (parent.classList.contains('relative') && parent.querySelector('.absolute')) {
+        parent.querySelector('.absolute').classList.add('bg-primary-container/10');
+        parent.querySelector('.absolute').classList.remove('hidden');
+      }
+    } else {
+      link.style.color = '';
+      var icon = link.querySelector('.material-symbols-outlined');
+      if (icon) icon.style.fontVariationSettings = '';
+      var label = link.querySelector('.font-label-sm');
+      if (label) label.classList.remove('font-medium');
+    }
+  }
+}
+
+// Hash change handler
+window.addEventListener('hashchange', function() {
+  showSection(getRouteFromHash());
+});
+
+// Initial load
+var initialRoute = getRouteFromHash();
+if (initialRoute === 'login') {
+  // If already logged in, skip to home
+  if (localStorage.getItem('anban_session')) {
+    initialRoute = 'home';
+    location.replace('#home');
+  }
+}
+showSection(initialRoute);
+
+// Update status bar time to real time
+function updateStatusBarTime() {
+  var now = new Date();
+  var h = now.getHours();
+  var m = now.getMinutes();
+  var timeStr = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  var sb = document.getElementById('globalStatusBar');
+  if (sb) {
+    var timeEl = sb.querySelector('.status-bar-time');
+    if (timeEl) timeEl.textContent = timeStr;
+  }
+}
+updateStatusBarTime();
+setInterval(updateStatusBarTime, 10000);
+
+// ============================
+// Shared Toast
+// ============================
+function showToast(msg) {
+  var t = document.getElementById('spaToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2000);
+}
+
+// Shared touch feedback
+document.addEventListener('touchstart', function(e) {
+  var el = e.target.closest('button, a');
+  if (el) el.style.opacity = '0.7';
+}, {passive:true});
+document.addEventListener('touchend', function(e) {
+  var el = e.target.closest('button, a');
+  if (el) el.style.opacity = '1';
+}, {passive:true});
+
+// ============================
+// initLogin
+// ============================
+function initLogin() {
+  function handleLogin() {
+    var input = document.getElementById('accessCode');
+    if (!input.value.trim()) {
+      input.classList.add('border-danger');
+      input.style.animation = 'none';
+      input.offsetHeight;
+      input.style.animation = 'shake 0.3s ease';
+      setTimeout(function() { input.classList.remove('border-danger'); }, 500);
+      return;
+    }
+    var btn = document.getElementById('loginBtn');
+    var btnText = document.getElementById('loginBtnText');
+    var btnIcon = document.getElementById('loginBtnIcon');
+    btnText.textContent = '验证中...';
+    btnIcon.textContent = 'hourglass_top';
+    btnIcon.style.animation = 'spin 1s linear infinite';
+    btn.style.pointerEvents = 'none';
+    btn.style.opacity = '0.85';
+    setTimeout(function() {
+      localStorage.setItem('anban_session', '1');
+      navigateTo('home');
+    }, 1500);
+  }
+
+  document.getElementById('loginBtn').addEventListener('click', handleLogin);
+  document.getElementById('accessCode').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleLogin();
+  });
+  document.getElementById('accessCode').addEventListener('focus', function() {
+    this.classList.remove('border-danger');
+  });
+}
+
+// ============================
+// initHome
+// ============================
+function initHome() {
+  // Quick Msg Modal
+  window.openQuickMsg = function() {
+    document.getElementById('quickMsgOverlay').classList.add('open');
+    document.getElementById('quickMsgCard').classList.add('open');
+    document.getElementById('quickMsgInput').focus();
+  };
+  window.closeQuickMsg = function() {
+    document.getElementById('quickMsgOverlay').classList.remove('open');
+    document.getElementById('quickMsgCard').classList.remove('open');
+  };
+  window.sendQuickMsg = function() {
+    var input = document.getElementById('quickMsgInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var now = new Date();
+    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    var stored = localStorage.getItem('anban_messages');
+    var messages = stored ? JSON.parse(stored) : [];
+    messages.unshift({ text: text, time: time });
+    localStorage.setItem('anban_messages', JSON.stringify(messages));
+    updateRecentMessages(text, time);
+    input.value = '';
+    closeQuickMsg();
+  };
+  document.getElementById('quickMsgSend').addEventListener('click', window.sendQuickMsg);
+  document.getElementById('quickMsgInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') window.sendQuickMsg();
+  });
+
+  // Bottom Sheet
+  window.openSheet = function() {
+    document.getElementById('bottomSheet').classList.add('open');
+    document.getElementById('sheetOverlay').classList.add('open');
+    document.getElementById('sheetInput').focus();
+  };
+  window.closeSheet = function() {
+    document.getElementById('bottomSheet').classList.remove('open');
+    document.getElementById('sheetOverlay').classList.remove('open');
+  };
+  window.fillTemplate = function(text) {
+    document.getElementById('sheetInput').value = text;
+    document.getElementById('sheetInput').focus();
+  };
+  window.sendFromSheet = function() {
+    var input = document.getElementById('sheetInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var stored = localStorage.getItem('anban_messages');
+    var messages = stored ? JSON.parse(stored) : [];
+    var now = new Date();
+    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    messages.push({ text: text, time: time });
+    localStorage.setItem('anban_messages', JSON.stringify(messages));
+    input.value = '';
+    closeSheet();
+    updateRecentMessages(text, time);
+  };
+  window.updateRecentMessages = function(text, time) {
+    var msgItems = document.querySelectorAll('#recentMsgList > div');
+    var target = msgItems[1];
+    if (target) {
+      var titleEl = target.querySelector('.font-label-md');
+      var timeEl = target.querySelector('.font-body-md');
+      if (titleEl) titleEl.textContent = text;
+      if (timeEl) timeEl.textContent = '刚刚 · ' + (text === '❤️' ? '❤️报平安' : '文本转语音');
+    }
+  };
+
+
+  // Reminder time picker (in bottom sheet)
+  var reminderHour = 8;
+  var reminderMinute = 0;
+  function buildReminderTimePicker() {
+    var hList = document.getElementById('reminderHourList');
+    var mList = document.getElementById('reminderMinuteList');
+    if (!hList || hList.children.length) return;
+    for (var h = 0; h < 24; h++) {
+      var div = document.createElement('div');
+      div.className = 'time-col-item' + (h === reminderHour ? ' selected' : '');
+      div.textContent = h.toString().padStart(2, '0');
+      div.setAttribute('data-h', h);
+      div.onclick = function() { selectReminderHour(parseInt(this.getAttribute('data-h'))); };
+      hList.appendChild(div);
+    }
+    for (var m = 0; m < 60; m++) {
+      var div = document.createElement('div');
+      div.className = 'time-col-item' + (m === reminderMinute ? ' selected' : '');
+      div.textContent = m.toString().padStart(2, '0');
+      div.setAttribute('data-m', m);
+      div.onclick = function() { selectReminderMinute(parseInt(this.getAttribute('data-m'))); };
+      mList.appendChild(div);
+    }
+  }
+  function selectReminderHour(h) {
+    reminderHour = h;
+    var items = document.querySelectorAll('#reminderHourList .time-col-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
+    items[h].classList.add('selected');
+    items[h].scrollIntoView({ block: 'center' });
+    updateReminderTimeDisplay();
+  }
+  function selectReminderMinute(m) {
+    reminderMinute = m;
+    var items = document.querySelectorAll('#reminderMinuteList .time-col-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
+    items[m].classList.add('selected');
+    items[m].scrollIntoView({ block: 'center' });
+    updateReminderTimeDisplay();
+  }
+  function updateReminderTimeDisplay() {
+    document.getElementById('reminderTimeDisplay').textContent = reminderHour.toString().padStart(2,'0') + ':' + reminderMinute.toString().padStart(2,'0');
+  }
+  window.toggleReminderTimePicker = function() {
+    document.getElementById('reminderTimePickerPanel').classList.toggle('show');
+  };
+  window.saveQuickReminder = function() {
+    var input = document.getElementById('reminderSheetInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var time = document.getElementById('reminderTimeDisplay').textContent;
+    var freq = document.getElementById('sheetFreqDisplay').textContent;
+    var stored = localStorage.getItem('anban_reminders');
+    var reminders = stored ? JSON.parse(stored) : [];
+    reminders.push({ text: text, time: time, freq: freq });
+    localStorage.setItem('anban_reminders', JSON.stringify(reminders));
+    input.value = '';
+    closeSheet();
+    showToast('提醒已保存');
+  };
+  window.selectSheetFreq = function(el) {
+    var items = document.querySelectorAll('#sheetFreqPickerPanel .freq-dropdown-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
+    el.classList.add('selected');
+    document.getElementById('sheetFreqDisplay').textContent = el.textContent;
+    document.getElementById('sheetFreqPickerPanel').classList.remove('show');
+  };
+  window.toggleSheetFreqPicker = function() {
+    document.getElementById('sheetFreqPickerPanel').classList.toggle('show');
+  };
+  buildReminderTimePicker();
+
+  // Weather fetch
+  (function fetchWeather() {
+    function updateStatusCard(temp) {
+      var stored = localStorage.getItem('anban_family_profile');
+      var profile = stored ? JSON.parse(stored) : null;
+      var name = (profile && profile.name) || '家人';
+      var hour = new Date().getHours();
+      var timeWord = hour < 10 ? '早上' : hour < 14 ? '上午' : hour < 18 ? '下午' : '晚上';
+      var greeting = hour < 10 ? '新的一天开始了' : hour < 14 ? '今天状态不错' : hour < 18 ? '午后状态很好' : '晚上一切安好';
+      var tempDesc = temp ? (temp > 30 ? '天气有点热，记得开空调' : temp < 10 ? '天气较冷，记得添衣服' : '温度舒适') : '';
+      var titleEl = document.getElementById('statusTitle');
+      var descEl = document.getElementById('statusDesc');
+      var timeEl = document.getElementById('statusTime');
+      if (titleEl) titleEl.textContent = name + '今天状态很好';
+      if (descEl) descEl.textContent = timeWord + '好，' + greeting + '。' + (tempDesc ? '室外' + temp + '°C，' + tempDesc + '。' : '');
+      if (timeEl) timeEl.textContent = hour + ':' + new Date().getMinutes().toString().padStart(2,'0') + ' 更新';
+    }
+    updateStatusCard(null);
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pos.coords.latitude + '&longitude=' + pos.coords.longitude + '&current=temperature_2m,relative_humidity_2m';
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.current) {
+              var realTemp = Math.round(d.current.temperature_2m);
+              document.getElementById('envTemp').textContent = realTemp + '°C';
+              document.getElementById('envHumidity').textContent = Math.round(d.current.relative_humidity_2m) + '%';
+              updateStatusCard(realTemp);
+            }
+          })
+          .catch(function() { updateStatusCard(null); });
+      },
+      function() { updateStatusCard(null); }
+    );
+  })();
+}
+
+window.initHistory = function() {
+    var list = document.getElementById('historyList');
+    var empty = document.getElementById('historyEmpty');
+    if (!list || !empty) return;
+    list.innerHTML = '';
+
+    localStorage.removeItem('anban_reminder_history');
+
+    // Demo data - important reminders (e.g. medication) NEVER have "忙碌未提醒" status
+    // because important reminders bypass busy check and always get announced
+    var records = [
+        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月15日', status: '已提醒', important: true },
+        { text: '喝水', time: '10:00', freq: '每天', date: '6月15日', status: '已提醒' },
+        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月15日', status: '已提醒' },
+        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月14日', status: '已提醒', important: true },
+        { text: '喝水', time: '10:00', freq: '每天', date: '6月14日', status: '已提醒' },
+        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月14日', status: '忙碌未提醒' },
+        { text: '睡觉', time: '21:30', freq: '每天', date: '6月14日', status: '已提醒' },
+        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月13日', status: '已提醒', important: true },
+        { text: '喝水', time: '10:00', freq: '每天', date: '6月13日', status: '忙碌未提醒' },
+        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月13日', status: '已提醒' },
+        { text: '去社区医院体检', time: '09:00', freq: '6月20日', date: '6月13日', status: '已提醒' },
+        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月12日', status: '已提醒', important: true },
+        { text: '喝水', time: '10:00', freq: '每天', date: '6月12日', status: '已提醒' },
+        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月12日', status: '忙碌未提醒' },
+        { text: '睡觉', time: '21:30', freq: '每天', date: '6月12日', status: '已提醒' },
+        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月11日', status: '已提醒', important: true },
+        { text: '喝水', time: '10:00', freq: '每天', date: '6月11日', status: '忙碌未提醒' },
+        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月11日', status: '已提醒' },
+        { text: '睡觉', time: '21:30', freq: '每天', date: '6月11日', status: '已提醒' },
+        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月10日', status: '已提醒', important: true },
+        { text: '喝水', time: '10:00', freq: '每天', date: '6月10日', status: '忙碌未提醒' },
+        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月10日', status: '已提醒' },
+        { text: '去社区医院体检', time: '09:00', freq: '6月10日', date: '6月10日', status: '已提醒' },
+        { text: '睡觉', time: '21:30', freq: '每天', date: '6月10日', status: '已提醒' }
+    ];
+
+    if (records.length === 0) { empty.style.display = ''; return; }
+    empty.style.display = 'none';
+
+    // Group by date
+    var groups = {};
+    for (var i = 0; i < records.length; i++) {
+      var r = records[i];
+      var dateKey = r.date || '未知日期';
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(r);
+    }
+
+    var dateKeys = Object.keys(groups);
+    for (var d = 0; d < dateKeys.length; d++) {
+      var dateLabel = dateKeys[d];
+      var items = groups[dateLabel];
+
+      var header = document.createElement('div');
+      header.className = 'font-label-md text-label-md text-text-secondary mb-2 mt-6';
+      if (d === 0) header.classList.remove('mt-6');
+      header.textContent = dateLabel;
+      list.appendChild(header);
+
+      for (var j = 0; j < items.length; j++) {
+        var r = items[j];
+        var isBusy = r.status === '忙碌未提醒';
+        var isImportant = r.important === true;
+        var div = document.createElement('div');
+        div.className = 'flex items-center gap-4 py-3 ' + (j < items.length - 1 ? 'border-b border-divider-warm/30' : '');
+        var iconColor = isBusy ? 'text-warning' : 'text-success';
+        var icon = isBusy ? 'event_busy' : 'check_circle';
+        var statusColor = isBusy ? 'text-warning' : 'text-success';
+        var statusText = isBusy ? '忙碌未提醒' : '已提醒';
+        var importantTag = isImportant ? ' <span class="bg-warning/20 text-warning text-[9px] px-1.5 py-0.5 rounded-full font-bold">重要</span>' : '';
+        var nameHtml = '<span class="font-body-md text-body-md text-on-surface">' + r.text + '</span>' + importantTag;
+        div.innerHTML = '<span class="material-symbols-outlined ' + iconColor + ' text-[20px]" style="font-variation-settings:\'FILL\' 1">' + icon + '</span><div class="flex-1 flex items-center gap-2">' + nameHtml + '</div><div class="flex items-center gap-3"><span class="font-label-sm text-label-sm text-on-surface-variant">' + r.time + '</span><span class="font-label-sm text-label-sm ' + statusColor + '">' + statusText + '</span></div>';
+        list.appendChild(div);
+      }
+    }
+  };;
+
+// ============================
+// Reminder Detail / Edit / Delete
+// ============================
+var _detailCard = null; // reference to the card being edited
+
+window.openDetail = function(card) {
+  _detailCard = card;
+  navigateTo('detail');
+};
+
+window.initDetail = function() {
+  var card = _detailCard;
+  if (!card) { navigateTo('warn'); return; }
+
+  // Read data from card attributes
+  var name = card.getAttribute('data-name') || '';
+  var time = card.getAttribute('data-time') || '08:30';
+  var freq = card.getAttribute('data-freq') || '每天';
+  var note = card.getAttribute('data-note') || '';
+  var icon = card.getAttribute('data-icon') || 'notifications';
+  var iconColor = card.getAttribute('data-iconcolor') || 'primary';
+  var isImportant = card.getAttribute('data-important') === '1';
+  var isPaused = card.classList.contains('reminder-paused');
+
+  // Fill detail page
+  var nameEl = document.getElementById('detailName');
+  var timeEl = document.getElementById('detailTime');
+  var freqEl = document.getElementById('detailFreq');
+  var noteEl = document.getElementById('detailNote');
+  var iconEl = document.getElementById('detailIcon');
+  var iconWrap = document.getElementById('detailIconWrap');
+  var tagsEl = document.getElementById('detailTags');
+  var impToggle = document.getElementById('detailImportantToggle');
+
+  if (nameEl) nameEl.textContent = name;
+  if (timeEl) timeEl.textContent = time;
+  if (freqEl) freqEl.textContent = freq;
+  if (noteEl) noteEl.value = note.replace(/^备注：/, '');
+
+  // Icon
+  if (iconEl) {
+    iconEl.textContent = icon;
+    iconEl.className = 'material-symbols-outlined text-' + iconColor + ' text-[24px]';
+    if (iconColor === 'warning') iconEl.style.fontVariationSettings = "'FILL' 1";
+    else iconEl.style.fontVariationSettings = '';
+  }
+  if (iconWrap) {
+    iconWrap.className = 'w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0';
+    if (iconColor === 'warning') iconWrap.classList.add('bg-warning/10');
+    else if (iconColor === 'tertiary') iconWrap.classList.add('bg-tertiary-container/10');
+    else if (iconColor === 'on-secondary-container') iconWrap.classList.add('bg-secondary-container/30');
+    else if (iconColor === 'on-surface-variant') iconWrap.classList.add('bg-on-surface-variant/10');
+    else iconWrap.classList.add('bg-primary-container/10');
+  }
+
+  // Tags
+  var tagsHtml = '<span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + freq + '</span>';
+  if (isImportant) tagsHtml += ' <span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>';
+  if (isPaused) tagsHtml += ' <span class="bg-on-surface-variant/10 text-on-surface-variant text-[10px] px-2 py-0.5 rounded-full font-bold">已暂停</span>';
+  if (tagsEl) tagsEl.innerHTML = tagsHtml;
+
+  // Important toggle
+  if (impToggle) {
+    if (isImportant) { impToggle.classList.add('on'); impToggle.classList.remove('off'); }
+    else { impToggle.classList.remove('on'); impToggle.classList.add('off'); }
+  }
+};
+
+window.editDetailTime = function() {
+  var timeEl = document.getElementById('detailTime');
+  if (!timeEl) return;
+  var timeText = timeEl.textContent.trim();
+  var parts = timeText.split(':');
+  var h = parseInt(parts[0]) || 8;
+  var m = parseInt(parts[1]) || 30;
+  _detailEditTarget = 'detail';
+  if (typeof window.setTimePickerValues === 'function') window.setTimePickerValues(h, m);
+  openTimePickerModal();
+};
+
+window.editDetailFreq = function() {
+  var freqEl = document.getElementById('detailFreq');
+  if (!freqEl) return;
+  _detailEditTarget = 'detail';
+  var currentFreq = freqEl.textContent.trim();
+  var options = document.querySelectorAll('.freq-option');
+  for (var i = 0; i < options.length; i++) {
+    if (options[i].getAttribute('data-value') === currentFreq) {
+      options[i].classList.add('selected');
+    } else {
+      options[i].classList.remove('selected');
+    }
+  }
+  openFreqPickerModal();
+};
+
+window.toggleDetailImportant = function() {
+  var toggle = document.getElementById('detailImportantToggle');
+  if (!toggle) return;
+  toggle.classList.toggle('on');
+  toggle.classList.toggle('off');
+  // Update tags
+  var tagsEl = document.getElementById('detailTags');
+  if (tagsEl) {
+    var freqEl = document.getElementById('detailFreq');
+    var isImportant = toggle.classList.contains('on');
+    var html = '<span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + (freqEl ? freqEl.textContent : '每天') + '</span>';
+    if (isImportant) html += ' <span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>';
+    tagsEl.innerHTML = html;
+  }
+};
+
+window.saveDetailReminder = function() {
+  var card = _detailCard;
+  if (!card) return;
+
+  var timeEl = document.getElementById('detailTime');
+  var freqEl = document.getElementById('detailFreq');
+  var noteEl = document.getElementById('detailNote');
+  var impToggle = document.getElementById('detailImportantToggle');
+
+  var time = timeEl ? timeEl.textContent.trim() : '08:30';
+  var freq = freqEl ? freqEl.textContent.trim() : '每天';
+  var note = noteEl ? noteEl.value.trim() : '';
+  var isImportant = impToggle && impToggle.classList.contains('on');
+  var name = card.getAttribute('data-name') || '';
+  var icon = card.getAttribute('data-icon') || 'notifications';
+  var iconColor = isImportant ? 'warning' : (card.getAttribute('data-iconcolor') || 'primary');
+
+  // Update card data attributes
+  card.setAttribute('data-time', time);
+  card.setAttribute('data-freq', freq);
+  card.setAttribute('data-note', note);
+  card.setAttribute('data-important', isImportant ? '1' : '0');
+  card.setAttribute('data-iconcolor', iconColor);
+
+  // Rebuild card innerHTML
+  var importantTag = isImportant ? '<span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>' : '';
+  var isPaused = card.classList.contains('reminder-paused');
+  var toggleState = isPaused ? 'off' : 'on';
+
+  var iconStyle = isImportant ? ' style="font-variation-settings:\'FILL\' 1"' : '';
+  card.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ' + (isImportant ? 'bg-warning/10' : 'bg-primary-container/10') + '"><span class="material-symbols-outlined text-' + iconColor + '"' + iconStyle + '>' + icon + '</span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">' + name + '</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + freq + '</span>' + importantTag + '</div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">' + time + '</p><p class="font-label-sm text-label-sm text-text-secondary">备注：' + (note || '无') + '</p></div></div><div class="toggle-track ' + toggleState + ' flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
+
+  // Show toast
+  var toast = document.getElementById('spaToast');
+  if (toast) { toast.textContent = '已保存修改'; toast.classList.add('show'); setTimeout(function(){ toast.classList.remove('show'); }, 2000); }
+  navigateTo('warn');
+};
+
+window.confirmDeleteReminder = function() {
+  var overlay = document.getElementById('deleteConfirmOverlay');
+  var card2 = document.getElementById('deleteConfirmCard');
+  if (overlay) overlay.classList.add('open');
+  if (card2) card2.classList.add('open');
+};
+
+window.closeDeleteConfirm = function() {
+  var overlay = document.getElementById('deleteConfirmOverlay');
+  var card2 = document.getElementById('deleteConfirmCard');
+  if (overlay) overlay.classList.remove('open');
+  if (card2) card2.classList.remove('open');
+};
+
+window.doDeleteReminder = function() {
+  var card = _detailCard;
+  if (card) {
+    card.style.transition = 'all 0.3s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(60px)';
+    setTimeout(function() { card.remove(); }, 300);
+  }
+  _detailCard = null;
+  closeDeleteConfirm();
+  navigateTo('warn');
+};
+
+
+// ============================
+// initMessage
+// ============================
+function initMessage() {
+  function loadMessages() {
+    var stored = localStorage.getItem('anban_messages');
+    if (stored) {
+      var messages = JSON.parse(stored);
+      var chatArea = document.getElementById('chatArea');
+      messages.forEach(function(msg) {
+        var div = document.createElement('div');
+        div.className = 'flex flex-col items-end max-w-[85%] self-end';
+        var now = new Date();
+        var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+        div.innerHTML = '<div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl"><p class="font-body-md text-body-md">' + msg.text + '</p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50">' + msg.time + '</span><span class="text-[11px] font-medium text-warning/80 flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]" style="font-variation-settings: \'wght\' 500;">schedule</span>待播报</span></div>';
+        chatArea.appendChild(div);
+      });
+      var container = document.getElementById('messagesContainer');
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          if (container) container.scrollTop = container.scrollHeight;
+        });
+      });
+    }
+  }
+
+  window.handleSend = function() {
+    var input = document.getElementById('messageInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var chatArea = document.getElementById('chatArea');
+    var div = document.createElement('div');
+    div.className = 'flex flex-col items-end max-w-[85%] self-end';
+    var now = new Date();
+    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    div.innerHTML = '<div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl"><p class="font-body-md text-body-md">' + text + '</p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50">刚刚</span><span class="text-[11px] font-medium text-warning/80 flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]" style="font-variation-settings: \'wght\' 500;">schedule</span>待播报</span></div>';
+    chatArea.appendChild(div);
+    var stored = localStorage.getItem('anban_messages');
+    var messages = stored ? JSON.parse(stored) : [];
+    messages.push({ text: text, time: time });
+    localStorage.setItem('anban_messages', JSON.stringify(messages));
+    input.value = '';
+    input.style.height = '48px';
+    var container = document.getElementById('messagesContainer');
+    if (container) container.scrollTop = container.scrollHeight;
+  };
+
+  var tx = document.getElementById('messageInput');
+  if (tx) {
+    tx.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = (this.scrollHeight) + 'px';
+    });
+  }
+
+  loadMessages();
+  setTimeout(function() {
+    var container = document.getElementById('messagesContainer');
+    if (container) {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          container.scrollTop = container.scrollHeight;
+        });
+      });
+    }
+  }, 300);
+}
+
+// ============================
+// initWarn
+// ============================
+function initWarn() {
+  var selectedHour = 8, selectedMinute = 0;
+
+  function buildTimePicker() {
+    var hL = document.getElementById('hourList');
+    var mL = document.getElementById('minuteList');
+    if (!hL || hL.children.length > 1) return;
+    for (var h = 0; h < 24; h++) {
+      var d = document.createElement('div');
+      d.className = 'tp-col-item' + (h === selectedHour ? ' selected' : '');
+      d.textContent = h.toString().padStart(2, '0');
+      d.setAttribute('data-h', h);
+      d.onclick = function() { selectHour(parseInt(this.getAttribute('data-h'))); };
+      hL.appendChild(d);
+    }
+    for (var m = 0; m < 60; m++) {
+      var d = document.createElement('div');
+      d.className = 'tp-col-item' + (m === selectedMinute ? ' selected' : '');
+      d.textContent = m.toString().padStart(2, '0');
+      d.setAttribute('data-m', m);
+      d.onclick = function() { selectMinute(parseInt(this.getAttribute('data-m'))); };
+      mL.appendChild(d);
+    }
+  }
+
+  function scrollToSelected(colId, index, itemH) {
+    var colEl = document.getElementById(colId);
+    if (colEl) {
+      var scrollTop = index * itemH;
+      colEl.scrollTop = scrollTop;
+    }
+  }
+
+  function selectHour(h) {
+    selectedHour = h;
+    var items = document.querySelectorAll('#hourList .tp-col-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
+    items[h].classList.add('selected');
+    scrollToSelected('tpHourCol', h, 44);
+    updateTpDisplay();
+  }
+  function selectMinute(m) {
+    selectedMinute = m;
+    var items = document.querySelectorAll('#minuteList .tp-col-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
+    items[m].classList.add('selected');
+    scrollToSelected('tpMinCol', m, 44);
+    updateTpDisplay();
+  }
+  function updateTpDisplay() {
+    var hEl = document.getElementById('tpHourDisplay');
+    var mEl = document.getElementById('tpMinDisplay');
+    if (hEl) hEl.textContent = selectedHour.toString().padStart(2,'0');
+    if (mEl) mEl.textContent = selectedMinute.toString().padStart(2,'0');
+  }
+  window.openTimePickerModal = function() {
+    var fpo = document.getElementById('freqPickerOverlay');
+    if (fpo) fpo.classList.remove('open');
+    document.getElementById('timePickerOverlay').classList.add('open');
+    document.getElementById('timePickerModal').classList.add('open');
+    updateTpDisplay();
+    setTimeout(function() {
+      scrollToSelected('tpHourCol', selectedHour, 44);
+      scrollToSelected('tpMinCol', selectedMinute, 44);
+    }, 100);
+  };
+  window.closeTimePickerModal = function() {
+    document.getElementById('timePickerOverlay').classList.remove('open');
+    document.getElementById('timePickerModal').classList.remove('open');
+  };
+  window.confirmTimePicker = function() {
+    var timeStr = selectedHour.toString().padStart(2,'0') + ':' + selectedMinute.toString().padStart(2,'0');
+    if (typeof _detailEditTarget !== 'undefined' && _detailEditTarget === 'detail') {
+      var detailTimeEl = document.getElementById('detailTime');
+      if (detailTimeEl) detailTimeEl.textContent = timeStr;
+      _detailEditTarget = undefined;
+    } else {
+      document.getElementById('timeDisplay').textContent = timeStr;
+    }
+    closeTimePickerModal();
+  };
+  var selectedFreq = '每天';
+  var customDates = [];
+  var calYear, calMonth;
+
+  function initCalDate() {
+    var now = new Date();
+    calYear = now.getFullYear();
+    calMonth = now.getMonth();
+  }
+
+  function freqCalRender() {
+    var grid = document.getElementById('freqCalGrid');
+    var monthLabel = document.getElementById('freqCalMonth');
+    if (!grid || !monthLabel) return;
+    monthLabel.textContent = calYear + '年' + (calMonth + 1) + '月';
+    var firstDay = new Date(calYear, calMonth, 1).getDay();
+    var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    var today = new Date(); today.setHours(0,0,0,0);
+    var html = '';
+    // Monday=0 offset
+    var startOffset = (firstDay + 6) % 7;
+    for (var i = 0; i < startOffset; i++) {
+      html += '<div class="freq-cal-day empty"></div>';
+    }
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateObj = new Date(calYear, calMonth, d); dateObj.setHours(0,0,0,0);
+      var dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      var cls = 'freq-cal-day';
+      if (dateObj < today) cls += ' past';
+      else {
+        if (dateObj.getTime() === today.getTime()) cls += ' today';
+        if (customDates.indexOf(dateStr) >= 0) cls += ' selected';
+      }
+      html += '<div class="' + cls + '" data-date="' + dateStr + '" onclick="toggleCalDay(this)">' + d + '</div>';
+    }
+    grid.innerHTML = html;
+    updateCalHint();
+  }
+
+  function updateCalHint() {
+    var hint = document.getElementById('freqCalHint');
+    if (!hint) return;
+    if (customDates.length === 0) {
+      hint.textContent = '';
+    } else if (customDates.length <= 2) {
+      var parts = customDates.map(function(ds) {
+        var p = ds.split('-');
+        return parseInt(p[1]) + '月' + parseInt(p[2]) + '日';
+      });
+      hint.textContent = '已选：' + parts.join('、');
+    } else {
+      var first = customDates[0].split('-');
+      hint.textContent = '已选：' + parseInt(first[1]) + '月' + parseInt(first[2]) + '日 等' + customDates.length + '天';
+    }
+  }
+
+  window.toggleCalDay = function(el) {
+    var dateStr = el.getAttribute('data-date');
+    var idx = customDates.indexOf(dateStr);
+    if (idx >= 0) {
+      customDates.splice(idx, 1);
+      el.classList.remove('selected');
+    } else {
+      customDates.push(dateStr);
+      el.classList.add('selected');
+    }
+    customDates.sort();
+    updateCalHint();
+  };
+
+  window.freqCalPrev = function() {
+    calMonth--;
+    if (calMonth < 0) { calMonth = 11; calYear--; }
+    freqCalRender();
+  };
+
+  window.freqCalNext = function() {
+    calMonth++;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    freqCalRender();
+  };
+
+  function formatCustomLabel() {
+    if (customDates.length === 0) return '自定义';
+    if (customDates.length <= 2) {
+      return customDates.map(function(ds) {
+        var p = ds.split('-');
+        return parseInt(p[1]) + '月' + parseInt(p[2]) + '日';
+      }).join('、');
+    }
+    var first = customDates[0].split('-');
+    return parseInt(first[1]) + '月' + parseInt(first[2]) + '日 等' + customDates.length + '天';
+  }
+
+  window.openFreqPickerModal = function() {
+    closeTimePickerModal();
+    document.getElementById('freqPickerOverlay').classList.add('open');
+    document.getElementById('freqPickerModal').classList.add('open');
+    var currentVal = document.getElementById('freqDisplay').textContent;
+    var options = document.querySelectorAll('#freqPickerOptions .freq-option');
+    var matchedPreset = false;
+    for (var i = 0; i < options.length; i++) {
+      var val = options[i].getAttribute('data-value');
+      if (val === currentVal) {
+        options[i].classList.add('selected');
+        matchedPreset = true;
+      } else {
+        options[i].classList.remove('selected');
+      }
+    }
+    if (matchedPreset) {
+      selectedFreq = currentVal;
+      document.getElementById('freqCalendarWrap').classList.remove('show');
+    } else {
+      selectedFreq = '自定义';
+      for (var j = 0; j < options.length; j++) {
+        if (options[j].getAttribute('data-value') === '自定义') options[j].classList.add('selected');
+        else options[j].classList.remove('selected');
+      }
+      document.getElementById('freqCalendarWrap').classList.add('show');
+      initCalDate();
+      freqCalRender();
+    }
+  };
+  
+  window.closeFreqPickerModal = function() {
+    document.getElementById('freqPickerOverlay').classList.remove('open');
+    document.getElementById('freqPickerModal').classList.remove('open');
+    document.getElementById('freqCalendarWrap').classList.remove('show');
+  };
+  
+  window.selectFreqOption = function(el) {
+    var options = document.querySelectorAll('#freqPickerOptions .freq-option');
+    for (var i = 0; i < options.length; i++) options[i].classList.remove('selected');
+    el.classList.add('selected');
+    selectedFreq = el.getAttribute('data-value');
+    if (selectedFreq === '自定义') {
+      customDates = [];
+      document.getElementById('freqCalendarWrap').classList.add('show');
+      initCalDate();
+      freqCalRender();
+    } else {
+      document.getElementById('freqCalendarWrap').classList.remove('show');
+    }
+  };
+  
+  window.confirmFreqPicker = function() {
+    var freqText;
+    if (selectedFreq === '自定义') {
+      if (customDates.length === 0) {
+        var hint = document.getElementById('freqCalHint');
+        if (hint) { hint.textContent = '请至少选择一个日期'; hint.style.color = '#e74c3c'; }
+        return;
+      }
+      freqText = formatCustomLabel();
+    } else {
+      freqText = selectedFreq;
+    }
+    if (typeof _detailEditTarget !== 'undefined' && _detailEditTarget === 'detail') {
+      var detailFreqEl = document.getElementById('detailFreq');
+      if (detailFreqEl) detailFreqEl.textContent = freqText;
+      // Sync detailTags
+      var tagsEl = document.getElementById('detailTags');
+      var impToggle = document.getElementById('detailImportantToggle');
+      if (tagsEl) {
+        var isImportant = impToggle && impToggle.classList.contains('on');
+        var html = '<span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + freqText + '</span>';
+        if (isImportant) html += ' <span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>';
+        tagsEl.innerHTML = html;
+      }
+      _detailEditTarget = undefined;
+    } else {
+      document.getElementById('freqDisplay').textContent = freqText;
+    }
+    closeFreqPickerModal();
+  };
+
+  var content = document.getElementById('reminderContent');
+  var counter = document.getElementById('charCount');
+  if (content && counter) {
+    content.addEventListener('input', function() { counter.textContent = this.value.length + '/20'; });
+  }
+
+  window.updateCount = function() {
+    // count display removed, kept for compat
+  };
+
+  window.moveToHistory = function(el) {
+    var card = el.closest('.bg-surface-white');
+    if (!card) return;
+    var title = card.querySelector('h4');
+    var timeEl = card.querySelector('p.font-bold.text-title-lg');
+    var freq = card.querySelector('span.bg-primary-container');
+    var histItem = {
+      text: title ? title.textContent : '',
+      time: timeEl ? timeEl.textContent : '',
+      freq: freq ? freq.textContent : '',
+      pausedAt: new Date().toLocaleDateString('zh-CN')
+    };
+    var stored = localStorage.getItem('anban_reminder_history');
+    var history = stored ? JSON.parse(stored) : [];
+    history.unshift(histItem);
+    localStorage.setItem('anban_reminder_history', JSON.stringify(history));
+    card.style.transition = 'all 0.3s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(60px)';
+    setTimeout(function() { card.remove(); }, 300);
+  };
+
+  window.handleToggle = function(el) {
+    var card = el.closest('.bg-surface-white');
+    if (el.classList.contains('on')) {
+      el.classList.remove('on');
+      el.classList.add('off');
+      if (card) card.classList.add('reminder-paused');
+    } else {
+      el.classList.remove('off');
+      el.classList.add('on');
+      if (card) card.classList.remove('reminder-paused');
+    }
+  };
+
+
+
+
+  window.saveReminder = function() {
+    var input = document.getElementById('reminderContent');
+    var text = input.value.trim();
+    if (!text) {
+      input.style.borderColor = '#F78C6B';
+      input.style.animation = 'shake 0.4s ease';
+      input.setAttribute('placeholder', '请输入提醒内容');
+      setTimeout(function() { input.style.borderColor = ''; input.style.animation = ''; }, 800);
+      return;
+    }
+    var time = document.getElementById('timeDisplay').textContent;
+    var freq = document.getElementById('freqDisplay').textContent;
+    var importantToggle = document.getElementById('importantToggle');
+    var isImportant = importantToggle && importantToggle.classList.contains('on');
+    var list = document.getElementById('reminderList');
+    var div = document.createElement('div');
+    div.className = 'bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between';
+    div.setAttribute('data-important', isImportant ? '1' : '0');
+    var importantTag = isImportant ? '<span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>' : '';
+    var iconClass = isImportant ? 'text-warning' : 'text-primary';
+    div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ' + iconClass + '">notifications</span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">' + text + '</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + freq + '</span>' + importantTag + '</div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">' + time + '</p><p class="font-label-sm text-label-sm text-text-secondary">备注：自定义提醒</p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
+    list.insertBefore(div, list.firstChild);
+    input.value = '';
+    input.setAttribute('placeholder', '例如：吃早饭、吃降压药、喝水等');
+    if (importantToggle) { importantToggle.classList.remove('on'); importantToggle.classList.add('off'); }
+    if (counter) counter.textContent = '0/20';
+    window.updateCount();
+  };
+
+  function loadSavedReminders() {
+    var stored = localStorage.getItem('anban_reminders');
+    if (!stored) return;
+    var reminders = JSON.parse(stored);
+    var list = document.getElementById('reminderList');
+    for (var i = 0; i < reminders.length; i++) {
+      var r = reminders[i];
+      var div = document.createElement('div');
+      div.className = 'bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between';
+      div.setAttribute('data-important', r.important ? '1' : '0');
+      div.setAttribute('data-name', r.text);
+      div.setAttribute('data-time', r.time);
+      div.setAttribute('data-freq', r.freq || '每天');
+      div.setAttribute('data-note', r.note || '快速添加');
+      div.setAttribute('data-icon', 'notifications');
+      div.setAttribute('data-iconcolor', r.important ? 'warning' : 'primary');
+      div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ' + (r.important ? 'text-warning' : 'text-primary') + '">notifications</span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">' + r.text + '</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + (r.freq || '每天') + '</span>' + (r.important ? '<span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>' : '') + '</div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">' + r.time + '</p><p class="font-label-sm text-label-sm text-text-secondary">备注：' + (r.note || '快速添加') + '</p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
+      list.insertBefore(div, list.firstChild);
+    }
+    window.updateCount();
+  }
+
+  window.setTimePickerValues = function(h, m) {
+    selectedHour = h;
+    selectedMinute = m;
+    var hEl = document.getElementById('tpHourDisplay');
+    var mEl = document.getElementById('tpMinDisplay');
+    if (hEl) hEl.textContent = h.toString().padStart(2,'0');
+    if (mEl) mEl.textContent = m.toString().padStart(2,'0');
+    var hItems = document.querySelectorAll('#hourList .tp-col-item');
+    for (var i = 0; i < hItems.length; i++) { hItems[i].classList.toggle('selected', parseInt(hItems[i].textContent) === h); }
+    var mItems = document.querySelectorAll('#minuteList .tp-col-item');
+    for (var j = 0; j < mItems.length; j++) { mItems[j].classList.toggle('selected', parseInt(mItems[j].textContent) === m); }
+  };
+
+  buildTimePicker();
+  loadSavedReminders();
+}
+
+// ============================
+// initFamily
+// ============================
+function initFamily() {
+  var defaultProfile = {
+    name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
+    aiPortrait: '性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。',
+    hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
+    habits: [
+      { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
+      { icon: 'local_cafe', text: '饭后必喝一杯龙井，已养成多年习惯' },
+      { icon: 'music_note', text: '下午固定收听京剧频道' },
+      { icon: 'directions_walk', text: '晚餐后在小区散步 30 分钟' }
+    ],
+    health: [
+      { name: '降压药管理', detail: '每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。' },
+      { name: '注意事项', detail: '避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。' }
+    ],
+    communicationDos: ['多聊聊她年轻时的教学故事，她会很开心', '每周至少视频通话两次，她会很期待'],
+    communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
+  };
+
+  var stored = localStorage.getItem('anban_family_profile');
+  var profile = stored ? JSON.parse(stored) : defaultProfile;
+
+  document.getElementById('profileName').textContent = profile.name || '妈妈';
+  document.getElementById('profileSubtitle').innerHTML = (profile.age || 72) + '岁 · ' + (profile.livingSituation || '与爸爸同住') + ' · ' + (profile.occupation || '退休教师');
+  document.getElementById('aiPortraitText').textContent = profile.aiPortrait || defaultProfile.aiPortrait;
+
+  var hobbyContainer = document.getElementById('hobbyTags');
+  if (hobbyContainer) {
+    hobbyContainer.innerHTML = '';
+    (profile.hobbies || defaultProfile.hobbies).forEach(function(h) {
+      var tag = document.createElement('span');
+      tag.className = 'bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md';
+      tag.textContent = h;
+      hobbyContainer.appendChild(tag);
+    });
+  }
+
+  var habitContainer = document.getElementById('habitItems');
+  if (habitContainer) {
+    habitContainer.innerHTML = '';
+    (profile.habits || defaultProfile.habits).forEach(function(h) {
+      var item = document.createElement('div');
+      item.className = 'flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant';
+      item.innerHTML = '<span class="material-symbols-outlined text-primary text-[18px]">' + h.icon + '</span> ' + h.text;
+      habitContainer.appendChild(item);
+    });
+  }
+
+  var healthContainer = document.getElementById('healthItems');
+  if (healthContainer) {
+    healthContainer.innerHTML = '';
+    (profile.health || defaultProfile.health).forEach(function(h, i) {
+      var div = document.createElement('div');
+      div.className = 'flex items-start gap-3' + (i > 0 ? ' mt-3' : '');
+      var icon = (i === 0) ? 'medication' : 'warning';
+      div.innerHTML = '<span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">' + icon + '</span>' +
+        '<div><p class="font-body-md text-body-md text-on-secondary-container font-medium">' + h.name + '</p>' +
+        '<p class="font-body-md text-body-md text-on-secondary-container/80">' + h.detail + '</p></div>';
+      healthContainer.appendChild(div);
+    });
+  }
+
+  var dosContainer = document.getElementById('commDos');
+  if (dosContainer) {
+    dosContainer.innerHTML = '';
+    (profile.communicationDos || defaultProfile.communicationDos).forEach(function(d) {
+      var item = document.createElement('div');
+      item.className = 'flex items-start gap-2.5';
+      item.innerHTML = '<span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span>' +
+        '<p class="font-body-md text-body-md text-on-surface-variant">' + d + '</p>';
+      dosContainer.appendChild(item);
+    });
+    (profile.communicationDonts || defaultProfile.communicationDonts).forEach(function(d) {
+      var item = document.createElement('div');
+      item.className = 'flex items-start gap-2.5';
+      item.innerHTML = '<span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0 mt-0.5">cancel</span>' +
+        '<p class="font-body-md text-body-md text-on-surface-variant">' + d + '</p>';
+      dosContainer.appendChild(item);
+    });
+  }
+
+  var now = new Date();
+  var timeEl = document.getElementById('updateTime');
+  if (timeEl) {
+    timeEl.textContent = 'AI 认知画像更新于 ' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
+  }
+}
+
+// ============================
+// initMine
+// ============================
+function initMine() {
+  document.getElementById('clearCacheBtn').addEventListener('click', function() {
+    var label = document.getElementById('cacheSize');
+    if (label.textContent !== '0.0 MB') {
+      label.textContent = '清理中...';
+      label.classList.add('text-primary');
+      setTimeout(function() {
+        label.textContent = '0.0 MB';
+        label.classList.remove('text-primary');
+        label.classList.add('text-success');
+      }, 800);
+    }
+  });
+
+
+
+  document.getElementById('aboutBtn').addEventListener('click', function() {
+    showToast('安伴 v2.4.0 — 孝心安伴');
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', function() {
+    localStorage.removeItem('anban_session');
+    showToast('已退出登录');
+    setTimeout(function() { navigateTo('login'); }, 800);
+  });
+}
+
+// ============================
+// initFamilyEdit
+// ============================
+function initFamilyEdit() {
+  var habitIcons = ['wb_twilight','local_cafe','music_note','directions_walk','self_improvement','menu_book','potted_plant','tv','pets','shopping_bag','exercise','park'];
+
+  var defaultData = {
+    name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
+    aiPortrait: '性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。',
+    hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
+    habits: [
+      { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
+      { icon: 'local_cafe', text: '饭后必喝一杯龙井，已养成多年习惯' },
+      { icon: 'music_note', text: '下午固定收听京剧频道' },
+      { icon: 'directions_walk', text: '晚餐后在小区散步 30 分钟' }
+    ],
+    health: [
+      { name: '降压药管理', detail: '每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。' },
+      { name: '注意事项', detail: '避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。' }
+    ],
+    communicationDos: ['多聊聊她年轻时的教学故事，她会很开心', '每周至少视频通话两次，她会很期待'],
+    communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
+  };
+
+  function loadData() {
+    var stored = localStorage.getItem('anban_family_profile');
+    if (stored) { try { return JSON.parse(stored); } catch(e) {} }
+    return JSON.parse(JSON.stringify(defaultData));
+  }
+
+  var data = loadData();
+
+  function populateForm() {
+    document.getElementById('editName').value = data.name || '';
+    document.getElementById('editAge').value = data.age || '';
+    document.getElementById('editLiving').value = data.livingSituation || '';
+    document.getElementById('editOccupation').value = data.occupation || '';
+    document.getElementById('editAiPortrait').value = data.aiPortrait || '';
+    renderHealth();
+    renderHobbies();
+    renderHabits();
+    renderDos();
+    renderDonts();
+  }
+
+  function renderHobbies() {
+    var container = document.getElementById('hobbyChips');
+    container.innerHTML = '';
+    (data.hobbies || []).forEach(function(h, i) {
+      var chip = document.createElement('span');
+      chip.className = 'hobby-chip bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md flex items-center gap-1.5';
+      chip.innerHTML = h + '<span class="material-symbols-outlined text-[16px] cursor-pointer hover:text-error transition-colors" data-idx="' + i + '">close</span>';
+      container.appendChild(chip);
+    });
+    container.querySelectorAll('.material-symbols-outlined').forEach(function(icon) {
+      icon.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        data.hobbies.splice(idx, 1);
+        renderHobbies();
+      });
+    });
+  }
+
+  function addHobby() {
+    var input = document.getElementById('hobbyInput');
+    var val = input.value.trim();
+    if (!val) return;
+    data.hobbies = data.hobbies || [];
+    data.hobbies.push(val);
+    input.value = '';
+    renderHobbies();
+  }
+
+  document.getElementById('addHobbyBtn').addEventListener('click', addHobby);
+  document.getElementById('hobbyInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addHobby();
+  });
+
+  function renderHabits() {
+    var container = document.getElementById('habitList');
+    container.innerHTML = '';
+    (data.habits || []).forEach(function(h, i) {
+      var row = document.createElement('div');
+      row.className = 'habit-row flex items-center gap-3 py-3 border-b border-divider-warm last:border-b-0';
+      row.innerHTML = '<div class="relative">' +
+        '<button class="w-10 h-10 rounded-xl bg-background-cream border border-divider-warm flex items-center justify-center active:scale-95 transition-all habit-icon-btn" data-idx="' + i + '" type="button">' +
+          '<span class="material-symbols-outlined text-on-surface-variant text-[20px]">' + h.icon + '</span>' +
+        '</button>' +
+        '<div class="icon-picker hidden absolute top-full left-0 mt-1 bg-surface-white rounded-xl shadow-lg border border-divider-warm p-2 z-50 grid grid-cols-4 gap-1" style="min-width:180px">' +
+          habitIcons.map(function(icon) { return '<button class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-background-cream active:scale-90 transition-all icon-option" data-icon="' + icon + '" data-idx="' + i + '" type="button"><span class="material-symbols-outlined text-on-surface-variant text-[18px]">' + icon + '</span></button>'; }).join('') +
+        '</div>' +
+      '</div>' +
+        '<input class="flex-1 bg-transparent font-body-md text-on-surface-variant focus:outline-none border-b border-transparent focus:border-primary/30 transition-all py-1" data-idx="' + i + '" data-field="text" value="' + h.text.replace(/"/g, '&quot;') + '" type="text"/>' +
+        '<button class="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform flex-shrink-0" data-idx="' + i + '" data-action="remove"><span class="material-symbols-outlined text-outline text-[18px]">close</span></button>';
+      container.appendChild(row);
+    });
+
+    var addRow = document.createElement('div');
+    addRow.className = 'flex items-center justify-center py-3';
+    addRow.innerHTML = '<button class="flex items-center gap-2 text-primary font-label-md text-label-md active:scale-95 transition-all px-4 py-2 rounded-xl border border-dashed border-primary/30" id="addHabitBtn"><span class="material-symbols-outlined text-[18px]">add</span>添加习惯</button>';
+    container.appendChild(addRow);
+
+    container.querySelectorAll('.habit-icon-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var picker = this.parentElement.querySelector('.icon-picker');
+        document.querySelectorAll('.icon-picker').forEach(function(p) {
+          if (p !== picker) p.classList.add('hidden');
+        });
+        picker.classList.toggle('hidden');
+      });
+    });
+
+    container.querySelectorAll('.icon-option').forEach(function(opt) {
+      opt.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var idx = parseInt(this.getAttribute('data-idx'));
+        var icon = this.getAttribute('data-icon');
+        data.habits[idx].icon = icon;
+        var row = this.closest('.habit-row');
+        var iconSpan = row.querySelector('.habit-icon-btn .material-symbols-outlined');
+        iconSpan.textContent = icon;
+        this.closest('.icon-picker').classList.add('hidden');
+      });
+    });
+
+    container.querySelectorAll('input[data-field="text"]').forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        data.habits[idx].text = this.value;
+      });
+    });
+    container.querySelectorAll('button[data-action="remove"]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        data.habits.splice(idx, 1);
+        renderHabits();
+      });
+    });
+
+    document.getElementById('addHabitBtn').addEventListener('click', function() {
+      data.habits = data.habits || [];
+      data.habits.push({ icon: 'wb_twilight', text: '' });
+      renderHabits();
+    });
+  }
+
+  function renderHealth() {
+    var container = document.getElementById('healthList');
+    container.innerHTML = '';
+    (data.health || []).forEach(function(h, i) {
+      var item = document.createElement('div');
+      item.className = 'bg-secondary-container/40 rounded-xl p-4';
+      item.innerHTML = '<div class="space-y-2">' +
+        '<div class="flex items-center gap-2">' +
+          '<input class="flex-1 bg-white/60 border border-divider-warm rounded-lg px-3 py-2 font-label-md text-on-surface font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" data-idx="' + i + '" data-field="name" value="' + (h.name || '').replace(/"/g, '&quot;') + '" placeholder="项目名称" type="text"/>' +
+          '<button class="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform flex-shrink-0" data-idx="' + i + '" data-action="removeHealth"><span class="material-symbols-outlined text-outline text-[18px]">close</span></button>' +
+        '</div>' +
+        '<textarea class="w-full bg-white/60 border border-divider-warm rounded-lg px-3 py-2 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all resize-none" data-idx="' + i + '" data-field="detail" placeholder="详细说明" rows="2">' + (h.detail || '') + '</textarea>' +
+      '</div>';
+      container.appendChild(item);
+    });
+
+    var addBtn = document.createElement('button');
+    addBtn.className = 'flex items-center gap-2 text-primary font-label-md text-label-md active:scale-95 transition-all px-4 py-2 rounded-xl border border-dashed border-primary/30 w-full justify-center mt-3';
+    addBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">add</span>添加健康项目';
+    addBtn.id = 'addHealthBtn';
+    container.appendChild(addBtn);
+
+    container.querySelectorAll('input[data-field="name"]').forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        data.health[parseInt(this.getAttribute('data-idx'))].name = this.value;
+      });
+    });
+    container.querySelectorAll('textarea[data-field="detail"]').forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        data.health[parseInt(this.getAttribute('data-idx'))].detail = this.value;
+      });
+    });
+    container.querySelectorAll('button[data-action="removeHealth"]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        data.health.splice(parseInt(this.getAttribute('data-idx')), 1);
+        renderHealth();
+      });
+    });
+
+    document.getElementById('addHealthBtn').addEventListener('click', function() {
+      data.health = data.health || [];
+      data.health.push({ name: '', detail: '' });
+      renderHealth();
+    });
+  }
+
+  function renderDos() {
+    var container = document.getElementById('dosList');
+    container.innerHTML = '';
+    (data.communicationDos || []).forEach(function(d, i) {
+      var item = document.createElement('div');
+      item.className = 'do-dont-item flex items-center gap-2.5 bg-success/5 rounded-xl px-4 py-3';
+      item.innerHTML = '<span class="material-symbols-outlined text-success text-[18px] flex-shrink-0">check_circle</span>' +
+        '<span class="flex-1 font-body-md text-body-md text-on-surface-variant">' + d + '</span>' +
+        '<button class="w-7 h-7 flex items-center justify-center rounded-full active:scale-90 transition-transform flex-shrink-0" data-idx="' + i + '" data-action="removeDo"><span class="material-symbols-outlined text-outline text-[16px]">close</span></button>';
+      container.appendChild(item);
+    });
+    container.querySelectorAll('button[data-action=removeDo]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        data.communicationDos.splice(idx, 1);
+        renderDos();
+      });
+    });
+  }
+
+  function addDo() {
+    var input = document.getElementById('doInput');
+    var val = input.value.trim();
+    if (!val) return;
+    data.communicationDos = data.communicationDos || [];
+    data.communicationDos.push(val);
+    input.value = '';
+    renderDos();
+  }
+
+  document.getElementById('addDoBtn').addEventListener('click', addDo);
+  document.getElementById('doInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addDo();
+  });
+
+  function renderDonts() {
+    var container = document.getElementById('dontsList');
+    container.innerHTML = '';
+    (data.communicationDonts || []).forEach(function(d, i) {
+      var item = document.createElement('div');
+      item.className = 'do-dont-item flex items-center gap-2.5 bg-danger/5 rounded-xl px-4 py-3';
+      item.innerHTML = '<span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0">cancel</span>' +
+        '<span class="flex-1 font-body-md text-body-md text-on-surface-variant">' + d + '</span>' +
+        '<button class="w-7 h-7 flex items-center justify-center rounded-full active:scale-90 transition-transform flex-shrink-0" data-idx="' + i + '" data-action="removeDont"><span class="material-symbols-outlined text-outline text-[16px]">close</span></button>';
+      container.appendChild(item);
+    });
+    container.querySelectorAll('button[data-action=removeDont]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        data.communicationDonts.splice(idx, 1);
+        renderDonts();
+      });
+    });
+  }
+
+  function addDont() {
+    var input = document.getElementById('dontInput');
+    var val = input.value.trim();
+    if (!val) return;
+    data.communicationDonts = data.communicationDonts || [];
+    data.communicationDonts.push(val);
+    input.value = '';
+    renderDonts();
+  }
+
+  document.getElementById('addDontBtn').addEventListener('click', addDont);
+  document.getElementById('dontInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addDont();
+  });
+
+  function collectFormData() {
+    data.name = document.getElementById('editName').value.trim();
+    data.age = parseInt(document.getElementById('editAge').value) || 0;
+    data.livingSituation = document.getElementById('editLiving').value.trim();
+    data.occupation = document.getElementById('editOccupation').value.trim();
+    data.aiPortrait = document.getElementById('editAiPortrait').value.trim();
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', function() {
+    collectFormData();
+    localStorage.setItem('anban_family_profile', JSON.stringify(data));
+    // Reset family init so it re-renders on next visit
+    SPA.initialized['family'] = false;
+    showToast('已保存');
+  });
+
+  // Close icon pickers on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.habit-icon-btn') && !e.target.closest('.icon-picker')) {
+      document.querySelectorAll('.icon-picker').forEach(function(p) { p.classList.add('hidden'); });
+    }
+  });
+
+  populateForm();
+}
+</script>
+</body>
+</html>
