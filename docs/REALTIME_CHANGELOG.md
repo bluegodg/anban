@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 方案 C 部署文档索引补充
+
+- 文件：`docs/README.md`
+- 内容：在编码工作副本文档索引中补充 `docs/deployment/README.md`，明确它是回答“当前阶段、仓库定位、设备到手怎么部署”的方案 C 入口。
+- 目的：让进入本仓的开发者先从部署入口理解两进程、可插拔和 PRD V0.1 基础闭环，避免直接跳进零散计划文档后误把 `anban-code` 当成 xiaozhi fork 或大产品后台。
+- 边界：仅调整文档索引；不修改后端、前端、部署脚本、环境变量契约或 xiaozhi 上游。
+- 验证：文档改动，无需运行代码测试；`git diff --check` 通过，仅有 Windows 工作区换行转换 warning。
+
 ### PRD #4 对话历史数字时间戳 RED 测试
 
 - 文件：`server/internal/xiaozhiclient/http_client_test.go`
