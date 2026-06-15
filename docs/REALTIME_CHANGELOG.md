@@ -12,6 +12,14 @@
 - 边界：只约束 vision 域采帧、presence 判定到 greeting 触发的共享时间预算；不改变默认 MCP 工具、presence 状态机、主动语音配额、greeting 业务逻辑或 xiaozhi 上游。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 均通过；RED 阶段运行 `go test -count=1 ./internal/domains/vision`，按预期失败于 greeting trigger context 没有 deadline。
 
+### PRD #7 视觉整链路 8 秒预算 GREEN 实现
+
+- 文件：`server/internal/domains/vision/service.go`
+- 内容：`CaptureAndObservePresence` 在入口创建共享 8 秒 context，并将同一 context 传给摄像头 MCP 调用和后续 presence 问候触发；已有更短的上游 deadline 继续优先。
+- 目的：让“采帧/视觉判定 -> 有人返回 -> 主动问候”共享 PRD #7 的 8 秒总预算，而不是两个阶段各自计时。
+- 边界：不改变 `Capture`/`ObservePresence` 公共契约、默认 `self.camera.take_photo`、presence 状态机、主动语音配额、greeting 文案或 xiaozhi manager 接口。
+- 验证：`go test -count=1 ./internal/domains/vision` 已从 RED 转 GREEN；`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过，Web smoke tests 78/78 全绿。
+
 ### PRD #6 提醒话术颗粒重复 RED 测试
 
 - 文件：`server/internal/domains/reminder/service_test.go`

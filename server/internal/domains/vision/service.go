@@ -59,7 +59,10 @@ func (s *Service) Capture(ctx context.Context, req CaptureRequest) (CaptureResul
 }
 
 func (s *Service) CaptureAndObservePresence(ctx context.Context, req CaptureRequest) (PresenceCheckResult, error) {
-	capture, err := s.Capture(ctx, req)
+	workflowCtx, cancel := withVisionMCPTimeout(ctx)
+	defer cancel()
+
+	capture, err := s.Capture(workflowCtx, req)
 	if err != nil {
 		return PresenceCheckResult{}, err
 	}
@@ -68,7 +71,7 @@ func (s *Service) CaptureAndObservePresence(ctx context.Context, req CaptureRequ
 	if err != nil {
 		return PresenceCheckResult{Capture: capture}, err
 	}
-	observation, err := s.ObservePresence(ctx, PresenceObservationRequest{
+	observation, err := s.ObservePresence(workflowCtx, PresenceObservationRequest{
 		DeviceID: capture.DeviceID,
 		Presence: presence,
 	})
