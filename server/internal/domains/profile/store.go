@@ -45,3 +45,11 @@ func (s *Store) Get(ctx context.Context, deviceID string) (Profile, error) {
 	}
 	return profile, nil
 }
+
+func (s *Store) ListDeviceIDs(ctx context.Context) ([]string, error) {
+	var deviceIDs []string
+	if err := s.db.WithContext(ctx).Model(&Profile{}).Order("updated_at desc").Pluck("device_id", &deviceIDs).Error; err != nil {
+		return nil, err
+	}
+	return deviceIDs, nil
+}

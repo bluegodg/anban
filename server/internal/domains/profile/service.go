@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -52,6 +53,10 @@ func (s *Service) Get(ctx context.Context, deviceID string) (Profile, error) {
 }
 
 func BuildPrompt(fields Fields) string {
+	return BuildPromptWithMemory(fields, nil)
+}
+
+func BuildPromptWithMemory(fields Fields, memoryFacts []string) string {
 	lines := []string{
 		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
 		"请优先使用下面的家庭画像理解老人，不要生硬复述画像内容，回答要自然、简短、关心当下。",
@@ -73,7 +78,35 @@ func BuildPrompt(fields Fields) string {
 	addLine("作息", fields.Schedule)
 	addLine("健康背景", fields.Health)
 	addLine("忌口和禁忌", strings.Join(fields.Taboos, "、"))
+	if facts := trimStrings(memoryFacts); len(facts) > 0 {
+		appendMemoryFact := func(value string) {
+			lines = appendPromptLine(lines, "近期记忆："+value)
+		}
+		for _, fact := range facts {
+			appendMemoryFact(fact)
+		}
+	}
 	return strings.Join(lines, "\n")
+}
+
+func (s *Service) SyncMemoryFacts(ctx context.Context, deviceID string, facts []string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return ErrInvalidInput
+	}
+
+	current, err := s.store.Get(ctx, deviceID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if errors.Is(err, ErrNotFound) {
+		current = Profile{DeviceID: deviceID}
+	}
+	current.Prompt = BuildPromptWithMemory(current.Fields, facts)
+	if err := s.store.Upsert(ctx, &current); err != nil {
+		return err
+	}
+	return s.xc.SetRolePrompt(ctx, deviceID, current.Prompt)
 }
 
 func appendPromptLine(lines []string, line string) []string {

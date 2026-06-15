@@ -3826,3 +3826,11 @@
 - 目的：把 PRD #5 从“手填画像注入”补到 route C 的对话记忆沉淀，同时保证缺 key 时仍保持只画像注入，不打真实网络。
 - 功能影响：暂无；当前生产代码还没有 `internal/llm`、`internal/memory`、配置字段和 `BuildPromptWithMemory`，测试应保持 RED。
 - 验证：`go test ./internal/config ./internal/domains/profile ./internal/memory` 按预期失败于 `Config.LLM`/`MemoryDistillCron` 未定义、`BuildPromptWithMemory` 未定义、`internal/llm` 包不存在。
+
+### 03:18 W1.3 记忆沉淀 GREEN 实现
+
+- 文件：`server/internal/config/config.go`、`server/internal/llm/*`、`server/internal/memory/*`、`server/internal/domains/profile/service.go`、`server/internal/domains/profile/store.go`、`server/cmd/anban/main.go`
+- 内容：新增可选 LLM env 配置和 Ark/OpenAI-compatible fact extractor；新增 memory fact 表、去重写入、历史拉取、LLM fake 抽取、prompt sync 编排；`profile.BuildPromptWithMemory` 将近期事实折进画像 prompt 并保持 1500 字符预算；`cmd/anban` 在 LLM 配置完整时注册周期沉淀 cron，缺 key 时记录降级并保持只画像注入。
+- 目的：落地 PRD #5 route C，使有 Ark key 的部署能从对话历史沉淀长期事实并在下次角色 prompt 中使用；无 key 的路演环境仍不阻塞画像保存与同步。
+- 边界：memory 只通过 `xiaozhiclient.GetHistory` 读取 xiaozhi 历史，并通过 profile 服务同步 prompt；不直接碰 xiaozhi HTTP、设备协议、留言配额、主动语音配额或保活问题；测试中的 LLM 使用 fake/httptest，不打真实网络。
+- 验证：`go test ./internal/llm ./internal/config ./internal/domains/profile ./internal/memory` 从 RED 变 GREEN；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 31/31。

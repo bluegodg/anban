@@ -13,6 +13,8 @@ import (
 	"github.com/bluegodg/anban/server/internal/domains/reminder"
 	"github.com/bluegodg/anban/server/internal/domains/status"
 	"github.com/bluegodg/anban/server/internal/domains/vision"
+	"github.com/bluegodg/anban/server/internal/llm"
+	"github.com/bluegodg/anban/server/internal/memory"
 	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
@@ -86,6 +88,45 @@ func main() {
 	}
 	profileService := profile.NewService(profileStore, xc)
 	profileHandler := profile.NewHandler(profileService)
+
+	memoryStore := memory.NewStore(st.DB)
+	if err := memoryStore.AutoMigrate(); err != nil {
+		log.Fatalf("memory 表迁移失败: %v", err)
+	}
+	var factExtractor llm.FactExtractor
+	if cfg.LLM.Enabled() {
+		factExtractor = llm.NewArkClient(llm.ArkConfig{
+			BaseURL: cfg.LLM.BaseURL,
+			APIKey:  cfg.LLM.APIKey,
+			Model:   cfg.LLM.Model,
+		})
+	} else {
+		log.Printf("memory distill disabled: ANBAN_LLM_BASE_URL/API_KEY/MODEL 未完整配置，保持只画像注入")
+	}
+	memoryService := memory.NewService(memoryStore, xc, factExtractor, profileService, memory.Options{})
+	if factExtractor != nil && cfg.MemoryDistillCron != "" {
+		if _, err := sch.RegisterCron(cfg.MemoryDistillCron, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			deviceIDs, err := profileStore.ListDeviceIDs(ctx)
+			if err != nil {
+				log.Printf("memory distill 获取设备列表失败: %v", err)
+				return
+			}
+			for _, deviceID := range deviceIDs {
+				result, err := memoryService.DistillDevice(ctx, deviceID)
+				if err != nil {
+					log.Printf("memory distill 失败 device=%s: %v", deviceID, err)
+					continue
+				}
+				if result.AddedFacts > 0 {
+					log.Printf("memory distill 完成 device=%s 新增事实=%d 总事实=%d", result.DeviceID, result.AddedFacts, result.TotalFacts)
+				}
+			}
+		}); err != nil {
+			log.Fatalf("memory distill 调度失败: %v", err)
+		}
+	}
 
 	visionService := vision.NewService(xc, greetingService)
 	visionHandler := vision.NewHandler(visionService)
