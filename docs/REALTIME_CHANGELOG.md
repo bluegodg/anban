@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #5 当前会话承接提示词 RED 测试
+
+- 文件：`server/internal/domains/profile/service_test.go`
+- 内容：新增 `TestBuildPromptGuidesCurrentConversationContinuity`，要求 `BuildPrompt` 明确包含“当前会话”“老人刚说过的事”“后续回答要自然承接”等指令。
+- 目的：对齐 PRD #5 “当前会话沉淀”的路演验收口径，在不新建记忆系统、不改 xiaozhi 上游的前提下，先让写入 xiaozhi agent 的 prompt 明确要求同一轮对话内自然承接老人刚说过的内容。
+- 边界：仅增强 profile prompt；不改变画像字段、1500 字符预算、`SetRolePrompt` 契约、对话历史接口或 xiaozhi 源码。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/profile`，按预期失败于缺少 `当前会话` 指令。
+
 ### PRD #3 留言下发 60 秒边界 RED 测试
 
 - 文件：`server/internal/domains/message/service_test.go`

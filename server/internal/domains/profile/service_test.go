@@ -159,6 +159,20 @@ func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
 	}
 }
 
+func TestBuildPromptGuidesCurrentConversationContinuity(t *testing.T) {
+	prompt := BuildPrompt(Fields{Nickname: "妈"})
+
+	for _, want := range []string{
+		"当前会话",
+		"老人刚说过的事",
+		"后续回答要自然承接",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want current conversation continuity guidance %q", prompt, want)
+		}
+	}
+}
+
 func TestBuildPromptGuardsDeviceSettingsUnlessElderAsks(t *testing.T) {
 	prompt := BuildPrompt(Fields{Nickname: "妈"})
 
