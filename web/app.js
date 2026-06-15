@@ -144,7 +144,7 @@ els.greetingButton.addEventListener('click', async () => {
     renderStatus(result.label, result.detail);
     showNotice(result.notice);
   } catch (error) {
-    handleApiError(error, '问候接口暂未接入');
+    handleApiError(error, '问候触发失败');
   }
 });
 

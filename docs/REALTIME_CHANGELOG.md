@@ -12,6 +12,14 @@
 - 边界：只约束子女端错误文案；不改变后端 greeting 域、主动语音配额、xiaozhi manager 调用或设备播报行为。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过；RED 阶段运行 `npm test --prefix web`，按预期失败于问候按钮仍使用“问候接口暂未接入”。
 
+### 子女端问候失败文案 GREEN 实现
+
+- 文件：`web/app.js`
+- 内容：问候按钮 catch 分支的 fallback 文案从“问候接口暂未接入”改为“问候触发失败”，保留后端返回具体错误优先展示的 `formatApiErrorNotice` 行为。
+- 目的：让 PRD #2 子女远程触发问候在真实接入后具备准确失败反馈，避免真机联调时把网络、访问码、后端或 manager 问题误判成接口尚未接入。
+- 边界：仅改子女端显示文案；不改变 `client().triggerGreeting` 请求、后端路由、主动语音配额、留言绕过配额规则或 xiaozhi 上游。
+- 验证：`npm test --prefix web` 已从 RED 变 GREEN；`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### 方案 C 当前执行说明文档
 
 - 文件：`docs/deployment/方案C当前执行说明.md`、`README.md`、`docs/README.md`、`docs/deployment/README.md`
