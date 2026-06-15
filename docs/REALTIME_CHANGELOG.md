@@ -12,6 +12,14 @@
 - 边界：仅调整 status 域的北向展示模型；不改变 `xiaozhiclient.GetHistory` 原始契约、不写入 anban DB、不影响留言/问候/提醒/视觉播报。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 全绿；RED 阶段运行 `go test -count=1 ./internal/domains/status`，按预期失败于空正文被当作最近互动和对话记录返回。
 
+### PRD #4 对话记录空正文过滤 GREEN 实现
+
+- 文件：`server/internal/domains/status/service.go`
+- 内容：`Service.GetHistory` 返回子女端对话记录时修剪正文并跳过空正文；`latestHistoryAt` 计算最近互动时同样忽略空正文的 user/assistant 历史项。
+- 目的：保持 PRD #4 对话记录和最近互动时间只反映真实老人/安伴对话内容，避免 manager 空消息影响路演页可读性。
+- 边界：过滤只发生在 status 北向展示模型；`xiaozhiclient.GetHistory` 继续保留 manager 原始历史语义，提醒语音确认等其他使用方不受影响。
+- 验证：`go test -count=1 ./internal/domains/status`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #4 设备状态数字时间戳 RED 测试
 
 - 文件：`server/internal/xiaozhiclient/http_client_test.go`
