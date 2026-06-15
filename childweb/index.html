@@ -271,8 +271,8 @@
               <span class="material-symbols-outlined" id="loginBtnIcon">arrow_forward</span>
             </button>
             <div class="flex justify-between items-center pt-1 px-1">
-              <button class="text-on-secondary-fixed-variant/70 font-label-md text-label-md active:opacity-60">忘记访问码？</button>
-              <button class="text-primary font-label-md text-label-md active:opacity-60">新设备激活</button>
+              <button class="text-on-secondary-fixed-variant/70 font-label-md text-label-md active:opacity-60" onclick="notImplemented('忘记访问码')">忘记访问码？</button>
+              <button class="text-primary font-label-md text-label-md active:opacity-60" onclick="notImplemented('新设备激活')">新设备激活</button>
             </div>
           </div>
           <div class="mt-auto pb-8 pt-section-gap text-center">
@@ -282,10 +282,10 @@
               <span class="w-8 h-[1px] bg-divider-warm"></span>
             </div>
             <div class="mt-4 flex justify-center gap-6">
-              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#">
+              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#" onclick="event.preventDefault();notImplemented('使用帮助')">
                 <span class="material-symbols-outlined text-[20px]">help</span>
               </a>
-              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#">
+              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#" onclick="event.preventDefault();notImplemented('联系客服')">
                 <span class="material-symbols-outlined text-[20px]">chat_bubble</span>
               </a>
             </div>
@@ -358,22 +358,22 @@
           <section class="mb-4">
             <h3 class="font-title-lg text-title-lg text-on-surface mb-4">环境状态</h3>
             <div class="grid grid-cols-2 gap-card-gap">
-              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3">
+              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3 cursor-pointer" onclick="notImplemented('环境状态')">
                 <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                   <span class="material-symbols-outlined text-blue-500">thermostat</span>
                 </div>
                 <div>
                   <p class="font-label-sm text-label-sm text-text-secondary">温度</p>
-                  <p class="font-title-lg text-title-lg text-on-surface" id="envTemp">24°C</p>
+                  <p class="font-title-lg text-title-lg text-on-surface" id="envTemp">未实现</p>
                 </div>
               </div>
-              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3">
+              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3 cursor-pointer" onclick="notImplemented('环境状态')">
                 <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
                   <span class="material-symbols-outlined text-orange-400">humidity_mid</span>
                 </div>
                 <div>
                   <p class="font-label-sm text-label-sm text-text-secondary">湿度</p>
-                  <p class="font-title-lg text-title-lg text-on-surface" id="envHumidity">45%</p>
+                  <p class="font-title-lg text-title-lg text-on-surface" id="envHumidity">未实现</p>
                 </div>
               </div>
             </div>

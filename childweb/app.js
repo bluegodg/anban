@@ -442,18 +442,6 @@ function initHome() {
       showToast(error.message || '留言发送失败');
     }
   };
-  window.updateRecentMessages = function(text, time) {
-    var msgItems = document.querySelectorAll('#recentMsgList > div');
-    var target = msgItems[1];
-    if (target) {
-      var titleEl = target.querySelector('.font-label-md');
-      var timeEl = target.querySelector('.font-body-md');
-      if (titleEl) titleEl.textContent = text;
-      if (timeEl) timeEl.textContent = '刚刚 · ' + (text === '❤️' ? '❤️报平安' : '文本转语音');
-    }
-  };
-
-
   // Reminder time picker (in bottom sheet)
   var reminderHour = 8;
   var reminderMinute = 0;
@@ -534,105 +522,7 @@ function initHome() {
   };
   buildReminderTimePicker();
 
-  // Weather fetch
-  (function fetchWeather() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      function(pos) {
-        var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pos.coords.latitude + '&longitude=' + pos.coords.longitude + '&current=temperature_2m,relative_humidity_2m';
-        fetch(url)
-          .then(function(r) { return r.json(); })
-          .then(function(d) {
-            if (d && d.current) {
-              var realTemp = Math.round(d.current.temperature_2m);
-              document.getElementById('envTemp').textContent = realTemp + '°C';
-              document.getElementById('envHumidity').textContent = Math.round(d.current.relative_humidity_2m) + '%';
-            }
-          })
-          .catch(function() {});
-      },
-      function() {}
-    );
-  })();
 }
-
-function initHistoryMock() {
-    var list = document.getElementById('historyList');
-    var empty = document.getElementById('historyEmpty');
-    if (!list || !empty) return;
-    list.innerHTML = '';
-
-    localStorage.removeItem('anban_reminder_history');
-
-    // Demo data - important reminders (e.g. medication) NEVER have "忙碌未提醒" status
-    // because important reminders bypass busy check and always get announced
-    var records = [
-        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月15日', status: '已提醒', important: true },
-        { text: '喝水', time: '10:00', freq: '每天', date: '6月15日', status: '已提醒' },
-        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月15日', status: '已提醒' },
-        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月14日', status: '已提醒', important: true },
-        { text: '喝水', time: '10:00', freq: '每天', date: '6月14日', status: '已提醒' },
-        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月14日', status: '忙碌未提醒' },
-        { text: '睡觉', time: '21:30', freq: '每天', date: '6月14日', status: '已提醒' },
-        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月13日', status: '已提醒', important: true },
-        { text: '喝水', time: '10:00', freq: '每天', date: '6月13日', status: '忙碌未提醒' },
-        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月13日', status: '已提醒' },
-        { text: '去社区医院体检', time: '09:00', freq: '6月20日', date: '6月13日', status: '已提醒' },
-        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月12日', status: '已提醒', important: true },
-        { text: '喝水', time: '10:00', freq: '每天', date: '6月12日', status: '已提醒' },
-        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月12日', status: '忙碌未提醒' },
-        { text: '睡觉', time: '21:30', freq: '每天', date: '6月12日', status: '已提醒' },
-        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月11日', status: '已提醒', important: true },
-        { text: '喝水', time: '10:00', freq: '每天', date: '6月11日', status: '忙碌未提醒' },
-        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月11日', status: '已提醒' },
-        { text: '睡觉', time: '21:30', freq: '每天', date: '6月11日', status: '已提醒' },
-        { text: '吃降压药', time: '08:30', freq: '每天', date: '6月10日', status: '已提醒', important: true },
-        { text: '喝水', time: '10:00', freq: '每天', date: '6月10日', status: '忙碌未提醒' },
-        { text: '吃午饭', time: '12:00', freq: '每天', date: '6月10日', status: '已提醒' },
-        { text: '去社区医院体检', time: '09:00', freq: '6月10日', date: '6月10日', status: '已提醒' },
-        { text: '睡觉', time: '21:30', freq: '每天', date: '6月10日', status: '已提醒' }
-    ];
-
-    if (records.length === 0) { empty.style.display = ''; return; }
-    empty.style.display = 'none';
-
-    // Group by date
-    var groups = {};
-    for (var i = 0; i < records.length; i++) {
-      var r = records[i];
-      var dateKey = r.date || '未知日期';
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(r);
-    }
-
-    var dateKeys = Object.keys(groups);
-    for (var d = 0; d < dateKeys.length; d++) {
-      var dateLabel = dateKeys[d];
-      var items = groups[dateLabel];
-
-      var header = document.createElement('div');
-      header.className = 'font-label-md text-label-md text-text-secondary mb-2 mt-6';
-      if (d === 0) header.classList.remove('mt-6');
-      header.textContent = dateLabel;
-      list.appendChild(header);
-
-      for (var j = 0; j < items.length; j++) {
-        var r = items[j];
-        var isBusy = r.status === '忙碌未提醒';
-        var isImportant = r.important === true;
-        var div = document.createElement('div');
-        div.className = 'flex items-center gap-4 py-3 ' + (j < items.length - 1 ? 'border-b border-divider-warm/30' : '');
-        var iconColor = isBusy ? 'text-warning' : 'text-success';
-        var icon = isBusy ? 'event_busy' : 'check_circle';
-        var statusColor = isBusy ? 'text-warning' : 'text-success';
-        var statusText = isBusy ? '忙碌未提醒' : '已提醒';
-        var importantTag = isImportant ? ' <span class="bg-warning/20 text-warning text-[9px] px-1.5 py-0.5 rounded-full font-bold">重要</span>' : '';
-        var nameHtml = '<span class="font-body-md text-body-md text-on-surface">' + r.text + '</span>' + importantTag;
-        div.innerHTML = '<span class="material-symbols-outlined ' + iconColor + ' text-[20px]" style="font-variation-settings:\'FILL\' 1">' + icon + '</span><div class="flex-1 flex items-center gap-2">' + nameHtml + '</div><div class="flex items-center gap-3"><span class="font-label-sm text-label-sm text-on-surface-variant">' + r.time + '</span><span class="font-label-sm text-label-sm ' + statusColor + '">' + statusText + '</span></div>';
-        list.appendChild(div);
-      }
-    }
-  };
 
 window.initHistory = async function() {
   var list = document.getElementById('historyList');
@@ -729,6 +619,7 @@ window.initDetail = function() {
 };
 
 window.editDetailTime = function() {
+  return notImplemented('编辑提醒');
   var timeEl = document.getElementById('detailTime');
   if (!timeEl) return;
   var timeText = timeEl.textContent.trim();
@@ -1194,28 +1085,6 @@ function initWarn() {
 
   window.updateCount = function() {
     // count display removed, kept for compat
-  };
-
-  window.moveToHistory = function(el) {
-    var card = el.closest('.bg-surface-white');
-    if (!card) return;
-    var title = card.querySelector('h4');
-    var timeEl = card.querySelector('p.font-bold.text-title-lg');
-    var freq = card.querySelector('span.bg-primary-container');
-    var histItem = {
-      text: title ? title.textContent : '',
-      time: timeEl ? timeEl.textContent : '',
-      freq: freq ? freq.textContent : '',
-      pausedAt: new Date().toLocaleDateString('zh-CN')
-    };
-    var stored = localStorage.getItem('anban_reminder_history');
-    var history = stored ? JSON.parse(stored) : [];
-    history.unshift(histItem);
-    localStorage.setItem('anban_reminder_history', JSON.stringify(history));
-    card.style.transition = 'all 0.3s ease';
-    card.style.opacity = '0';
-    card.style.transform = 'translateX(60px)';
-    setTimeout(function() { card.remove(); }, 300);
   };
 
   window.handleToggle = function(el) {

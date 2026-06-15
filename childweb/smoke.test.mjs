@@ -255,3 +255,24 @@ test('P7 settings can update backend URL and device id', () => {
   assert.match(indexHTML, /id="saveConnectionBtn"/);
   assert.match(appJS, /updateAnbanConfig\(\{ baseURL: baseURL, deviceId: deviceId \}\)/);
 });
+
+test('P8 removes message and reminder mock storage paths', () => {
+  assert.doesNotMatch(appJS, /anban_messages|anban_reminders|anban_reminder_history/);
+  assert.doesNotMatch(appJS, /initHistoryMock|fetchWeather|updateRecentMessages|moveToHistory/);
+});
+
+test('P8 routes every visible unsupported entry through notImplemented', () => {
+  for (const feature of ['忘记访问码', '新设备激活', '使用帮助', '联系客服', '环境状态']) {
+    assert.match(indexHTML, new RegExp(`notImplemented\\('${feature}'\\)`));
+  }
+  assert.match(appJS, /window\.editDetailTime = function\(\) \{\s*return notImplemented\('编辑提醒'\);/);
+});
+
+test('P8 documents startup, deployment, and supported scope', async () => {
+  const readme = await readFile(new URL('./README.md', import.meta.url), 'utf8');
+  assert.match(readme, /npm start/);
+  assert.match(readme, /http:\/\/127\.0\.0\.1:3001/);
+  assert.match(readme, /HTTPS/);
+  assert.match(readme, /已实现/);
+  assert.match(readme, /未实现/);
+});

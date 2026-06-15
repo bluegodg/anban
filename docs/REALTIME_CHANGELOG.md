@@ -3775,3 +3775,17 @@
 - 内容：移除固定手机模型尺寸与阴影，改为 `100vw/100dvh` 全屏；新增 PWA manifest、静态壳缓存、API 网络直连、192/512 PNG 图标；设置页可验证并保存后端地址和 deviceId。
 - 功能：支持手机添加到主屏并 standalone 运行；静态资源可离线打开，所有 `/api/*` 响应不缓存。
 - 验证：`npm test --prefix childweb` 23 个测试全绿；Playwright 在 390x844 视口验证登录与设置页全屏显示，控制台 0 error / 0 warning。
+
+### 00:19 childweb P8 收尾 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：要求移除消息/提醒 localStorage mock 和硬编码历史，所有可见未实现入口统一调用 `notImplemented`，并提供启动、部署、已实现/未实现范围 README。
+- 目的：避免演示时出现“看起来能点、实际只改本地假数据”的残留入口。
+- 功能影响：暂无；当前仍有历史/天气 mock 和未绑定按钮，测试应保持 RED。
+
+### 23:31 childweb P8 收尾 GREEN 实现
+
+- 文件：`childweb/app.js`、`childweb/index.html`、`childweb/package.json`、`childweb/README.md`、`childweb/smoke.test.mjs`
+- 内容：移除最近留言、提醒历史、天气抓取和暂停迁移里的本地 mock 路径；把忘记访问码、新设备激活、帮助、客服、环境状态和编辑提醒统一接到 `notImplemented`；补充 childweb 启动、部署、已实现与未实现范围说明。
+- 功能：P8 后页面不再保留会伪造业务状态的 localStorage demo 入口，缺后端能力统一提示“该功能未实现”。
+- 验证：先运行 `npm test --prefix childweb` 确认 P8 mock 清理测试 RED（25/26 pass、1 fail），清理后 `node --check childweb/app.js` 通过，`npm test --prefix childweb` 26 个测试全绿。
