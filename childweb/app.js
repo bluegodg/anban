@@ -1,6 +1,11 @@
 import { ApiError, createAnbanClient } from './api/client.js';
 import { loadConfig, saveConfig } from './config.js';
-import { formatLoginError } from './integration-core.js';
+import {
+  buildHomeStatus,
+  formatLoginError,
+  formatRelativeTime,
+  normalizeHistoryMessages,
+} from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
 
 var anbanConfig = loadConfig();
@@ -138,19 +143,7 @@ function showSection(name) {
     window[initFn]();
   }
 
-  // Refresh home title when navigating back
-  if (name === 'home') {
-    var stored = localStorage.getItem('anban_family_profile');
-    var profile = stored ? JSON.parse(stored) : null;
-    var name2 = (profile && profile.name) || '家人';
-    var hour = new Date().getHours();
-    var greeting = hour < 10 ? '今天状态不错' : hour < 14 ? '今天状态不错' : hour < 18 ? '午后状态很好' : '晚上一切安好';
-    var titleEl = document.getElementById('statusTitle');
-    if (titleEl) titleEl.textContent = name2 + '今天状态很好';
-    var descEl = document.getElementById('statusDesc');
-    var timeWord = hour < 10 ? '早上' : hour < 14 ? '上午' : hour < 18 ? '下午' : '晚上';
-    if (descEl) descEl.textContent = timeWord + '好，' + greeting + '。';
-  }
+  if (name === 'home' && typeof window.refreshHome === 'function') window.refreshHome();
 
   // Update nav active states
   updateNavActive(name);
@@ -308,6 +301,75 @@ function initLogin() {
 // initHome
 // ============================
 function initHome() {
+  function renderHomeStatus(payload) {
+    var view = buildHomeStatus(payload);
+    var badge = document.getElementById('deviceStatusBadge');
+    var dot = document.getElementById('deviceStatusDot');
+    var label = document.getElementById('deviceStatusLabel');
+    var title = document.getElementById('statusTitle');
+    var desc = document.getElementById('statusDesc');
+    var updated = document.getElementById('statusTime');
+
+    if (badge) badge.className = 'inline-flex items-center px-3 py-1 rounded-full font-label-sm text-label-sm ' + (view.online ? 'bg-success/10 text-success' : 'bg-on-surface-variant/10 text-on-surface-variant');
+    if (dot) dot.className = 'w-2 h-2 rounded-full mr-2 ' + (view.online ? 'bg-success animate-pulse' : 'bg-on-surface-variant/50');
+    if (label) label.textContent = view.label;
+    if (title) title.textContent = view.title;
+    if (desc) desc.textContent = view.description;
+    if (updated) updated.textContent = view.updatedAt;
+  }
+
+  function renderRecentHistory(payload) {
+    var list = document.getElementById('recentMsgList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    var messages = normalizeHistoryMessages(payload, 2);
+    if (!messages.length) {
+      var empty = document.createElement('div');
+      empty.className = 'bg-surface-white p-5 rounded-2xl soft-shadow text-center font-body-md text-body-md text-text-secondary';
+      empty.textContent = '暂无最近对话';
+      list.appendChild(empty);
+    }
+
+    messages.forEach(function(item) {
+      var card = document.createElement('div');
+      card.className = 'bg-surface-white p-5 rounded-2xl soft-shadow flex gap-4 items-center';
+      card.innerHTML = '<div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-secondary-container"></span></div><div class="flex-grow min-w-0"><div class="flex justify-between items-start gap-3 mb-1"><span class="font-label-md text-label-md text-on-surface truncate"></span><span class="px-2 py-0.5 bg-primary-container/10 text-primary rounded-md font-label-sm text-label-sm flex-shrink-0"></span></div><p class="font-body-md text-body-md text-text-secondary line-clamp-2"></p></div>';
+      card.querySelector('.material-symbols-outlined').textContent = item.role === 'user' ? 'person' : 'spatial_audio';
+      card.querySelector('.font-label-md').textContent = item.text;
+      card.querySelector('.font-label-sm').textContent = item.role === 'user' ? '家人' : '安伴';
+      card.querySelector('p').textContent = formatRelativeTime(item.at);
+      list.appendChild(card);
+    });
+
+    var add = document.createElement('div');
+    add.className = 'bg-surface-white/60 p-5 rounded-2xl border border-dashed border-divider-warm flex gap-4 items-center justify-center cursor-pointer active:bg-surface-white/80 transition-all';
+    add.innerHTML = '<span class="material-symbols-outlined text-outline">add_circle</span><span class="font-label-md text-label-md text-text-secondary">添加新留言</span>';
+    add.addEventListener('click', window.openQuickMsg);
+    list.appendChild(add);
+  }
+
+  window.refreshHome = async function() {
+    var results = await Promise.allSettled([
+      anbanClient.getStatus({ deviceId: anbanConfig.deviceId }),
+      anbanClient.getHistory({ deviceId: anbanConfig.deviceId, limit: 10 }),
+    ]);
+
+    if (results[0].status === 'fulfilled') {
+      renderHomeStatus(results[0].value);
+    } else {
+      renderHomeStatus({ online: false });
+      document.getElementById('statusTitle').textContent = '状态加载失败';
+      document.getElementById('statusDesc').textContent = '请检查安伴后端连接';
+    }
+
+    if (results[1].status === 'fulfilled') {
+      renderRecentHistory(results[1].value);
+    } else {
+      renderRecentHistory({ messages: [] });
+    }
+  };
+
   // Quick Msg Modal
   window.openQuickMsg = function() {
     document.getElementById('quickMsgOverlay').classList.add('open');
@@ -451,22 +513,6 @@ function initHome() {
 
   // Weather fetch
   (function fetchWeather() {
-    function updateStatusCard(temp) {
-      var stored = localStorage.getItem('anban_family_profile');
-      var profile = stored ? JSON.parse(stored) : null;
-      var name = (profile && profile.name) || '家人';
-      var hour = new Date().getHours();
-      var timeWord = hour < 10 ? '早上' : hour < 14 ? '上午' : hour < 18 ? '下午' : '晚上';
-      var greeting = hour < 10 ? '新的一天开始了' : hour < 14 ? '今天状态不错' : hour < 18 ? '午后状态很好' : '晚上一切安好';
-      var tempDesc = temp ? (temp > 30 ? '天气有点热，记得开空调' : temp < 10 ? '天气较冷，记得添衣服' : '温度舒适') : '';
-      var titleEl = document.getElementById('statusTitle');
-      var descEl = document.getElementById('statusDesc');
-      var timeEl = document.getElementById('statusTime');
-      if (titleEl) titleEl.textContent = name + '今天状态很好';
-      if (descEl) descEl.textContent = timeWord + '好，' + greeting + '。' + (tempDesc ? '室外' + temp + '°C，' + tempDesc + '。' : '');
-      if (timeEl) timeEl.textContent = hour + ':' + new Date().getMinutes().toString().padStart(2,'0') + ' 更新';
-    }
-    updateStatusCard(null);
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       function(pos) {
@@ -478,12 +524,11 @@ function initHome() {
               var realTemp = Math.round(d.current.temperature_2m);
               document.getElementById('envTemp').textContent = realTemp + '°C';
               document.getElementById('envHumidity').textContent = Math.round(d.current.relative_humidity_2m) + '%';
-              updateStatusCard(realTemp);
             }
           })
-          .catch(function() { updateStatusCard(null); });
+          .catch(function() {});
       },
-      function() { updateStatusCard(null); }
+      function() {}
     );
   })();
 }

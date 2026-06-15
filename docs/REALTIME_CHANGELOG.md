@@ -3705,3 +3705,17 @@
 - 内容：登录改为用候选 accessCode 调 `getStatus`，验证成功后重建共享 client、保存配置与 session；401、网络错误和后端错误分别提供明确提示；默认后端地址改为 `http://127.0.0.1:8090`。
 - 功能：错误访问码停留登录页并提示，正确访问码进入首页；不再存在 1.5 秒假验证。
 - 验证：`npm test --prefix childweb` 7 个测试全绿；Playwright 配合本地 API 桩验证 401 提示和成功登录路由。
+
+### 23:08 childweb P3 首页 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：要求首页状态由 `getStatus` 生成、最近对话由 `getHistory` 生成，并为相对时间、在线文案、历史记录过滤与倒序建立纯函数测试。
+- 目的：清除首页核心区域的演示硬编码，使登录后的第一屏反映真实设备状态。
+- 功能影响：暂无；对应 formatter 和真实请求尚未实现，测试应保持 RED。
+
+### 23:12 childweb P3 首页 GREEN 实现
+
+- 文件：`childweb/app.js`、`childweb/index.html`、`childweb/integration-core.js`、`childweb/smoke.test.mjs`
+- 内容：新增设备状态与相对时间 formatter；首页并行请求 `getStatus`/`getHistory`，渲染在线状态、最近互动和最近两条对话；后端文本通过 `textContent` 写入，避免注入。
+- 功能：登录后首页展示真实设备在线状态和真实对话历史；任一可选请求失败时独立降级，不阻塞另一块内容。
+- 验证：`npm test --prefix childweb` 10 个测试全绿；Playwright API 桩验证“设备在线 / 5分钟前 / 两条真实历史”，控制台 0 error / 0 warning。

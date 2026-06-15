@@ -82,3 +82,40 @@ test('P2 validates login through device status before persisting the session', a
   assert.match(appJS, /updateAnbanConfig\(\{ accessCode \}\)/);
   assert.match(appJS, /localStorage\.setItem\('anban_session', '1'\)/);
 });
+
+test('P3 derives a compact home status from backend device state', async () => {
+  const { buildHomeStatus, formatRelativeTime } = await import('./integration-core.js');
+  const now = new Date('2026-06-15T12:00:00.000Z');
+
+  assert.equal(formatRelativeTime('2026-06-15T11:55:00.000Z', now), '5分钟前');
+  assert.deepEqual(buildHomeStatus({
+    online: true,
+    lastInteractionAt: '2026-06-15T11:55:00.000Z',
+  }, now), {
+    online: true,
+    label: '在线',
+    title: '设备在线',
+    description: '最近互动 5分钟前',
+    updatedAt: '刚刚更新',
+  });
+  assert.equal(buildHomeStatus({ online: false }, now).title, '设备暂时离线');
+});
+
+test('P3 normalizes recent backend history newest first', async () => {
+  const { normalizeHistoryMessages } = await import('./integration-core.js');
+  const result = normalizeHistoryMessages({ messages: [
+    { role: 'user', text: '早上好', at: '2026-06-15T08:00:00Z' },
+    { role: 'assistant', text: '记得吃药', at: '2026-06-15T08:01:00Z' },
+    { role: 'assistant', text: '  ', at: '2026-06-15T08:02:00Z' },
+  ] }, 2);
+
+  assert.deepEqual(result.map((item) => [item.role, item.text]), [
+    ['assistant', '记得吃药'],
+    ['user', '早上好'],
+  ]);
+});
+
+test('P3 home loads status and history through the shared client', () => {
+  assert.match(appJS, /anbanClient\.getStatus\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanClient\.getHistory\(\{ deviceId: anbanConfig\.deviceId, limit: 10 \}\)/);
+});
