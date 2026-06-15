@@ -50,9 +50,9 @@ type managerDevicePayload struct {
 	AgentID           json.RawMessage `json:"agent_id"`
 	Online            *bool           `json:"online"`
 	Status            string          `json:"status"`
-	LastActiveAt      string          `json:"last_active_at"`
-	LastSeenAt        string          `json:"last_seen_at"`
-	LastInteractionAt string          `json:"last_interaction_at"`
+	LastActiveAt      json.RawMessage `json:"last_active_at"`
+	LastSeenAt        json.RawMessage `json:"last_seen_at"`
+	LastInteractionAt json.RawMessage `json:"last_interaction_at"`
 }
 
 type historyMessagePayload struct {
@@ -216,7 +216,7 @@ func (d managerDevicePayload) matches(deviceID string) bool {
 }
 
 func (d managerDevicePayload) toDeviceStatus(fallbackDeviceID string) (DeviceStatus, error) {
-	lastActive, err := parseOptionalTime(firstNonEmpty(d.LastActiveAt, d.LastSeenAt, d.LastInteractionAt))
+	lastActive, err := parseOptionalRawTime(d.LastActiveAt, d.LastSeenAt, d.LastInteractionAt)
 	if err != nil {
 		return DeviceStatus{}, err
 	}

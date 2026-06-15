@@ -12,6 +12,14 @@
 - 边界：仅约束 `xiaozhiclient.GetDeviceStatus` 的时间解析；不改变 GetDeviceStatus 契约、status/childapi/web 响应结构、xiaozhi 上游或任何设备播报行为。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 全绿；RED 阶段运行 `go test -count=1 ./internal/xiaozhiclient`，按预期失败于数字型 `last_active_at` 无法解析，错误为 `json: cannot unmarshal array into Go value of type map[string]json.RawMessage`。
 
+### PRD #4 设备状态数字时间戳 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：manager 设备响应的 `last_active_at`、`last_seen_at`、`last_interaction_at` 改为先接收原始 JSON，再复用通用时间解析，兼容字符串时间与数字 Unix 时间戳。
+- 目的：让 PRD #4 设备在线、最近互动和离线兜底链路在 manager 返回数字时间戳时仍可工作。
+- 边界：不改变 `xiaozhiclient.GetDeviceStatus` 方法签名、请求路径、返回结构、status/childapi/web 契约或 xiaozhi 上游。
+- 验证：`go test -count=1 ./internal/xiaozhiclient`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过；首次 Web 测试因系统盘 npm cache 写入 ENOSPC 失败，改用 D 盘临时 npm cache 后同一测试命令 77/77 通过。
+
 ### 方案 C 部署文档索引补充
 
 - 文件：`docs/README.md`
