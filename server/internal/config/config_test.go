@@ -41,6 +41,36 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	if !reflect.DeepEqual(c.AllowedOrigins, wantOrigins) {
 		t.Fatalf("AllowedOrigins = %#v, want %#v", c.AllowedOrigins, wantOrigins)
 	}
+	if c.LLM.Enabled() {
+		t.Fatal("LLM.Enabled() = true with no ANBAN_LLM_* env; want profile-only fallback")
+	}
+}
+
+func TestLoadParsesOptionalLLMConfig(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+	t.Setenv("ANBAN_LLM_BASE_URL", " https://ark.cn-beijing.volces.com/api/v3 ")
+	t.Setenv("ANBAN_LLM_API_KEY", " ark_key ")
+	t.Setenv("ANBAN_LLM_MODEL", " doubao-seed ")
+	t.Setenv("ANBAN_MEMORY_DISTILL_CRON", "*/30 * * * *")
+
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !c.LLM.Enabled() {
+		t.Fatal("LLM.Enabled() = false, want true when base URL, key and model are present")
+	}
+	if c.LLM.BaseURL != "https://ark.cn-beijing.volces.com/api/v3" {
+		t.Fatalf("LLM.BaseURL = %q, want trimmed Ark base URL", c.LLM.BaseURL)
+	}
+	if c.LLM.APIKey != "ark_key" || c.LLM.Model != "doubao-seed" {
+		t.Fatalf("LLM config = %+v, want trimmed key/model", c.LLM)
+	}
+	if c.MemoryDistillCron != "*/30 * * * *" {
+		t.Fatalf("MemoryDistillCron = %q, want env value", c.MemoryDistillCron)
+	}
 }
 
 func TestLoadParsesAllowedOrigins(t *testing.T) {

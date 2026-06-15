@@ -138,6 +138,29 @@ func TestBuildPromptKeepsPromptWithinPRDBudget(t *testing.T) {
 	}
 }
 
+func TestBuildPromptWithMemoryFactsKeepsPromptWithinPRDBudget(t *testing.T) {
+	longFact := strings.Repeat("最近午饭后会在阳台晒太阳，", 120)
+
+	prompt := BuildPromptWithMemory(Fields{
+		Name:     "王秀英",
+		Nickname: "妈",
+		Hobbies:  []string{"豫剧"},
+	}, []string{
+		"老人最近喜欢早餐喝豆浆。",
+		"老人说腰酸时想先坐一会儿再散步。",
+		longFact,
+	})
+
+	if got := len([]rune(prompt)); got > 1500 {
+		t.Fatalf("prompt length = %d runes, want <= 1500", got)
+	}
+	for _, want := range []string{"近期记忆", "早餐喝豆浆", "腰酸时想先坐一会儿", "王秀英"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want contains memory/profile fact %q", prompt, want)
+		}
+	}
+}
+
 func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
 	prompt := BuildPrompt(Fields{
 		Name:          "王秀英",

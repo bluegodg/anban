@@ -3818,3 +3818,11 @@
 - 目的：把 PRD #6 从“一次性可用”补到重复提醒和重要标记，同时不破坏提醒历史、未应答/确认状态机和已有 childapi 契约。
 - 边界：重要提醒只改变标记与播报文案，不绕过 #2/#6/#7 共享的 10 分钟 `ProactiveVoiceGate`；留言不限流逻辑未改；暂停/编辑提醒仍保持“该功能未实现”占位。
 - 验证：`go test ./internal/domains/reminder` 从 RED 变 GREEN；`node --check childweb/app.js` 通过；`npm test --prefix childweb` 31/31；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 31/31。
+
+### 03:05 W1.3 记忆沉淀 RED 测试
+
+- 文件：`server/internal/config/config_test.go`、`server/internal/domains/profile/service_test.go`、`server/internal/memory/service_test.go`
+- 内容：要求配置层解析可选 `ANBAN_LLM_BASE_URL/API_KEY/MODEL` 和 `ANBAN_MEMORY_DISTILL_CRON`，缺省时 `LLM.Enabled()` 为 false；要求 `profile.BuildPromptWithMemory` 把沉淀事实折进 prompt 且仍不超过 1500 字符；要求 memory 服务从 `GetHistory` 取对话、经 LLM fake 抽事实、去重限量、持久化并触发 prompt sync，LLM 缺省时优雅降级且不读历史。
+- 目的：把 PRD #5 从“手填画像注入”补到 route C 的对话记忆沉淀，同时保证缺 key 时仍保持只画像注入，不打真实网络。
+- 功能影响：暂无；当前生产代码还没有 `internal/llm`、`internal/memory`、配置字段和 `BuildPromptWithMemory`，测试应保持 RED。
+- 验证：`go test ./internal/config ./internal/domains/profile ./internal/memory` 按预期失败于 `Config.LLM`/`MemoryDistillCron` 未定义、`BuildPromptWithMemory` 未定义、`internal/llm` 包不存在。
