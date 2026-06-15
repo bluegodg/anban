@@ -37,8 +37,8 @@ func NewRouter(d Deps) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// 子女端 API：全部走访问码
-	api := r.Group("/api", RequireAccessCode(d.AccessCode))
+	// 子女端 API：全部走访问码，并禁止浏览器缓存状态类响应。
+	api := r.Group("/api", NoStoreAPIResponses(), RequireAccessCode(d.AccessCode))
 
 	// —— 各业务域路由占位（域 follow-on 计划逐个替换为真 handler）——
 	// 返回 501，让前端先对着 URL 形状开发。
@@ -89,6 +89,15 @@ func NewRouter(d Deps) *gin.Engine {
 	}
 
 	return r
+}
+
+func NoStoreAPIResponses() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		c.Next()
+	}
 }
 
 func AllowCORS(allowedOrigins []string) gin.HandlerFunc {

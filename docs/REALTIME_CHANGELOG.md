@@ -12,6 +12,14 @@
 - 边界：仅约束 childapi HTTP 响应头；不改变访问码、CORS、业务域路由、status 数据模型或 xiaozhi manager 契约。
 - 验证：RED 阶段运行 `go test -count=1 ./internal/childapi`，按预期失败于 `Cache-Control = ""`。
 
+### PRD #4 子女端 API 防缓存 GREEN 实现
+
+- 文件：`server/internal/childapi/server.go`
+- 内容：`/api` 路由组新增 `NoStoreAPIResponses` middleware，为子女端 API 响应写入 `Cache-Control: no-store`、`Pragma: no-cache`、`Expires: 0`。
+- 目的：降低浏览器缓存导致的多端状态不一致风险，让设备在线、最近互动、留言/提醒/画像和对话记录刷新都以最新后端响应为准。
+- 边界：不改变访问码、CORS、各业务域 handler、响应 body、轮询频率或 xiaozhi manager 契约。
+- 验证：`go test -count=1 ./internal/childapi`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### 方案 C 部署入口与阶段对齐 README
 
 - 文件：`docs/deployment/README.md`
