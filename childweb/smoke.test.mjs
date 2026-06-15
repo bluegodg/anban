@@ -119,3 +119,33 @@ test('P3 home loads status and history through the shared client', () => {
   assert.match(appJS, /anbanClient\.getStatus\(\{ deviceId: anbanConfig\.deviceId \}\)/);
   assert.match(appJS, /anbanClient\.getHistory\(\{ deviceId: anbanConfig\.deviceId, limit: 10 \}\)/);
 });
+
+test('P4 merges backend conversation history and child messages into bubbles', async () => {
+  const { buildConversationBubbles } = await import('./integration-core.js');
+  const bubbles = buildConversationBubbles({
+    history: { messages: [
+      { role: 'user', text: '我很好', at: '2026-06-15T08:00:00Z' },
+      { role: 'assistant', text: '那就好', at: '2026-06-15T08:01:00Z' },
+    ] },
+    messages: { messages: [
+      { messageId: 'm1', text: '记得喝水', status: 'played', queuedAt: '2026-06-15T08:02:00Z' },
+    ] },
+  });
+
+  assert.deepEqual(bubbles.map((item) => [item.side, item.text, item.status]), [
+    ['left', '我很好', ''],
+    ['left', '那就好', ''],
+    ['right', '记得喝水', '已播报'],
+  ]);
+});
+
+test('P4 loads and sends messages through the shared client', () => {
+  assert.match(appJS, /anbanClient\.listMessages\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanClient\.getHistory\(\{ deviceId: anbanConfig\.deviceId, limit: 100 \}\)/);
+  assert.match(appJS, /anbanClient\.sendMessage\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*fromName: '家人',[\s\S]*text:/);
+});
+
+test('P4 unsupported message attachments use the unified notice', () => {
+  assert.match(indexHTML, /onclick="notImplemented\('图片留言'\)"/);
+  assert.match(indexHTML, /onclick="notImplemented\('语音留言'\)"/);
+});

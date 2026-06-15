@@ -1,6 +1,7 @@
 import { ApiError, createAnbanClient } from './api/client.js';
 import { loadConfig, saveConfig } from './config.js';
 import {
+  buildConversationBubbles,
   buildHomeStatus,
   formatLoginError,
   formatRelativeTime,
@@ -27,6 +28,14 @@ function updateAnbanConfig(patch) {
 
 function notImplemented(featureName) {
   return notifyNotImplemented(featureName, showToast);
+}
+
+function sendChildMessage(text) {
+  return anbanClient.sendMessage({
+    deviceId: anbanConfig.deviceId,
+    fromName: '家人',
+    text: text,
+  });
 }
 
 // ============================
@@ -144,6 +153,7 @@ function showSection(name) {
   }
 
   if (name === 'home' && typeof window.refreshHome === 'function') window.refreshHome();
+  if (name === 'message' && typeof window.refreshMessages === 'function') window.refreshMessages();
 
   // Update nav active states
   updateNavActive(name);
@@ -380,19 +390,19 @@ function initHome() {
     document.getElementById('quickMsgOverlay').classList.remove('open');
     document.getElementById('quickMsgCard').classList.remove('open');
   };
-  window.sendQuickMsg = function() {
+  window.sendQuickMsg = async function() {
     var input = document.getElementById('quickMsgInput');
     var text = input.value.trim();
     if (!text) return;
-    var now = new Date();
-    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    var stored = localStorage.getItem('anban_messages');
-    var messages = stored ? JSON.parse(stored) : [];
-    messages.unshift({ text: text, time: time });
-    localStorage.setItem('anban_messages', JSON.stringify(messages));
-    updateRecentMessages(text, time);
-    input.value = '';
-    closeQuickMsg();
+    try {
+      await sendChildMessage(text);
+      input.value = '';
+      closeQuickMsg();
+      showToast('留言已提交');
+      window.refreshHome();
+    } catch (error) {
+      showToast(error.message || '留言发送失败');
+    }
   };
   document.getElementById('quickMsgSend').addEventListener('click', window.sendQuickMsg);
   document.getElementById('quickMsgInput').addEventListener('keydown', function(e) {
@@ -413,19 +423,19 @@ function initHome() {
     document.getElementById('sheetInput').value = text;
     document.getElementById('sheetInput').focus();
   };
-  window.sendFromSheet = function() {
+  window.sendFromSheet = async function() {
     var input = document.getElementById('sheetInput');
     var text = input.value.trim();
     if (!text) return;
-    var stored = localStorage.getItem('anban_messages');
-    var messages = stored ? JSON.parse(stored) : [];
-    var now = new Date();
-    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    messages.push({ text: text, time: time });
-    localStorage.setItem('anban_messages', JSON.stringify(messages));
-    input.value = '';
-    closeSheet();
-    updateRecentMessages(text, time);
+    try {
+      await sendChildMessage(text);
+      input.value = '';
+      closeSheet();
+      showToast('留言已提交');
+      window.refreshHome();
+    } catch (error) {
+      showToast(error.message || '留言发送失败');
+    }
   };
   window.updateRecentMessages = function(text, time) {
     var msgItems = document.querySelectorAll('#recentMsgList > div');
@@ -794,47 +804,71 @@ window.doDeleteReminder = function() {
 // initMessage
 // ============================
 function initMessage() {
-  function loadMessages() {
-    var stored = localStorage.getItem('anban_messages');
-    if (stored) {
-      var messages = JSON.parse(stored);
-      var chatArea = document.getElementById('chatArea');
-      messages.forEach(function(msg) {
-        var div = document.createElement('div');
-        div.className = 'flex flex-col items-end max-w-[85%] self-end';
-        var now = new Date();
-        var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-        div.innerHTML = '<div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl"><p class="font-body-md text-body-md">' + msg.text + '</p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50">' + msg.time + '</span><span class="text-[11px] font-medium text-warning/80 flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]" style="font-variation-settings: \'wght\' 500;">schedule</span>待播报</span></div>';
-        chatArea.appendChild(div);
-      });
-      var container = document.getElementById('messagesContainer');
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          if (container) container.scrollTop = container.scrollHeight;
-        });
-      });
+  function renderMessages(history, messages) {
+    var chatArea = document.getElementById('chatArea');
+    if (!chatArea) return;
+    chatArea.innerHTML = '';
+    var bubbles = buildConversationBubbles({ history: history, messages: messages });
+
+    if (!bubbles.length) {
+      var empty = document.createElement('div');
+      empty.className = 'text-center py-12 font-body-md text-body-md text-text-secondary';
+      empty.textContent = '暂无对话记录';
+      chatArea.appendChild(empty);
     }
+
+    bubbles.forEach(function(bubble) {
+      var row = document.createElement('div');
+      var isRight = bubble.side === 'right';
+      row.className = 'flex flex-col max-w-[85%] ' + (isRight ? 'items-end self-end' : 'items-start self-start');
+      row.innerHTML = '<div class="p-4 rounded-2xl"><p class="font-body-md text-body-md"></p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50"></span><span class="text-[11px] font-medium"></span></div>';
+      var bubbleEl = row.firstElementChild;
+      bubbleEl.className += isRight
+        ? ' bg-secondary-container text-on-secondary-container bubble-right'
+        : ' bg-surface-white text-on-surface bubble-left soft-shadow';
+      bubbleEl.querySelector('p').textContent = bubble.text;
+      var meta = row.lastElementChild;
+      meta.firstElementChild.textContent = formatRelativeTime(bubble.at);
+      var status = meta.lastElementChild;
+      status.textContent = bubble.status;
+      status.className += bubble.status === '已播报' ? ' text-success' : bubble.status === '发送失败' ? ' text-danger' : ' text-on-surface-variant/60';
+      if (!bubble.status) status.remove();
+      chatArea.appendChild(row);
+    });
+
+    var container = document.getElementById('messagesContainer');
+    requestAnimationFrame(function() {
+      if (container) container.scrollTop = container.scrollHeight;
+    });
   }
 
-  window.handleSend = function() {
+  async function loadMessages() {
+    var results = await Promise.allSettled([
+      anbanClient.getHistory({ deviceId: anbanConfig.deviceId, limit: 100 }),
+      anbanClient.listMessages({ deviceId: anbanConfig.deviceId }),
+    ]);
+    var history = results[0].status === 'fulfilled' ? results[0].value : { messages: [] };
+    var messages = results[1].status === 'fulfilled' ? results[1].value : { messages: [] };
+    renderMessages(history, messages);
+    if (results[0].status === 'rejected' && results[1].status === 'rejected') showToast('消息加载失败');
+  }
+
+  window.refreshMessages = loadMessages;
+
+  window.handleSend = async function() {
     var input = document.getElementById('messageInput');
     var text = input.value.trim();
     if (!text) return;
-    var chatArea = document.getElementById('chatArea');
-    var div = document.createElement('div');
-    div.className = 'flex flex-col items-end max-w-[85%] self-end';
-    var now = new Date();
-    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    div.innerHTML = '<div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl"><p class="font-body-md text-body-md">' + text + '</p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50">刚刚</span><span class="text-[11px] font-medium text-warning/80 flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]" style="font-variation-settings: \'wght\' 500;">schedule</span>待播报</span></div>';
-    chatArea.appendChild(div);
-    var stored = localStorage.getItem('anban_messages');
-    var messages = stored ? JSON.parse(stored) : [];
-    messages.push({ text: text, time: time });
-    localStorage.setItem('anban_messages', JSON.stringify(messages));
-    input.value = '';
-    input.style.height = '48px';
-    var container = document.getElementById('messagesContainer');
-    if (container) container.scrollTop = container.scrollHeight;
+    try {
+      var result = await sendChildMessage(text);
+      input.value = '';
+      input.style.height = '48px';
+      showToast(result.status === 'played' ? '留言已播报' : '留言已提交');
+      await loadMessages();
+      if (typeof window.refreshHome === 'function') window.refreshHome();
+    } catch (error) {
+      showToast(error.message || '留言发送失败');
+    }
   };
 
   var tx = document.getElementById('messageInput');
@@ -845,17 +879,6 @@ function initMessage() {
     });
   }
 
-  loadMessages();
-  setTimeout(function() {
-    var container = document.getElementById('messagesContainer');
-    if (container) {
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          container.scrollTop = container.scrollHeight;
-        });
-      });
-    }
-  }, 300);
 }
 
 // ============================

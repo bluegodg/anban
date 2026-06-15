@@ -3719,3 +3719,17 @@
 - 内容：新增设备状态与相对时间 formatter；首页并行请求 `getStatus`/`getHistory`，渲染在线状态、最近互动和最近两条对话；后端文本通过 `textContent` 写入，避免注入。
 - 功能：登录后首页展示真实设备在线状态和真实对话历史；任一可选请求失败时独立降级，不阻塞另一块内容。
 - 验证：`npm test --prefix childweb` 10 个测试全绿；Playwright API 桩验证“设备在线 / 5分钟前 / 两条真实历史”，控制台 0 error / 0 warning。
+
+### 23:16 childweb P4 消息 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：新增消息气泡整形测试，要求合并 `getHistory` 与 `listMessages`，发送走 `sendMessage`，图片/语音附件走统一未实现提示。
+- 目的：替换聊天页和两个快捷入口的 localStorage mock，打通真实留言收发。
+- 功能影响：暂无；当前消息页仍读写 localStorage，测试应保持 RED。
+
+### 23:20 childweb P4 消息 GREEN 实现
+
+- 文件：`childweb/app.js`、`childweb/index.html`、`childweb/integration-core.js`、`childweb/smoke.test.mjs`
+- 内容：消息页并行加载 `getHistory` 与 `listMessages`，按时间合并为左右气泡；聊天页和两个快速留言入口统一调用 `sendMessage`；图片/语音按钮统一提示“该功能未实现”。
+- 功能：子女可发送真实留言并刷新播报状态，历史对话和留言状态不再读取 localStorage。
+- 验证：`npm test --prefix childweb` 13 个测试全绿，覆盖气泡整形、真实 API 调用和附件降级。
