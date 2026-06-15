@@ -21,6 +21,12 @@ window.anbanRuntime = {
   client: anbanClient,
 };
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').catch(function() {});
+  });
+}
+
 function updateAnbanConfig(patch) {
   anbanConfig = saveConfig({ ...anbanConfig, ...patch });
   anbanClient = createAnbanClient(anbanConfig);
@@ -1415,6 +1421,30 @@ async function initFamily() {
 // initMine
 // ============================
 function initMine() {
+  var baseURLInput = document.getElementById('settingsBaseURL');
+  var deviceIdInput = document.getElementById('settingsDeviceId');
+  var saveConnectionBtn = document.getElementById('saveConnectionBtn');
+  if (baseURLInput) baseURLInput.value = anbanConfig.baseURL;
+  if (deviceIdInput) deviceIdInput.value = anbanConfig.deviceId;
+  if (saveConnectionBtn) {
+    saveConnectionBtn.addEventListener('click', async function() {
+      var baseURL = baseURLInput.value.trim().replace(/\/+$/, '');
+      var deviceId = deviceIdInput.value.trim();
+      if (!baseURL || !deviceId) {
+        showToast('请填写后端地址和设备 ID');
+        return;
+      }
+      try {
+        var candidateClient = createAnbanClient({ baseURL: baseURL, accessCode: anbanConfig.accessCode });
+        await candidateClient.getStatus({ deviceId: deviceId });
+        updateAnbanConfig({ baseURL: baseURL, deviceId: deviceId });
+        showToast('连接设置已保存');
+      } catch (error) {
+        showToast(formatLoginError(error));
+      }
+    });
+  }
+
   document.getElementById('clearCacheBtn').addEventListener('click', function() {
     var label = document.getElementById('cacheSize');
     if (label.textContent !== '0.0 MB') {

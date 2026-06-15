@@ -3761,3 +3761,17 @@
 - 内容：实现 `mapStitchProfileToFields` / `mapFieldsToStitchProfile`；家人页和编辑页通过 `getProfile` 回填，通过 `updateProfile` 保存；人口信息单独保存在本地。
 - 映射：习惯与建议合并到 schedule，AI 画像与健康项目合并到 health，忌讳写入 taboos，姓名同时写 name/nickname。
 - 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 19 个测试全绿。
+
+### 23:46 childweb P7 App 化 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：要求移除固定手机外壳、补齐 manifest/service worker/192 与 512 PNG 图标，并在设置页提供 baseURL/deviceId 修改与验证。
+- 目的：让 childweb 可部署为手机全屏 PWA，而不是桌面中的手机模型预览。
+- 功能影响：暂无；PWA 文件、图标和连接设置尚不存在，测试应保持 RED。
+
+### 00:15 childweb P7 App 化 GREEN 实现
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/server.js`、`childweb/manifest.webmanifest`、`childweb/sw.js`、`childweb/icons/*`、`childweb/smoke.test.mjs`
+- 内容：移除固定手机模型尺寸与阴影，改为 `100vw/100dvh` 全屏；新增 PWA manifest、静态壳缓存、API 网络直连、192/512 PNG 图标；设置页可验证并保存后端地址和 deviceId。
+- 功能：支持手机添加到主屏并 standalone 运行；静态资源可离线打开，所有 `/api/*` 响应不缓存。
+- 验证：`npm test --prefix childweb` 23 个测试全绿；Playwright 在 390x844 视口验证登录与设置页全屏显示，控制台 0 error / 0 warning。

@@ -218,3 +218,40 @@ test('P6 loads and saves profiles through the shared client', () => {
   assert.match(appJS, /anbanClient\.getProfile\(\{ deviceId: anbanConfig\.deviceId \}\)/);
   assert.match(appJS, /anbanClient\.updateProfile\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*fields:/);
 });
+
+test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
+  assert.doesNotMatch(indexHTML, /max-width:466px/);
+  assert.doesNotMatch(indexHTML, /width:430px;height:932px/);
+  assert.match(indexHTML, /rel="manifest" href="\.\/manifest\.webmanifest"/);
+  assert.match(indexHTML, /name="apple-mobile-web-app-capable" content="yes"/);
+
+  const manifest = JSON.parse(await readFile(new URL('./manifest.webmanifest', import.meta.url), 'utf8'));
+  assert.equal(manifest.name, '安伴');
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(manifest.theme_color, '#F78C6B');
+  assert.deepEqual(manifest.icons.map((icon) => icon.sizes), ['192x192', '512x512']);
+});
+
+test('P7 service worker caches the shell but never caches API responses', async () => {
+  const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
+  assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
+  assert.match(sw, /caches\.open/);
+  assert.match(appJS, /navigator\.serviceWorker\.register\('\.\/sw\.js'\)/);
+});
+
+test('P7 PWA icons have the required PNG dimensions', async () => {
+  for (const size of [192, 512]) {
+    const png = await readFile(new URL(`./icons/icon-${size}.png`, import.meta.url));
+    assert.equal(png.toString('ascii', 1, 4), 'PNG');
+    assert.equal(png.readUInt32BE(16), size);
+    assert.equal(png.readUInt32BE(20), size);
+  }
+});
+
+test('P7 settings can update backend URL and device id', () => {
+  assert.match(indexHTML, /id="settingsBaseURL"/);
+  assert.match(indexHTML, /id="settingsDeviceId"/);
+  assert.match(indexHTML, /id="saveConnectionBtn"/);
+  assert.match(appJS, /updateAnbanConfig\(\{ baseURL: baseURL, deviceId: deviceId \}\)/);
+});
