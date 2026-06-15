@@ -154,6 +154,32 @@ func TestServiceGetUsesLatestHistoryForLastInteraction(t *testing.T) {
 	}
 }
 
+func TestServiceGetIgnoresBlankHistoryForLastInteraction(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	validInteraction := time.Date(2026, 6, 1, 8, 45, 0, 0, time.UTC)
+	blankInteraction := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	xc := &statusClient{
+		status: xiaozhiclient.DeviceStatus{
+			DeviceID:     "dev-001",
+			Online:       true,
+			LastActiveAt: lastActive,
+		},
+		history: []xiaozhiclient.HistoryMessage{
+			{Role: "assistant", Text: "要不要早点休息？", At: validInteraction},
+			{Role: "user", Text: "   ", At: blankInteraction},
+		},
+	}
+	svc := NewService(xc)
+
+	snapshot, err := svc.Get(context.Background(), GetRequest{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if snapshot.LastInteractionAt == nil || !snapshot.LastInteractionAt.Equal(validInteraction) {
+		t.Fatalf("lastInteractionAt = %v, want latest non-blank history %s", snapshot.LastInteractionAt, validInteraction)
+	}
+}
+
 func TestServiceGetHistoryReturnsConversationMessages(t *testing.T) {
 	askedAt := time.Date(2026, 6, 1, 8, 31, 0, 0, time.FixedZone("CST", 8*60*60))
 	answeredAt := time.Date(2026, 6, 1, 8, 31, 5, 0, time.UTC)
@@ -194,6 +220,29 @@ func TestServiceGetHistoryReturnsConversationMessages(t *testing.T) {
 	}
 	if history.Messages[1].At == nil || !history.Messages[1].At.Equal(answeredAt) {
 		t.Fatalf("messages[1].At = %v, want %s", history.Messages[1].At, answeredAt)
+	}
+}
+
+func TestServiceGetHistorySkipsBlankConversationMessages(t *testing.T) {
+	at := time.Date(2026, 6, 1, 8, 31, 0, 0, time.UTC)
+	xc := &statusClient{
+		history: []xiaozhiclient.HistoryMessage{
+			{Role: "user", Text: "   ", At: at},
+			{Role: "assistant", Text: "", At: at.Add(time.Second)},
+			{Role: "user", Text: " 今天腰有点酸 ", At: at.Add(2 * time.Second)},
+		},
+	}
+	svc := NewService(xc)
+
+	history, err := svc.GetHistory(context.Background(), HistoryRequest{DeviceID: "dev-001"})
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
+	if len(history.Messages) != 1 {
+		t.Fatalf("messages = %+v, want only the non-blank user message", history.Messages)
+	}
+	if history.Messages[0].Text != "今天腰有点酸" {
+		t.Fatalf("message text = %q, want trimmed non-blank text", history.Messages[0].Text)
 	}
 }
 

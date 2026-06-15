@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 对话记录空正文过滤 RED 测试
+
+- 文件：`server/internal/domains/status/service_test.go`
+- 内容：新增 `TestServiceGetIgnoresBlankHistoryForLastInteraction` 和 `TestServiceGetHistorySkipsBlankConversationMessages`，要求 status 域在计算最近互动和返回子女端对话记录时忽略空正文的 user/assistant 历史项，并修剪正文首尾空白。
+- 目的：让 PRD #4 开发期完整对话记录在真实 manager 返回空 content/text 时仍保持可读，避免子女端出现空白对话行或“最近互动”被空消息污染。
+- 边界：仅调整 status 域的北向展示模型；不改变 `xiaozhiclient.GetHistory` 原始契约、不写入 anban DB、不影响留言/问候/提醒/视觉播报。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 全绿；RED 阶段运行 `go test -count=1 ./internal/domains/status`，按预期失败于空正文被当作最近互动和对话记录返回。
+
 ### PRD #4 设备状态数字时间戳 RED 测试
 
 - 文件：`server/internal/xiaozhiclient/http_client_test.go`
