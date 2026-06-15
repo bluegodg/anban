@@ -1,0 +1,8 @@
+{
+  "name": "anban-childweb-stitch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test smoke.test.mjs"
+  }
+}

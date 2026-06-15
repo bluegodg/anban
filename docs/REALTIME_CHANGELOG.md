@@ -3676,3 +3676,10 @@
 - 目的：回应“先做基础框架和基本功能”的对齐要求，避免执行时把安伴做成复杂大产品，或在 Gate A 未验证前继续扩大功能面。
 - 功能影响：仅文档变更；不改变后端、前端或部署行为。
 - 验证：已检查部署指南一级章节编号，确认新增章节后编号连续。
+
+### 20:00 childweb P1 脚手架 RED 测试
+
+- 文件：`childweb/package.json`、`childweb/smoke.test.mjs`
+- 内容：新增 childweb 原生 ESM 测试入口，要求 Stitch 页面改用模块脚本、逐字复用 `web/api/client.js`、以 localStorage 持久化 `baseURL/accessCode/deviceId`，并统一输出“该功能未实现”。
+- 目的：先锁定 P1 的最小接入边界，避免后续直接改屏幕逻辑时继续依赖散落的 mock 状态。
+- 功能影响：暂无生产功能；这是 TDD RED 阶段，当前缺少模块入口、API 客户端副本、配置模块和统一未实现提示。
