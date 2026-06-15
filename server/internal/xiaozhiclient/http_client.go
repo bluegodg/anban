@@ -56,13 +56,13 @@ type managerDevicePayload struct {
 }
 
 type historyMessagePayload struct {
-	Role      string `json:"role"`
-	Content   string `json:"content"`
-	Text      string `json:"text"`
-	Message   string `json:"message"`
-	CreatedAt string `json:"created_at"`
-	At        string `json:"at"`
-	Timestamp string `json:"timestamp"`
+	Role      string          `json:"role"`
+	Content   string          `json:"content"`
+	Text      string          `json:"text"`
+	Message   string          `json:"message"`
+	CreatedAt json.RawMessage `json:"created_at"`
+	At        json.RawMessage `json:"at"`
+	Timestamp json.RawMessage `json:"timestamp"`
 }
 
 func (c *HTTPClient) InjectSpeak(ctx context.Context, deviceID, text string, opts InjectOptions) error {
@@ -331,11 +331,40 @@ func parseOptionalTime(value string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, nil
 	}
+	if unix, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return unixTimestampToTime(unix), nil
+	}
 	parsed, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
 		return time.Time{}, err
 	}
 	return parsed.UTC(), nil
+}
+
+func parseOptionalRawTime(values ...json.RawMessage) (time.Time, error) {
+	raw := firstNonEmptyRaw(values...)
+	if isJSONNullOrEmpty(raw) {
+		return time.Time{}, nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return parseOptionalTime(value)
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return parseOptionalTime(number.String())
+	}
+	return time.Time{}, fmt.Errorf("manager time value is not a string or number")
+}
+
+func unixTimestampToTime(value int64) time.Time {
+	const millisThreshold = int64(1_000_000_000_000)
+	if value >= millisThreshold || value <= -millisThreshold {
+		sec := value / 1000
+		nsec := (value % 1000) * int64(time.Millisecond)
+		return time.Unix(sec, nsec).UTC()
+	}
+	return time.Unix(value, 0).UTC()
 }
 
 func firstNonEmpty(values ...string) string {
@@ -345,6 +374,15 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonEmptyRaw(values ...json.RawMessage) json.RawMessage {
+	for _, value := range values {
+		if !isJSONNullOrEmpty(value) {
+			return value
+		}
+	}
+	return nil
 }
 
 func decodeHistoryMessages(body []byte) ([]HistoryMessage, error) {
@@ -391,7 +429,7 @@ func decodeHistoryMessages(body []byte) ([]HistoryMessage, error) {
 
 	messages := make([]HistoryMessage, 0, len(payloads))
 	for _, payload := range payloads {
-		at, err := parseOptionalTime(firstNonEmpty(payload.CreatedAt, payload.At, payload.Timestamp))
+		at, err := parseOptionalRawTime(payload.CreatedAt, payload.At, payload.Timestamp)
 		if err != nil {
 			return nil, err
 		}

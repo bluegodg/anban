@@ -12,6 +12,14 @@
 - 边界：仅约束 `xiaozhiclient.GetHistory` 的时间解析；不改变 GetHistory 契约、childapi/status 响应结构、xiaozhi 上游或任何设备播报行为。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/xiaozhiclient`，按预期失败于 `json: cannot unmarshal number into Go struct field historyMessagePayload.created_at of type string`。
 
+### PRD #4 对话历史数字时间戳 GREEN 实现
+
+- 文件：`server/internal/xiaozhiclient/http_client.go`
+- 内容：history 响应的 `created_at` / `at` / `timestamp` 改为先接收原始 JSON，再兼容字符串时间与数字 Unix 时间戳，并转成 UTC `time.Time`。
+- 目的：让 PRD #4 完整对话记录和最近互动时间在 manager 返回数字时间戳时仍可展示，避免开发期对话记录因时间格式差异整体不可用。
+- 边界：不改变 `xiaozhiclient.GetHistory` 方法签名、请求参数、返回结构、status/childapi/web 契约或 xiaozhi 上游。
+- 验证：`go test -count=1 ./internal/xiaozhiclient`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #4 子女端 API 防缓存 RED 测试
 
 - 文件：`server/internal/childapi/status_routes_test.go`
