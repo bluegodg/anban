@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 方案 C 部署入口与阶段对齐 README
+
+- 文件：`docs/deployment/README.md`
+- 内容：新增部署文档入口，集中回答当前阶段、方案 C 两进程/可插拔边界、`anban-code` 仓库定位、设备到手后的 Gate A/B/C/D 部署顺序、当前服务器口径和继续阅读顺序。
+- 目的：对齐“先做基础框架和基本功能”的 PRD V0.1 节奏，避免把本仓误当成 xiaozhi fork 或继续往大产品方向扩。
+- 边界：仅新增文档入口；不修改 Go 后端、子女端 Web、部署脚本、环境变量契约或 xiaozhi 上游。
+- 验证：文档改动，无需运行代码测试；`git diff --check` 通过，仅提示 Windows 工作区换行转换 warning。
+
 ### PRD #6 提醒下发 60 秒边界 RED 测试
 
 - 文件：`server/internal/domains/reminder/service_test.go`
