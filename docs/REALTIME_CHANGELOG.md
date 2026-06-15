@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #6 提醒下发 60 秒边界 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 `TestServiceFireBoundsInjectForPRDDeliveryWindow`，要求提醒到点播放时调用 `InjectSpeak` 的 context 带有不超过 60 秒的 deadline。
+- 目的：对齐 PRD #6 “子女端创建提醒 → 设备落到本地调度，端到端 ≤ 60 秒”的路演稳定性，避免 manager 慢请求把提醒播放、30 分钟确认超时和语音确认轮询卡住。
+- 边界：仅约束 reminder 下发调用耗时；不改变提醒文案、分类、主动语音配额、确认/未应答状态机、调度恢复或 `xiaozhiclient` 契约。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/reminder`，按预期失败于 `InjectSpeak context has no deadline`。
+
 ### PRD #5 当前会话承接提示词 RED 测试
 
 - 文件：`server/internal/domains/profile/service_test.go`

@@ -93,6 +93,30 @@ func TestServiceCreateSchedulesAndFiresReminder(t *testing.T) {
 	}
 }
 
+func TestServiceFireBoundsInjectForPRDDeliveryWindow(t *testing.T) {
+	fakeXC := &deadlineReminderClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, fakeXC, fakeSch)
+
+	_, err := svc.Create(context.Background(), CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 1, 30, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	fakeSch.fire(0)
+	if !fakeXC.gotDeadline {
+		t.Fatal("InjectSpeak context has no deadline; PRD #6 reminder delivery should stay within 60s")
+	}
+	if remaining := time.Until(fakeXC.deadline); remaining <= 0 || remaining > 60*time.Second {
+		t.Fatalf("InjectSpeak deadline remaining = %s, want within 60s", remaining)
+	}
+}
+
 func TestServiceCreateValidatesAndNormalizesInput(t *testing.T) {
 	svc := newTestService(t, &xiaozhiclient.FakeClient{}, &fakeScheduler{})
 
@@ -687,6 +711,17 @@ func (c *historyClient) GetHistory(_ context.Context, deviceID string, limit int
 	c.gotDeviceID = deviceID
 	c.gotLimit = limit
 	return c.history, c.err
+}
+
+type deadlineReminderClient struct {
+	xiaozhiclient.FakeClient
+	gotDeadline bool
+	deadline    time.Time
+}
+
+func (c *deadlineReminderClient) InjectSpeak(ctx context.Context, deviceID, text string, opts xiaozhiclient.InjectOptions) error {
+	c.deadline, c.gotDeadline = ctx.Deadline()
+	return nil
 }
 
 type failingClient struct {
