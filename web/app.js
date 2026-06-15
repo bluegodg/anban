@@ -12,6 +12,7 @@ import { buildStatusSnapshotForDisplay, formatStatusDetail, messageStatusLabel }
 import { formatGreetingTriggerResult } from './greeting-result.js';
 import { loadConversationHistory } from './history-refresh.js';
 import { formatHistoryEntry } from './history-view.js';
+import { settleOptionalLoads } from './optional-loads.js';
 import { formatVisionPresenceResult } from './vision-presence-result.js';
 
 const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
@@ -288,9 +289,11 @@ async function refreshMessages() {
     state.messages = payload.messages || [];
     renderMessages();
     renderCurrentBackendStatus();
-    await refreshReminders();
-    await refreshGreetingSchedule();
-    await refreshProfile();
+    await settleOptionalLoads([
+      () => refreshReminders(),
+      () => refreshGreetingSchedule(),
+      () => refreshProfile(),
+    ]);
     showNotice('已连接后端');
     return true;
   } catch (error) {

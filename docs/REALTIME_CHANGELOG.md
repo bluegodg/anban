@@ -12,6 +12,14 @@
 - 边界：只约束子女端初次连接的附加面板加载；不改变留言发送、状态读取、访问码、后端业务域、manager 调用或真机播报行为。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 均通过；RED 阶段 `npm test --prefix web` 共 80 项，新增 2 项按预期失败于 `optional-loads.js` 不存在且连接流程未调用 `settleOptionalLoads`。
 
+### 子女端附加面板不阻断核心连接 GREEN 实现
+
+- 文件：`web/optional-loads.js`、`web/app.js`
+- 内容：新增 `settleOptionalLoads`，把同步异常和异步拒绝统一收进 `Promise.allSettled` 结果；初次连接在状态、历史和留言成功后，用它并行加载提醒、问候时段和画像。
+- 目的：附加能力临时失败时仍把核心连接视为成功，继续启动状态、留言和提醒状态轮询，守住路演必须现场的“子女端留言 -> 设备播报”主链路。
+- 边界：不吞掉状态、历史首载和留言列表这些核心请求的错误；不改变各附加面板自身刷新函数、后端 API、访问码或真机播报逻辑。
+- 验证：`npm test --prefix web` 已从 RED 转 GREEN；`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过，Web smoke tests 80/80 全绿。
+
 ### PRD #7 视觉整链路 8 秒预算 RED 测试
 
 - 文件：`server/internal/domains/vision/service_test.go`
