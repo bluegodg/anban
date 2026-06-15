@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 方案 C 现场部署作战卡
+
+- 文件：`docs/deployment/方案C现场部署作战卡.md`、`docs/deployment/README.md`
+- 内容：新增一页式现场部署作战卡，集中说明当前阶段、`anban-code` 仓库边界、方案 C 两进程可插拔拓扑、Gate A/B/C/D 执行命令、当前服务器口径、不要做事项和现场记录模板；同步把部署 README 的第一入口指向该作战卡。
+- 目的：让设备到手后的部署人员先按短清单执行，再按需跳转长版说明，避免继续误把本仓当 xiaozhi fork 或往大产品方向扩。
+- 边界：仅新增和索引文档；不修改 Go 后端、子女端 Web、部署脚本、环境变量契约、token 或 xiaozhi 上游。
+- 验证：`git diff --check -- docs/deployment/README.md docs/REALTIME_CHANGELOG.md` 通过；新增作战卡用脚本检查尾随空白和文件末尾换行，通过。
+
 ### 子女端问候失败文案 RED 测试
 
 - 文件：`web/smoke.test.mjs`
