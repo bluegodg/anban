@@ -12,6 +12,14 @@
 - 边界：仅增强 profile prompt；不改变画像字段、1500 字符预算、`SetRolePrompt` 契约、对话历史接口或 xiaozhi 源码。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/profile`，按预期失败于缺少 `当前会话` 指令。
 
+### PRD #5 当前会话承接提示词 GREEN 实现
+
+- 文件：`server/internal/domains/profile/service.go`、`server/internal/domains/profile/service_test.go`
+- 内容：`BuildPrompt` 静态提示词新增“当前会话中老人刚说过的事也要当作短期上下文，后续回答要自然承接，不要像第一次听到一样重复追问。”
+- 目的：在 V0.1 不新增完整记忆系统的前提下，增强 xiaozhi agent 对同一轮对话上下文的承接能力，支撑 PRD #5 当前会话沉淀的路演表现。
+- 边界：不改变画像持久化、1500 字符预算、`SetRolePrompt` 调用方式、历史记录读取、xiaozhi 上游或任何设备设置工具行为。
+- 验证：`go test -count=1 ./internal/domains/profile`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #3 留言下发 60 秒边界 RED 测试
 
 - 文件：`server/internal/domains/message/service_test.go`
