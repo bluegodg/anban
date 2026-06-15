@@ -113,6 +113,29 @@ func TestServiceCaptureAndObservePresenceUsesMCPPresenceSignal(t *testing.T) {
 	}
 }
 
+func TestServiceCaptureAndObservePresenceBoundsWholePRDLatency(t *testing.T) {
+	xc := &visionClient{raw: json.RawMessage(`{"presence":"no_one"}`)}
+	trigger := &fakeGreetingTrigger{}
+	svc := NewService(xc, trigger)
+	ctx := context.Background()
+
+	if _, err := svc.CaptureAndObservePresence(ctx, CaptureRequest{DeviceID: "dev-001"}); err != nil {
+		t.Fatalf("CaptureAndObservePresence no_one: %v", err)
+	}
+	xc.raw = json.RawMessage(`{"presence":"someone"}`)
+	if _, err := svc.CaptureAndObservePresence(ctx, CaptureRequest{DeviceID: "dev-001"}); err != nil {
+		t.Fatalf("CaptureAndObservePresence someone: %v", err)
+	}
+
+	if !trigger.gotDeadline {
+		t.Fatal("greeting trigger context has no deadline; PRD #7 requires capture plus trigger latency <= 8s")
+	}
+	remaining := time.Until(trigger.deadline)
+	if remaining <= 0 || remaining > 8*time.Second {
+		t.Fatalf("greeting trigger deadline remaining = %s, want within the shared 8s vision budget", remaining)
+	}
+}
+
 func TestServiceCaptureAndObservePresenceRequiresPresenceSignal(t *testing.T) {
 	tests := []json.RawMessage{
 		json.RawMessage(`{"imageUrl":"https://example.test/capture.jpg"}`),
@@ -227,14 +250,17 @@ func (c *visionClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool str
 }
 
 type fakeGreetingTrigger struct {
-	result    sharedtypes.ProactiveGreetingResult
-	err       error
-	calls     int
-	deviceIDs []string
+	result      sharedtypes.ProactiveGreetingResult
+	err         error
+	calls       int
+	deviceIDs   []string
+	gotDeadline bool
+	deadline    time.Time
 }
 
 func (f *fakeGreetingTrigger) TriggerProactiveGreeting(ctx context.Context, deviceID string) (sharedtypes.ProactiveGreetingResult, error) {
 	f.calls++
 	f.deviceIDs = append(f.deviceIDs, deviceID)
+	f.deadline, f.gotDeadline = ctx.Deadline()
 	return f.result, f.err
 }

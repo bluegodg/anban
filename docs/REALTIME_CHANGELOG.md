@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #7 视觉整链路 8 秒预算 RED 测试
+
+- 文件：`server/internal/domains/vision/service_test.go`
+- 内容：新增 `TestServiceCaptureAndObservePresenceBoundsWholePRDLatency`，模拟“无人 -> 有人”视觉状态变化，要求后续主动问候继承整条视觉流程不超过 8 秒的 deadline。
+- 目的：对齐 PRD #7 “VLM 调用延迟 + 触发延迟 ≤ 8 秒”，避免当前只限制摄像头 MCP 调用 8 秒、问候触发再单独占用 5 秒，导致整条链路理论上超过验收窗口。
+- 边界：只约束 vision 域采帧、presence 判定到 greeting 触发的共享时间预算；不改变默认 MCP 工具、presence 状态机、主动语音配额、greeting 业务逻辑或 xiaozhi 上游。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 均通过；RED 阶段运行 `go test -count=1 ./internal/domains/vision`，按预期失败于 greeting trigger context 没有 deadline。
+
 ### PRD #6 提醒话术颗粒重复 RED 测试
 
 - 文件：`server/internal/domains/reminder/service_test.go`
