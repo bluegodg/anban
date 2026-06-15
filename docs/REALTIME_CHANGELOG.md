@@ -12,6 +12,14 @@
 - 边界：只增强 reminder 域对既有 `xiaozhiclient.GetHistory` 结果的确认短句识别；不改变 GetHistory 契约、不要求 xiaozhi 推送事件、不影响留言/问候/视觉播报。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 全绿；RED 阶段运行 `go test -count=1 ./internal/domains/reminder`，按预期失败于提醒仍停留在 `played`。
 
+### PRD #6 自然语音确认 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：`isVoiceAcknowledgement` 在保留原有精确短句匹配的基础上，允许确认短语作为句首出现，例如“好的，我这就去测”；单字“好”仍只做精确匹配，降低误判。
+- 目的：让真实老人自然回复更容易完成提醒，补强 PRD #6 语音确认闭环和路演演示稳定性。
+- 边界：不改变提醒状态机、30 分钟未应答超时、history 轮询频率、`xiaozhiclient.GetHistory` 契约或主动语音配额。
+- 验证：`go test -count=1 ./internal/domains/reminder`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #4 对话记录空正文过滤 RED 测试
 
 - 文件：`server/internal/domains/status/service_test.go`

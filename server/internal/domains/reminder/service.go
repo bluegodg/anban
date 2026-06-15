@@ -364,8 +364,18 @@ func isVoiceAcknowledgement(text string) bool {
 		}
 		return r
 	}, strings.TrimSpace(text))
-	_, ok := voiceAcknowledgementPhrases[normalized]
-	return ok
+	if _, ok := voiceAcknowledgementPhrases[normalized]; ok {
+		return true
+	}
+	for phrase := range voiceAcknowledgementPhrases {
+		if phrase == "好" {
+			continue
+		}
+		if strings.HasPrefix(normalized, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) acknowledge(ctx context.Context, id uint, kind AckKind, cancelJob bool) (Reminder, error) {
