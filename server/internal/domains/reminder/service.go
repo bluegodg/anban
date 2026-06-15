@@ -430,6 +430,7 @@ func normalizeCategory(category Category) Category {
 func reminderText(content string, category Category) string {
 	content = strings.TrimSpace(content)
 	if category == CategoryMed {
+		content = normalizeMedicineReminderContent(content)
 		return buildReminderText(
 			"您该",
 			content,
@@ -455,6 +456,25 @@ func reminderText(content string, category Category) string {
 		content,
 		"。完成后跟安伴说一声，我也就放心啦。",
 	)
+}
+
+func normalizeMedicineReminderContent(content string) string {
+	original := strings.TrimSpace(content)
+	cleaned := trimReminderSpeechPunctuation(original)
+	cleaned = strings.TrimSpace(strings.TrimPrefix(cleaned, "该"))
+	cleaned = trimReminderSpeechPunctuation(cleaned)
+	for _, suffix := range []string{"啦", "了"} {
+		cleaned = strings.TrimSpace(strings.TrimSuffix(cleaned, suffix))
+		cleaned = trimReminderSpeechPunctuation(cleaned)
+	}
+	if cleaned == "" {
+		return original
+	}
+	return cleaned
+}
+
+func trimReminderSpeechPunctuation(value string) string {
+	return strings.Trim(value, " \t\r\n，,。.!！?？~～")
 }
 
 func buildReminderText(prefix, content, suffix string) string {

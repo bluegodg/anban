@@ -12,6 +12,14 @@
 - 边界：只约束 reminder 域播报文案生成；不改变提醒调度、主动语音配额、语音确认、未应答状态机、`xiaozhiclient` 契约或子女端 API。
 - 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过；RED 阶段运行 `go test -count=1 ./internal/domains/reminder`，按预期失败于文本仍为“您该该测血压啦啦...”。
 
+### PRD #6 提醒话术颗粒重复 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`
+- 内容：药品/健康类提醒生成播报文本前，清理子女输入里已经带上的“该”前缀和“啦/了”收尾口语颗粒，避免模板二次拼接后产生“该该”“啦啦”。
+- 目的：让路演提醒播报更自然，尤其适配子女端默认示例“该测血压啦”，保持 PRD #6 短、温柔、容易记住的提醒口径。
+- 边界：只作用于 `CategoryMed` 的播报文本生成；不改提醒原始 `Content`、调度、主动语音配额、确认轮询、未应答超时、manager 调用或 Web API。
+- 验证：`go test -count=1 ./internal/domains/reminder` 已从 RED 转 GREEN；`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过，Web smoke tests 78/78 全绿。
+
 ### 方案 C 现场部署作战卡
 
 - 文件：`docs/deployment/方案C现场部署作战卡.md`、`docs/deployment/README.md`
