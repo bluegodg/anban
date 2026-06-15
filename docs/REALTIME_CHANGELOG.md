@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 对话历史数字时间戳 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `TestGetHistoryParsesUnixNumericTimestamp`，要求 manager history 响应中数字型 `created_at`（Unix 秒）能被解析为 UTC 对话时间。
+- 目的：增强 PRD #4 完整对话记录与“最近互动时间”链路对真实 manager 响应形态的容错，避免时间戳字段不是 RFC3339 字符串时整条历史读取失败。
+- 边界：仅约束 `xiaozhiclient.GetHistory` 的时间解析；不改变 GetHistory 契约、childapi/status 响应结构、xiaozhi 上游或任何设备播报行为。
+- 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/xiaozhiclient`，按预期失败于 `json: cannot unmarshal number into Go struct field historyMessagePayload.created_at of type string`。
+
 ### PRD #4 子女端 API 防缓存 RED 测试
 
 - 文件：`server/internal/childapi/status_routes_test.go`

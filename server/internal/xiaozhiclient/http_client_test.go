@@ -553,6 +553,28 @@ func TestGetHistoryParsesNestedRecordsPayload(t *testing.T) {
 	}
 }
 
+func TestGetHistoryParsesUnixNumericTimestamp(t *testing.T) {
+	at := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data": [
+				{"role":"user","content":"今天腰有点酸","created_at":1780304400}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	history, err := c.GetHistory(context.Background(), "dev-001", 1)
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
+	if len(history) != 1 || !history[0].At.Equal(at) {
+		t.Fatalf("history = %+v, want one message at %s", history, at)
+	}
+}
+
 func TestGetHistoryRejectsInvalidTime(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
