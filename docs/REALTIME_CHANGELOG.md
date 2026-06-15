@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 子女端问候失败文案 RED 测试
+
+- 文件：`web/smoke.test.mjs`
+- 内容：新增 `child web greeting trigger failure copy matches wired backend`，要求问候按钮失败 fallback 使用“问候触发失败”，并不再出现“问候接口暂未接入”。
+- 目的：问候接口已经真实接入，路演或真机联调时如果网络/后端失败，不应再用“未接入”误导现场排障；这是 PRD #2 子女远程触发问候链路的可解释性打磨。
+- 边界：只约束子女端错误文案；不改变后端 greeting 域、主动语音配额、xiaozhi manager 调用或设备播报行为。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过；RED 阶段运行 `npm test --prefix web`，按预期失败于问候按钮仍使用“问候接口暂未接入”。
+
 ### 方案 C 当前执行说明文档
 
 - 文件：`docs/deployment/方案C当前执行说明.md`、`README.md`、`docs/README.md`、`docs/deployment/README.md`

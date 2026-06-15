@@ -296,6 +296,17 @@ test('child web uses API error notice formatter', async () => {
   assert.match(app, /showNotice\(formatApiErrorNotice\(error, fallback\)\)/);
 });
 
+test('child web greeting trigger failure copy matches wired backend', async () => {
+  const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
+  const greetingHandler = app.slice(
+    app.indexOf('els.greetingButton.addEventListener'),
+    app.indexOf('els.visionButton.addEventListener'),
+  );
+
+  assert.match(greetingHandler, /handleApiError\(error, '问候触发失败'\)/);
+  assert.doesNotMatch(greetingHandler, /问候接口暂未接入/);
+});
+
 test('greeting trigger result formatter shows played greeting text', async () => {
   const { formatGreetingTriggerResult } = await import('./greeting-result.js');
 
