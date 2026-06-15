@@ -223,6 +223,24 @@ func TestGetDeviceStatusTrimsManagerTimeFields(t *testing.T) {
 	}
 }
 
+func TestGetDeviceStatusParsesUnixNumericLastActiveAt(t *testing.T) {
+	lastActive := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"device_name":"dev-001","online":true,"last_active_at":1780302600}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	status, err := c.GetDeviceStatus(context.Background(), "dev-001")
+	if err != nil {
+		t.Fatalf("GetDeviceStatus: %v", err)
+	}
+	if !status.LastActiveAt.Equal(lastActive) {
+		t.Fatalf("lastActiveAt = %s, want %s", status.LastActiveAt, lastActive)
+	}
+}
+
 func TestGetDeviceStatusErrorsWhenDeviceIsMissing(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

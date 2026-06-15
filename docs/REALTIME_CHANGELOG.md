@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #4 设备状态数字时间戳 RED 测试
+
+- 文件：`server/internal/xiaozhiclient/http_client_test.go`
+- 内容：新增 `TestGetDeviceStatusParsesUnixNumericLastActiveAt`，要求 manager 设备列表响应中数字型 `last_active_at`（Unix 秒）能被解析为 UTC 设备活跃时间。
+- 目的：增强 PRD #4 设备在线/最近互动状态对真实 manager 响应形态的容错，避免时间戳字段不是 RFC3339 字符串时设备状态读取失败。
+- 边界：仅约束 `xiaozhiclient.GetDeviceStatus` 的时间解析；不改变 GetDeviceStatus 契约、status/childapi/web 响应结构、xiaozhi 上游或任何设备播报行为。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 全绿；RED 阶段运行 `go test -count=1 ./internal/xiaozhiclient`，按预期失败于数字型 `last_active_at` 无法解析，错误为 `json: cannot unmarshal array into Go value of type map[string]json.RawMessage`。
+
 ### 方案 C 部署文档索引补充
 
 - 文件：`docs/README.md`
