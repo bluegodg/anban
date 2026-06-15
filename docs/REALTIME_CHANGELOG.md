@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### 方案 C 当前执行说明文档
+
+- 文件：`docs/deployment/方案C当前执行说明.md`、`README.md`、`docs/README.md`、`docs/deployment/README.md`
+- 内容：新增一份当前执行稿，集中说明现阶段不扩成“大产品”、`anban-code` 仓库边界、方案 C 两进程可插拔架构、设备到手后的 Gate A/B/C/D 部署顺序、当前服务器口径和下一步 PRD 基础链路收口；同步补充 README 与 docs 索引入口。
+- 目的：把“设备到了按方案 C 怎么部署、这个仓库是什么、之前基础目标是否实现”沉淀成一份可以直接给人看的短执行稿，避免后续只读零散长文档后继续误判阶段或仓库边界。
+- 边界：仅新增和索引文档；不修改 Go 后端、子女端 Web、部署脚本、环境变量契约、token 或 xiaozhi 上游。
+- 验证：`git diff --check -- README.md docs/README.md docs/deployment/README.md docs/deployment/方案C当前执行说明.md docs/REALTIME_CHANGELOG.md` 通过。
+
 ### PRD #6 自然语音确认 RED 测试
 
 - 文件：`server/internal/domains/reminder/service_test.go`
