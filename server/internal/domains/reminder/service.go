@@ -18,6 +18,7 @@ const (
 	voiceAckPollInterval  = 10 * time.Second
 	voiceAckHistoryLimit  = 20
 	voiceAckTimestampSkew = 2 * time.Second
+	reminderInjectTimeout = 60 * time.Second
 	minReminderTextRunes  = 30
 	maxReminderTextRunes  = 60
 )
@@ -225,7 +226,10 @@ func (s *Service) play(ctx context.Context, rem *Reminder) {
 		return
 	}
 
-	if err := s.xc.InjectSpeak(ctx, rem.DeviceID, rem.Text, proactiveSpeakOptions()); err != nil {
+	injectCtx, cancel := withReminderInjectTimeout(ctx)
+	defer cancel()
+
+	if err := s.xc.InjectSpeak(injectCtx, rem.DeviceID, rem.Text, proactiveSpeakOptions()); err != nil {
 		if lease != nil {
 			_ = lease.Rollback(ctx)
 		}
@@ -295,6 +299,13 @@ func (s *Service) tryAcquireProactiveVoice(ctx context.Context, deviceID string,
 func proactiveSpeakOptions() xiaozhiclient.InjectOptions {
 	autoListen := true
 	return xiaozhiclient.InjectOptions{SkipLLM: true, AutoListen: &autoListen}
+}
+
+func withReminderInjectTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= reminderInjectTimeout {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, reminderInjectTimeout)
 }
 
 func (s *Service) markUnanswered(id uint) {

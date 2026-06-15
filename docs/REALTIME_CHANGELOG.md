@@ -12,6 +12,14 @@
 - 边界：仅约束 reminder 下发调用耗时；不改变提醒文案、分类、主动语音配额、确认/未应答状态机、调度恢复或 `xiaozhiclient` 契约。
 - 验证：切片前完整基线全绿；RED 阶段运行 `go test -count=1 ./internal/domains/reminder`，按预期失败于 `InjectSpeak context has no deadline`。
 
+### PRD #6 提醒下发 60 秒边界 GREEN 实现
+
+- 文件：`server/internal/domains/reminder/service.go`、`server/internal/domains/reminder/service_test.go`
+- 内容：reminder `play` 调用 `xiaozhiclient.InjectSpeak` 前套 60 秒 timeout；若外层请求已有更短 deadline，则沿用外层 deadline。
+- 目的：对齐 PRD #6 提醒链路 60 秒演示窗口，避免 manager 慢请求拖住提醒播放、30 分钟确认超时和语音确认轮询。
+- 边界：不改变提醒文案、分类、主动语音配额、确认/未应答状态机、调度恢复、`AutoListen` 或 `xiaozhiclient` 接口。
+- 验证：`go test -count=1 ./internal/domains/reminder`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 go build ./cmd/anban`、`npm test --prefix web` 均通过。
+
 ### PRD #5 当前会话承接提示词 RED 测试
 
 - 文件：`server/internal/domains/profile/service_test.go`
