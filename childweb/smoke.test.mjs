@@ -65,3 +65,20 @@ test('P1 unsupported features always use the required Chinese notice', async () 
 test('P1 declares detail edit state for ES module strict mode', () => {
   assert.match(appJS, /var _detailEditTarget;/);
 });
+
+test('P2 formats login failures without hiding an invalid access code', async () => {
+  const { formatLoginError } = await import('./integration-core.js');
+
+  assert.equal(formatLoginError({ status: 401 }), '访问码错误，请重新输入');
+  assert.equal(formatLoginError(new Error('Failed to fetch')), '无法连接安伴服务，请检查后端地址');
+  assert.equal(formatLoginError({ message: '服务繁忙', status: 503 }), '服务繁忙（503）');
+});
+
+test('P2 validates login through device status before persisting the session', async () => {
+  const { DEFAULT_CONFIG } = await import('./config.js');
+
+  assert.equal(DEFAULT_CONFIG.baseURL, 'http://127.0.0.1:8090');
+  assert.match(appJS, /await candidateClient\.getStatus\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /updateAnbanConfig\(\{ accessCode \}\)/);
+  assert.match(appJS, /localStorage\.setItem\('anban_session', '1'\)/);
+});

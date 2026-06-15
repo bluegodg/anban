@@ -1,5 +1,5 @@
 export const DEFAULT_CONFIG = Object.freeze({
-  baseURL: '',
+  baseURL: 'http://127.0.0.1:8090',
   accessCode: '',
   deviceId: '9c:13:9e:8b:af:28',
 });

@@ -1,5 +1,6 @@
 import { ApiError, createAnbanClient } from './api/client.js';
-import { loadConfig } from './config.js';
+import { loadConfig, saveConfig } from './config.js';
+import { formatLoginError } from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
 
 var anbanConfig = loadConfig();
@@ -10,6 +11,14 @@ window.anbanRuntime = {
   config: anbanConfig,
   client: anbanClient,
 };
+
+function updateAnbanConfig(patch) {
+  anbanConfig = saveConfig({ ...anbanConfig, ...patch });
+  anbanClient = createAnbanClient(anbanConfig);
+  window.anbanRuntime.config = anbanConfig;
+  window.anbanRuntime.client = anbanClient;
+  return anbanConfig;
+}
 
 function notImplemented(featureName) {
   return notifyNotImplemented(featureName, showToast);
@@ -244,9 +253,10 @@ document.addEventListener('touchend', function(e) {
 // initLogin
 // ============================
 function initLogin() {
-  function handleLogin() {
+  async function handleLogin() {
     var input = document.getElementById('accessCode');
-    if (!input.value.trim()) {
+    var accessCode = input.value.trim();
+    if (!accessCode) {
       input.classList.add('border-danger');
       input.style.animation = 'none';
       input.offsetHeight;
@@ -262,10 +272,27 @@ function initLogin() {
     btnIcon.style.animation = 'spin 1s linear infinite';
     btn.style.pointerEvents = 'none';
     btn.style.opacity = '0.85';
-    setTimeout(function() {
+
+    try {
+      var candidateClient = createAnbanClient({
+        baseURL: anbanConfig.baseURL,
+        accessCode: accessCode,
+      });
+      await candidateClient.getStatus({ deviceId: anbanConfig.deviceId });
+      updateAnbanConfig({ accessCode });
       localStorage.setItem('anban_session', '1');
       navigateTo('home');
-    }, 1500);
+    } catch (error) {
+      input.classList.add('border-danger');
+      showToast(formatLoginError(error));
+      setTimeout(function() { input.classList.remove('border-danger'); }, 1200);
+    } finally {
+      btnText.textContent = '登录';
+      btnIcon.textContent = 'arrow_forward';
+      btnIcon.style.animation = '';
+      btn.style.pointerEvents = '';
+      btn.style.opacity = '';
+    }
   }
 
   document.getElementById('loginBtn').addEventListener('click', handleLogin);

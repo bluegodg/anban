@@ -3691,3 +3691,17 @@
 - 修复：浏览器回归发现原稿 `_detailEditTarget` 依赖隐式全局，在 module 严格模式下点击提醒时间会报错；先补 RED 测试，再显式声明状态。
 - 功能：页面仍保持原有 mock 行为，但已具备后续 P2-P6 接真实后端的单一 API/config 入口。
 - 验证：`npm test --prefix childweb` 通过，5 个测试全绿；本地静态服务返回 200；Playwright 验证登录、提醒列表、详情和时间弹窗，控制台 0 error / 0 warning。
+
+### 23:00 childweb P2 登录 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：新增访问码登录测试，要求输入码先通过 `getStatus` 探测，401 返回“访问码错误，请重新输入”，网络错误提示检查后端地址，成功后才持久化访问码和 session。
+- 目的：替换原稿 1.5 秒假登录，建立 childweb 第一条真实后端链路。
+- 功能影响：暂无；当前缺少登录错误 formatter，且 `initLogin` 仍直接写 localStorage，测试应保持 RED。
+
+### 23:04 childweb P2 登录 GREEN 实现
+
+- 文件：`childweb/app.js`、`childweb/config.js`、`childweb/integration-core.js`、`childweb/smoke.test.mjs`
+- 内容：登录改为用候选 accessCode 调 `getStatus`，验证成功后重建共享 client、保存配置与 session；401、网络错误和后端错误分别提供明确提示；默认后端地址改为 `http://127.0.0.1:8090`。
+- 功能：错误访问码停留登录页并提示，正确访问码进入首页；不再存在 1.5 秒假验证。
+- 验证：`npm test --prefix childweb` 7 个测试全绿；Playwright 配合本地 API 桩验证 401 提示和成功登录路由。
