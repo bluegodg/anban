@@ -206,6 +206,18 @@ func TestReminderTextFitsPRDLength(t *testing.T) {
 	}
 }
 
+func TestReminderTextAvoidsDuplicatedPromptParticles(t *testing.T) {
+	text := reminderText("该测血压啦", CategoryMed)
+
+	assertReminderTextLength(t, text)
+	if strings.Contains(text, "该该") || strings.Contains(text, "啦啦") {
+		t.Fatalf("text = %q, want no duplicated prompt particles", text)
+	}
+	if !strings.Contains(text, "测血压") {
+		t.Fatalf("text = %q, want preserve reminder content", text)
+	}
+}
+
 func TestServiceCreateMarksFailedWhenInjectFailsOnFire(t *testing.T) {
 	fakeSch := &fakeScheduler{}
 	svc := newTestService(t, failingClient{err: errors.New("manager unavailable")}, fakeSch)

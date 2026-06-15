@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #6 提醒话术颗粒重复 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 `TestReminderTextAvoidsDuplicatedPromptParticles`，要求药品/健康类提醒在子女端输入“该测血压啦”时，播报文本不出现“该该”或“啦啦”，同时保留“测血压”并继续满足 30–60 字长度。
+- 目的：对齐 PRD #6 “播报文本短、温柔、老人记得住”，避免路演默认提醒内容被模板二次加前后缀后读成生硬的“您该该测血压啦啦”。
+- 边界：只约束 reminder 域播报文案生成；不改变提醒调度、主动语音配额、语音确认、未应答状态机、`xiaozhiclient` 契约或子女端 API。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/anban`、`npm test --prefix web` 均通过；RED 阶段运行 `go test -count=1 ./internal/domains/reminder`，按预期失败于文本仍为“您该该测血压啦啦...”。
+
 ### 方案 C 现场部署作战卡
 
 - 文件：`docs/deployment/方案C现场部署作战卡.md`、`docs/deployment/README.md`
