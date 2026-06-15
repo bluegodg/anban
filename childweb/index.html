@@ -200,11 +200,11 @@
       <div class="freq-picker-handle"></div>
       <div class="freq-picker-title">选择频率</div>
       <div class="freq-picker-options" id="freqPickerOptions">
-        <div class="freq-option selected" data-value="每天" onclick="selectFreqOption(this)">
+        <div class="freq-option" data-value="每天" onclick="selectFreqOption(this)">
           <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
           <div><div class="freq-text">每天</div><div class="freq-desc">每天重复提醒</div></div>
         </div>
-        <div class="freq-option" data-value="仅一次" onclick="selectFreqOption(this)">
+        <div class="freq-option selected" data-value="仅一次" onclick="selectFreqOption(this)">
           <div class="freq-check"><span class="material-symbols-outlined">check</span></div>
           <div><div class="freq-text">仅一次</div><div class="freq-desc">仅提醒一次</div></div>
         </div>
@@ -565,7 +565,7 @@
                   </div>
                   <div class="relative">
                     <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openFreqPickerModal()">
-                      <span class="font-label-md text-label-md" id="freqDisplay">每天</span>
+                      <span class="font-label-md text-label-md" id="freqDisplay">仅一次</span>
                       <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
                     </button>
 
@@ -591,7 +591,7 @@
                     <p class="font-label-sm text-label-sm text-text-secondary">开启后老人忙碌时也会强制播报</p>
                   </div>
                 </div>
-                <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="this.classList.toggle('on');this.classList.toggle('off')"><div class="toggle-thumb"></div></div>
+                <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="notImplemented('重要提醒')"><div class="toggle-thumb"></div></div>
               </div>
               <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="saveReminder()">保存提醒</button>
             </div>
@@ -1211,12 +1211,12 @@
             </div>
             <div class="relative">
               <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="toggleSheetFreqPicker()">
-                <span class="font-label-md text-label-md" id="sheetFreqDisplay">每天</span>
+                <span class="font-label-md text-label-md" id="sheetFreqDisplay">仅一次</span>
                 <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
               </button>
               <div class="dropdown-panel" id="sheetFreqPickerPanel" style="min-width:110px">
-                <div class="freq-dropdown-item selected" onclick="selectSheetFreq(this)">每天</div>
-                <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">仅一次</div>
+                <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">每天</div>
+                <div class="freq-dropdown-item selected" onclick="selectSheetFreq(this)">仅一次</div>
                 <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">工作日</div>
                 <div class="freq-dropdown-item" onclick="selectSheetFreq(this)">周末</div>
               </div>

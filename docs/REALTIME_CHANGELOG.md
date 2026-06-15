@@ -3733,3 +3733,17 @@
 - 内容：消息页并行加载 `getHistory` 与 `listMessages`，按时间合并为左右气泡；聊天页和两个快速留言入口统一调用 `sendMessage`；图片/语音按钮统一提示“该功能未实现”。
 - 功能：子女可发送真实留言并刷新播报状态，历史对话和留言状态不再读取 localStorage。
 - 验证：`npm test --prefix childweb` 13 个测试全绿，覆盖气泡整形、真实 API 调用和附件降级。
+
+### 23:24 childweb P5 提醒 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：新增单次提醒时间换算测试，要求列表/创建/删除接真实 API，并要求默认“仅一次”、重复/重要/暂停走统一未实现提示。
+- 目的：按接入计划严格收敛提醒能力，避免把 UI mock 的重复和强制播报误当成后端已支持。
+- 功能影响：暂无；当前提醒仍由 DOM/localStorage mock 驱动，测试应保持 RED。
+
+### 23:32 childweb P5 提醒 GREEN 实现
+
+- 文件：`childweb/app.js`、`childweb/index.html`、`childweb/integration-core.js`、`childweb/smoke.test.mjs`
+- 内容：新增 `nextOccurrenceUTC`；待执行列表接 `listReminders(status=scheduled)`，创建接 `createReminder`，详情删除接 `deleteReminder`，历史页接完整提醒列表；主表单和快速表单均只允许一次性提醒。
+- 降级：重复、重要、暂停和编辑提醒统一提示“该功能未实现”，不再模拟不存在的后端能力。
+- 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 16 个测试全绿。

@@ -149,3 +149,29 @@ test('P4 unsupported message attachments use the unified notice', () => {
   assert.match(indexHTML, /onclick="notImplemented\('图片留言'\)"/);
   assert.match(indexHTML, /onclick="notImplemented\('语音留言'\)"/);
 });
+
+test('P5 computes the next one-time reminder in UTC', async () => {
+  const { nextOccurrenceUTC } = await import('./integration-core.js');
+  const today = new Date(nextOccurrenceUTC(8, 30, new Date(2026, 5, 15, 8, 0, 0)));
+  const tomorrow = new Date(nextOccurrenceUTC(8, 30, new Date(2026, 5, 15, 8, 31, 0)));
+
+  assert.equal(today.getDate(), 15);
+  assert.equal(today.getHours(), 8);
+  assert.equal(today.getMinutes(), 30);
+  assert.equal(tomorrow.getDate(), 16);
+  assert.equal(tomorrow.getHours(), 8);
+  assert.equal(tomorrow.getMinutes(), 30);
+});
+
+test('P5 connects one-time reminder list, create, and delete APIs', () => {
+  assert.match(appJS, /anbanClient\.listReminders\(\{ deviceId: anbanConfig\.deviceId, status: 'scheduled' \}\)/);
+  assert.match(appJS, /anbanClient\.createReminder\(\{[\s\S]*scheduledAt:[\s\S]*content:[\s\S]*category:/);
+  assert.match(appJS, /anbanClient\.deleteReminder\(reminderId\)/);
+});
+
+test('P5 defaults to one-time reminders and rejects unsupported controls', () => {
+  assert.match(indexHTML, /id="freqDisplay">仅一次</);
+  assert.match(indexHTML, /id="importantToggle" onclick="notImplemented\('重要提醒'\)"/);
+  assert.match(appJS, /notImplemented\('重复提醒'\)/);
+  assert.match(appJS, /notImplemented\('暂停提醒'\)/);
+});

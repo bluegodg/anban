@@ -5,6 +5,7 @@ import {
   buildHomeStatus,
   formatLoginError,
   formatRelativeTime,
+  nextOccurrenceUTC,
   normalizeHistoryMessages,
 } from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
@@ -103,11 +104,6 @@ function showSection(name) {
     if (inner) inner.scrollTop = 0;
   }
 
-  // Ensure history page always refreshes
-  if (name === 'history' && typeof window.initHistory === 'function') {
-    window.initHistory();
-  }
-
   SPA.currentSection = name;
   // Restore warn scroll position when returning from a sub-page (detail, history, etc.)
   if (name === 'warn' && SPA._fromWarnSubpage && typeof SPA._warnScrollTop === 'number' && SPA._warnScrollTop > 0) {
@@ -154,6 +150,7 @@ function showSection(name) {
 
   if (name === 'home' && typeof window.refreshHome === 'function') window.refreshHome();
   if (name === 'message' && typeof window.refreshMessages === 'function') window.refreshMessages();
+  if (name === 'warn' && typeof window.refreshReminders === 'function') window.refreshReminders();
 
   // Update nav active states
   updateNavActive(name);
@@ -495,21 +492,29 @@ function initHome() {
   window.toggleReminderTimePicker = function() {
     document.getElementById('reminderTimePickerPanel').classList.toggle('show');
   };
-  window.saveQuickReminder = function() {
+  window.saveQuickReminder = async function() {
     var input = document.getElementById('reminderSheetInput');
     var text = input.value.trim();
     if (!text) return;
-    var time = document.getElementById('reminderTimeDisplay').textContent;
     var freq = document.getElementById('sheetFreqDisplay').textContent;
-    var stored = localStorage.getItem('anban_reminders');
-    var reminders = stored ? JSON.parse(stored) : [];
-    reminders.push({ text: text, time: time, freq: freq });
-    localStorage.setItem('anban_reminders', JSON.stringify(reminders));
-    input.value = '';
-    closeSheet();
-    showToast('提醒已保存');
+    if (freq !== '仅一次') return notImplemented('重复提醒');
+    try {
+      await anbanClient.createReminder({
+        deviceId: anbanConfig.deviceId,
+        scheduledAt: nextOccurrenceUTC(reminderHour, reminderMinute),
+        content: text,
+        category: text.includes('药') ? 'med' : 'custom',
+      });
+      input.value = '';
+      closeSheet();
+      showToast('提醒已保存');
+      if (typeof window.refreshReminders === 'function') window.refreshReminders();
+    } catch (error) {
+      showToast(error.message || '提醒保存失败');
+    }
   };
   window.selectSheetFreq = function(el) {
+    if (el.textContent.trim() !== '仅一次') return notImplemented('重复提醒');
     var items = document.querySelectorAll('#sheetFreqPickerPanel .freq-dropdown-item');
     for (var i = 0; i < items.length; i++) items[i].classList.remove('selected');
     el.classList.add('selected');
@@ -543,7 +548,7 @@ function initHome() {
   })();
 }
 
-window.initHistory = function() {
+function initHistoryMock() {
     var list = document.getElementById('historyList');
     var empty = document.getElementById('historyEmpty');
     if (!list || !empty) return;
@@ -619,7 +624,32 @@ window.initHistory = function() {
         list.appendChild(div);
       }
     }
-  };;
+  };
+
+window.initHistory = async function() {
+  var list = document.getElementById('historyList');
+  var empty = document.getElementById('historyEmpty');
+  if (!list || !empty) return;
+  list.innerHTML = '';
+
+  try {
+    var payload = await anbanClient.listReminders({ deviceId: anbanConfig.deviceId });
+    var records = (payload.reminders || []).filter(function(reminder) { return reminder.status !== 'scheduled'; });
+    empty.style.display = records.length ? 'none' : '';
+    records.forEach(function(reminder) {
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-4 py-4 border-b border-divider-warm/30';
+      row.innerHTML = '<span class="material-symbols-outlined text-success text-[20px]">check_circle</span><div class="flex-1 min-w-0"><p class="font-body-md text-body-md text-on-surface truncate"></p><p class="font-label-sm text-label-sm text-text-secondary"></p></div><span class="font-label-sm text-label-sm text-on-surface-variant"></span>';
+      row.querySelector('p').textContent = reminder.content || reminder.text || '提醒';
+      row.querySelectorAll('p')[1].textContent = formatRelativeTime(reminder.playedAt || reminder.scheduledAt);
+      row.lastElementChild.textContent = reminder.status === 'played' ? '已提醒' : reminder.status === 'failed' ? '提醒失败' : reminder.status === 'cancelled' ? '已取消' : reminder.status;
+      list.appendChild(row);
+    });
+  } catch (error) {
+    empty.style.display = '';
+    showToast(error.message || '历史提醒加载失败');
+  }
+};
 
 // ============================
 // Reminder Detail / Edit / Delete
@@ -703,6 +733,7 @@ window.editDetailTime = function() {
 };
 
 window.editDetailFreq = function() {
+  return notImplemented('重复提醒');
   var freqEl = document.getElementById('detailFreq');
   if (!freqEl) return;
   _detailEditTarget = 'detail';
@@ -719,6 +750,7 @@ window.editDetailFreq = function() {
 };
 
 window.toggleDetailImportant = function() {
+  return notImplemented('重要提醒');
   var toggle = document.getElementById('detailImportantToggle');
   if (!toggle) return;
   toggle.classList.toggle('on');
@@ -735,6 +767,7 @@ window.toggleDetailImportant = function() {
 };
 
 window.saveDetailReminder = function() {
+  return notImplemented('编辑提醒');
   var card = _detailCard;
   if (!card) return;
 
@@ -786,17 +819,19 @@ window.closeDeleteConfirm = function() {
   if (card2) card2.classList.remove('open');
 };
 
-window.doDeleteReminder = function() {
+window.doDeleteReminder = async function() {
   var card = _detailCard;
-  if (card) {
-    card.style.transition = 'all 0.3s ease';
-    card.style.opacity = '0';
-    card.style.transform = 'translateX(60px)';
-    setTimeout(function() { card.remove(); }, 300);
+  var reminderId = card && card.getAttribute('data-reminder-id');
+  if (!reminderId) return;
+  try {
+    await anbanClient.deleteReminder(reminderId);
+    _detailCard = null;
+    closeDeleteConfirm();
+    navigateTo('warn');
+    showToast('提醒已删除');
+  } catch (error) {
+    showToast(error.message || '提醒删除失败');
   }
-  _detailCard = null;
-  closeDeleteConfirm();
-  navigateTo('warn');
 };
 
 
@@ -965,7 +1000,7 @@ function initWarn() {
     }
     closeTimePickerModal();
   };
-  var selectedFreq = '每天';
+  var selectedFreq = '仅一次';
   var customDates = [];
   var calYear, calMonth;
 
@@ -1097,6 +1132,7 @@ function initWarn() {
   };
   
   window.selectFreqOption = function(el) {
+    if (el.getAttribute('data-value') !== '仅一次') return notImplemented('重复提醒');
     var options = document.querySelectorAll('#freqPickerOptions .freq-option');
     for (var i = 0; i < options.length; i++) options[i].classList.remove('selected');
     el.classList.add('selected');
@@ -1175,22 +1211,13 @@ function initWarn() {
   };
 
   window.handleToggle = function(el) {
-    var card = el.closest('.bg-surface-white');
-    if (el.classList.contains('on')) {
-      el.classList.remove('on');
-      el.classList.add('off');
-      if (card) card.classList.add('reminder-paused');
-    } else {
-      el.classList.remove('off');
-      el.classList.add('on');
-      if (card) card.classList.remove('reminder-paused');
-    }
+    return notImplemented('暂停提醒');
   };
 
 
 
 
-  window.saveReminder = function() {
+  window.saveReminder = async function() {
     var input = document.getElementById('reminderContent');
     var text = input.value.trim();
     if (!text) {
@@ -1200,46 +1227,72 @@ function initWarn() {
       setTimeout(function() { input.style.borderColor = ''; input.style.animation = ''; }, 800);
       return;
     }
-    var time = document.getElementById('timeDisplay').textContent;
     var freq = document.getElementById('freqDisplay').textContent;
     var importantToggle = document.getElementById('importantToggle');
     var isImportant = importantToggle && importantToggle.classList.contains('on');
-    var list = document.getElementById('reminderList');
-    var div = document.createElement('div');
-    div.className = 'bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between';
-    div.setAttribute('data-important', isImportant ? '1' : '0');
-    var importantTag = isImportant ? '<span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>' : '';
-    var iconClass = isImportant ? 'text-warning' : 'text-primary';
-    div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ' + iconClass + '">notifications</span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">' + text + '</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + freq + '</span>' + importantTag + '</div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">' + time + '</p><p class="font-label-sm text-label-sm text-text-secondary">备注：自定义提醒</p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
-    list.insertBefore(div, list.firstChild);
-    input.value = '';
-    input.setAttribute('placeholder', '例如：吃早饭、吃降压药、喝水等');
-    if (importantToggle) { importantToggle.classList.remove('on'); importantToggle.classList.add('off'); }
-    if (counter) counter.textContent = '0/20';
-    window.updateCount();
+    if (freq !== '仅一次') return notImplemented('重复提醒');
+    if (isImportant) return notImplemented('重要提醒');
+    var timeParts = document.getElementById('timeDisplay').textContent.split(':');
+    try {
+      await anbanClient.createReminder({
+        deviceId: anbanConfig.deviceId,
+        scheduledAt: nextOccurrenceUTC(Number(timeParts[0]), Number(timeParts[1])),
+        content: text,
+        category: text.includes('药') ? 'med' : 'custom',
+      });
+      input.value = '';
+      input.setAttribute('placeholder', '例如：吃早饭、吃降压药、喝水等');
+      if (counter) counter.textContent = '0/20';
+      showToast('提醒已保存');
+      await loadSavedReminders();
+    } catch (error) {
+      showToast(error.message || '提醒保存失败');
+    }
   };
 
-  function loadSavedReminders() {
-    var stored = localStorage.getItem('anban_reminders');
-    if (!stored) return;
-    var reminders = JSON.parse(stored);
-    var list = document.getElementById('reminderList');
-    for (var i = 0; i < reminders.length; i++) {
-      var r = reminders[i];
-      var div = document.createElement('div');
-      div.className = 'bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between';
-      div.setAttribute('data-important', r.important ? '1' : '0');
-      div.setAttribute('data-name', r.text);
-      div.setAttribute('data-time', r.time);
-      div.setAttribute('data-freq', r.freq || '每天');
-      div.setAttribute('data-note', r.note || '快速添加');
-      div.setAttribute('data-icon', 'notifications');
-      div.setAttribute('data-iconcolor', r.important ? 'warning' : 'primary');
-      div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ' + (r.important ? 'text-warning' : 'text-primary') + '">notifications</span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">' + r.text + '</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">' + (r.freq || '每天') + '</span>' + (r.important ? '<span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:\'FILL\' 1">priority_high</span>重要</span>' : '') + '</div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">' + r.time + '</p><p class="font-label-sm text-label-sm text-text-secondary">备注：' + (r.note || '快速添加') + '</p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
-      list.insertBefore(div, list.firstChild);
-    }
-    window.updateCount();
+  function createReminderCard(reminder) {
+    var scheduled = new Date(reminder.scheduledAt);
+    var time = Number.isNaN(scheduled.getTime()) ? '--:--' : scheduled.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    var text = reminder.content || reminder.text || '提醒';
+    var div = document.createElement('div');
+    div.className = 'bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between';
+    div.setAttribute('data-reminder-id', reminder.reminderId || '');
+    div.setAttribute('data-important', '0');
+    div.setAttribute('data-name', text);
+    div.setAttribute('data-time', time);
+    div.setAttribute('data-freq', '仅一次');
+    div.setAttribute('data-note', reminder.status || 'scheduled');
+    div.setAttribute('data-icon', reminder.category === 'med' ? 'medication' : 'notifications');
+    div.setAttribute('data-iconcolor', 'primary');
+    div.innerHTML = '<div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-primary"></span></div><div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface"></h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">仅一次</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1"></p><p class="font-label-sm text-label-sm text-text-secondary"></p></div></div><div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>';
+    div.querySelector('.material-symbols-outlined').textContent = reminder.category === 'med' ? 'medication' : 'notifications';
+    div.querySelector('h4').textContent = text;
+    div.querySelector('p.font-bold').textContent = time;
+    div.querySelector('p.font-label-sm').textContent = formatRelativeTime(reminder.scheduledAt);
+    return div;
   }
+
+  async function loadSavedReminders() {
+    var list = document.getElementById('reminderList');
+    try {
+      var payload = await anbanClient.listReminders({ deviceId: anbanConfig.deviceId, status: 'scheduled' });
+      var reminders = payload.reminders || [];
+      list.innerHTML = '';
+      if (!reminders.length) {
+        var empty = document.createElement('div');
+        empty.className = 'bg-surface-white rounded-2xl p-6 text-center text-text-secondary';
+        empty.textContent = '暂无待执行提醒';
+        list.appendChild(empty);
+      }
+      for (var i = 0; i < reminders.length; i++) {
+        list.appendChild(createReminderCard(reminders[i]));
+      }
+    } catch (error) {
+      list.innerHTML = '<div class="bg-surface-white rounded-2xl p-6 text-center text-text-secondary">提醒加载失败</div>';
+    }
+  }
+
+  window.refreshReminders = loadSavedReminders;
 
   window.setTimePickerValues = function(h, m) {
     selectedHour = h;
@@ -1255,7 +1308,6 @@ function initWarn() {
   };
 
   buildTimePicker();
-  loadSavedReminders();
 }
 
 // ============================

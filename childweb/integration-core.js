@@ -79,3 +79,17 @@ export function buildConversationBubbles({ history = {}, messages = {} } = {}) {
     return (Number.isNaN(leftAt) ? 0 : leftAt) - (Number.isNaN(rightAt) ? 0 : rightAt);
   });
 }
+
+export function nextOccurrenceUTC(hour, minute, now = new Date()) {
+  const scheduled = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    Number(hour),
+    Number(minute),
+    0,
+    0,
+  );
+  if (scheduled <= now) scheduled.setDate(scheduled.getDate() + 1);
+  return scheduled.toISOString();
+}
