@@ -318,6 +318,23 @@
               </div>
             </div>
           </section>
+          <section class="mb-section-gap">
+            <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between gap-4">
+              <div class="flex items-center gap-4 min-w-0">
+                <div class="w-11 h-11 rounded-2xl bg-primary-container/20 flex items-center justify-center flex-shrink-0">
+                  <span class="material-symbols-outlined text-primary">waving_hand</span>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-title-md text-title-md text-on-surface">主动问候</h3>
+                  <p class="font-body-sm text-body-sm text-text-secondary truncate" id="greetingStatusText">可随时让安伴主动问候老人</p>
+                </div>
+              </div>
+              <button class="primary-gradient h-11 px-4 rounded-xl text-white font-label-md text-label-md flex items-center justify-center gap-1.5 active:scale-95 transition-all flex-shrink-0" id="greetingTriggerBtn" type="button">
+                <span>问候老人</span>
+                <span class="material-symbols-outlined text-[18px]">record_voice_over</span>
+              </button>
+            </div>
+          </section>
           
           <section class="mb-section-gap">
             <div class="flex justify-between items-center mb-4">
@@ -932,6 +949,41 @@
               <label class="block"><span class="font-label-md text-label-md text-on-surface-variant">设备 ID</span><input class="mt-2 w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="settingsDeviceId" type="text"/></label>
               <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveConnectionBtn" type="button">保存连接设置</button>
             </div>
+          </section>
+          <section class="mb-section-gap">
+            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">主动问候时段</h3>
+            <form class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4" id="greetingScheduleForm">
+              <div class="grid grid-cols-[1fr_auto] gap-3 items-center">
+                <label class="font-label-md text-label-md text-on-surface" for="morningGreetingTime">早晨问候</label>
+                <input class="bg-background-cream border border-divider-warm rounded-xl px-3 py-2 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="morningGreetingTime" type="time"/>
+                <label class="font-label-sm text-label-sm text-text-secondary flex items-center gap-2" for="morningGreetingEnabled"><input id="morningGreetingEnabled" type="checkbox"/> 启用</label>
+                <select class="bg-background-cream border border-divider-warm rounded-xl px-3 py-2 font-label-md text-label-md text-on-surface" id="morningGreetingTone">
+                  <option value="warm">温暖</option>
+                  <option value="casual">轻松</option>
+                </select>
+              </div>
+              <div class="h-[1px] bg-divider-warm/60"></div>
+              <div class="grid grid-cols-[1fr_auto] gap-3 items-center">
+                <label class="font-label-md text-label-md text-on-surface" for="noonGreetingTime">午间问候</label>
+                <input class="bg-background-cream border border-divider-warm rounded-xl px-3 py-2 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="noonGreetingTime" type="time"/>
+                <label class="font-label-sm text-label-sm text-text-secondary flex items-center gap-2" for="noonGreetingEnabled"><input id="noonGreetingEnabled" type="checkbox"/> 启用</label>
+                <select class="bg-background-cream border border-divider-warm rounded-xl px-3 py-2 font-label-md text-label-md text-on-surface" id="noonGreetingTone">
+                  <option value="warm">温暖</option>
+                  <option value="casual">轻松</option>
+                </select>
+              </div>
+              <div class="h-[1px] bg-divider-warm/60"></div>
+              <div class="grid grid-cols-[1fr_auto] gap-3 items-center">
+                <label class="font-label-md text-label-md text-on-surface" for="eveningGreetingTime">傍晚问候</label>
+                <input class="bg-background-cream border border-divider-warm rounded-xl px-3 py-2 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="eveningGreetingTime" type="time"/>
+                <label class="font-label-sm text-label-sm text-text-secondary flex items-center gap-2" for="eveningGreetingEnabled"><input id="eveningGreetingEnabled" type="checkbox"/> 启用</label>
+                <select class="bg-background-cream border border-divider-warm rounded-xl px-3 py-2 font-label-md text-label-md text-on-surface" id="eveningGreetingTone">
+                  <option value="warm">温暖</option>
+                  <option value="casual">轻松</option>
+                </select>
+              </div>
+              <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveGreetingScheduleBtn" type="submit">保存问候时段</button>
+            </form>
           </section>
           <section class="mb-section-gap">
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center gap-4 active:scale-[0.98] transition-all cursor-pointer">

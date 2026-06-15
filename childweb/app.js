@@ -3,11 +3,13 @@ import { loadConfig, saveConfig } from './config.js';
 import {
   buildConversationBubbles,
   buildHomeStatus,
+  formatGreetingTriggerResult,
   formatLoginError,
   formatRelativeTime,
   mapFieldsToStitchProfile,
   mapStitchProfileToFields,
   nextOccurrenceUTC,
+  normalizeGreetingSlots,
   normalizeHistoryMessages,
 } from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
@@ -384,6 +386,28 @@ function initHome() {
       renderRecentHistory({ messages: [] });
     }
   };
+
+  var greetingButton = document.getElementById('greetingTriggerBtn');
+  if (greetingButton) {
+    greetingButton.addEventListener('click', async function() {
+      var statusText = document.getElementById('greetingStatusText');
+      greetingButton.disabled = true;
+      greetingButton.classList.add('opacity-70');
+      if (statusText) statusText.textContent = '正在触发问候...';
+      try {
+        var greeting = await anbanClient.triggerGreeting({ deviceId: anbanConfig.deviceId, tonePreset: 'warm' });
+        var result = formatGreetingTriggerResult(greeting);
+        if (statusText) statusText.textContent = result.detail;
+        showToast(result.notice);
+      } catch (error) {
+        if (statusText) statusText.textContent = '问候触发失败';
+        showToast(error.message || '问候触发失败');
+      } finally {
+        greetingButton.disabled = false;
+        greetingButton.classList.remove('opacity-70');
+      }
+    });
+  }
 
   // Quick Msg Modal
   window.openQuickMsg = function() {
@@ -1293,8 +1317,77 @@ function initMine() {
   var baseURLInput = document.getElementById('settingsBaseURL');
   var deviceIdInput = document.getElementById('settingsDeviceId');
   var saveConnectionBtn = document.getElementById('saveConnectionBtn');
+  var greetingScheduleForm = document.getElementById('greetingScheduleForm');
   if (baseURLInput) baseURLInput.value = anbanConfig.baseURL;
   if (deviceIdInput) deviceIdInput.value = anbanConfig.deviceId;
+
+  function greetingSlotElements(label) {
+    return {
+      time: document.getElementById(label + 'GreetingTime'),
+      enabled: document.getElementById(label + 'GreetingEnabled'),
+      tone: document.getElementById(label + 'GreetingTone'),
+    };
+  }
+
+  function writeGreetingSchedule(schedule) {
+    normalizeGreetingSlots(schedule && schedule.slots).forEach(function(slot) {
+      var els = greetingSlotElements(slot.label);
+      if (els.time) els.time.value = slot.time;
+      if (els.enabled) els.enabled.checked = slot.enabled;
+      if (els.tone) els.tone.value = slot.tonePreset;
+    });
+  }
+
+  function readGreetingSchedule() {
+    return normalizeGreetingSlots(['morning', 'noon', 'evening'].map(function(label) {
+      var els = greetingSlotElements(label);
+      return {
+        label: label,
+        time: els.time ? els.time.value : '',
+        enabled: els.enabled ? els.enabled.checked : false,
+        tonePreset: els.tone ? els.tone.value : 'warm',
+      };
+    }));
+  }
+
+  async function loadGreetingSchedule() {
+    if (!greetingScheduleForm) return;
+    try {
+      var schedule = await anbanClient.getGreetingSchedule({ deviceId: anbanConfig.deviceId });
+      writeGreetingSchedule(schedule);
+    } catch (error) {
+      writeGreetingSchedule({ slots: [] });
+    }
+  }
+
+  if (greetingScheduleForm) {
+    greetingScheduleForm.addEventListener('submit', async function(event) {
+      event.preventDefault();
+      var button = document.getElementById('saveGreetingScheduleBtn');
+      var slots = readGreetingSchedule();
+      if (button) {
+        button.disabled = true;
+        button.classList.add('opacity-70');
+      }
+      try {
+        var schedule = await anbanClient.updateGreetingSchedule({
+          deviceId: anbanConfig.deviceId,
+          slots: slots,
+        });
+        writeGreetingSchedule(schedule);
+        showToast('问候时段已保存');
+      } catch (error) {
+        showToast(error.message || '问候时段保存失败');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.classList.remove('opacity-70');
+        }
+      }
+    });
+    loadGreetingSchedule();
+  }
+
   if (saveConnectionBtn) {
     saveConnectionBtn.addEventListener('click', async function() {
       var baseURL = baseURLInput.value.trim().replace(/\/+$/, '');

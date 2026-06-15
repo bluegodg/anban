@@ -31,6 +31,58 @@ export function buildHomeStatus(status = {}, now = new Date()) {
   };
 }
 
+export function formatGreetingTriggerResult(greeting = {}) {
+  const text = String(greeting.text || '').trim();
+  if (greeting.status === 'pending') {
+    return {
+      label: '在线',
+      detail: '主动问候已排队',
+      notice: withOptionalText('问候已排队', text),
+    };
+  }
+
+  return {
+    label: '在线',
+    detail: '刚刚触发一次主动问候',
+    notice: withOptionalText('问候已触发', text),
+  };
+}
+
+const DEFAULT_GREETING_SLOTS = Object.freeze([
+  Object.freeze({ label: 'morning', time: '08:00', enabled: true, tonePreset: 'warm' }),
+  Object.freeze({ label: 'noon', time: '12:30', enabled: true, tonePreset: 'warm' }),
+  Object.freeze({ label: 'evening', time: '18:00', enabled: true, tonePreset: 'warm' }),
+]);
+
+export function normalizeGreetingSlots(slots = []) {
+  const byLabel = new Map((Array.isArray(slots) ? slots : [])
+    .map((slot) => [String(slot?.label || '').trim(), slot]));
+
+  return DEFAULT_GREETING_SLOTS.map((fallback) => {
+    const slot = byLabel.get(fallback.label) || {};
+    const time = normalizeGreetingTime(slot.time) || fallback.time;
+    const tonePreset = slot.tonePreset === 'casual' ? 'casual' : fallback.tonePreset;
+    return {
+      label: fallback.label,
+      time,
+      enabled: typeof slot.enabled === 'boolean' ? slot.enabled : fallback.enabled,
+      tonePreset,
+    };
+  });
+}
+
+function withOptionalText(prefix, text) {
+  return text ? `${prefix}：${text}` : prefix;
+}
+
+function normalizeGreetingTime(value) {
+  const text = String(value || '').trim();
+  if (!/^\d{2}:\d{2}$/.test(text)) return '';
+  const [hour, minute] = text.split(':').map(Number);
+  if (hour > 23 || minute > 59) return '';
+  return text;
+}
+
 export function normalizeHistoryMessages(payload = {}, limit = 10) {
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   return messages

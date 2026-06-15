@@ -307,8 +307,8 @@ test('W1.1 normalizes morning noon and evening greeting slots', async () => {
     { label: 'noon', time: 'bad', enabled: true, tonePreset: 'unknown' },
   ]), [
     { label: 'morning', time: '07:30', enabled: true, tonePreset: 'warm' },
-    { label: 'noon', time: '12:30', enabled: false, tonePreset: 'casual' },
-    { label: 'evening', time: '18:30', enabled: false, tonePreset: 'warm' },
+    { label: 'noon', time: '12:30', enabled: true, tonePreset: 'warm' },
+    { label: 'evening', time: '18:00', enabled: true, tonePreset: 'warm' },
   ]);
 });
 

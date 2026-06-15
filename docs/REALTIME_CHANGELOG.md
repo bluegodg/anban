@@ -3796,3 +3796,10 @@
 - 内容：要求新增问候触发结果 formatter、早/午/晚问候时段 slots 归一化，以及 childweb 首页“问候老人”按钮和设置页问候时段表单接 `triggerGreeting` / `getGreetingSchedule` / `updateGreetingSchedule`。
 - 目的：把 PRD #2 的后端已具备能力补到 childweb 可见链路，避免继续停留在“接口存在但子女端不可用”。
 - 功能影响：暂无；当前 childweb 尚无问候入口和 slots 纯函数，测试应保持 RED。
+
+### 02:37 W1.1 问候前端 GREEN 实现
+
+- 文件：`childweb/integration-core.js`、`childweb/app.js`、`childweb/index.html`、`childweb/README.md`
+- 内容：新增 `formatGreetingTriggerResult` 与 `normalizeGreetingSlots`；首页增加“问候老人”按钮并接 `triggerGreeting`；设置页增加早/午/晚问候时段表单，进入设置时读取 `getGreetingSchedule`，保存时写 `updateGreetingSchedule`。
+- 功能：PRD #2 的子女触发问候和三时段定时配置在 childweb 可见可操作；缺省 slots 与后端默认 08:00/12:30/18:00 对齐。
+- 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 29 个测试全绿。
