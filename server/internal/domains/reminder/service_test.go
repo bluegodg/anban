@@ -619,6 +619,40 @@ func TestServiceCompletesReminderFromVoiceAcknowledgementHistory(t *testing.T) {
 	}
 }
 
+func TestServiceCompletesReminderFromNaturalVoiceAcknowledgement(t *testing.T) {
+	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	xc := &historyClient{}
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, xc, fakeSch)
+	svc.now = func() time.Time { return now }
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: now.Add(time.Minute),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	fakeSch.fire(0)
+
+	xc.history = []xiaozhiclient.HistoryMessage{
+		{Role: "user", Text: "好的，我这就去测", At: now.Add(5 * time.Second)},
+	}
+	now = now.Add(voiceAckPollInterval)
+	fakeSch.fire(2)
+
+	completed, err := svc.store.Get(ctx, got.ID)
+	if err != nil {
+		t.Fatalf("Get completed: %v", err)
+	}
+	if completed.Status != StatusCompleted || completed.AckKind != AckKindVoice {
+		t.Fatalf("completed reminder = %+v, want natural voice-completed", completed)
+	}
+}
+
 func TestServiceIgnoresOldOrNegativeVoiceHistoryAndKeepsPolling(t *testing.T) {
 	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	xc := &historyClient{}

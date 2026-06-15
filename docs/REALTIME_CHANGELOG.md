@@ -4,6 +4,14 @@
 
 ## 2026-06-15
 
+### PRD #6 自然语音确认 RED 测试
+
+- 文件：`server/internal/domains/reminder/service_test.go`
+- 内容：新增 `TestServiceCompletesReminderFromNaturalVoiceAcknowledgement`，模拟提醒播报后老人说“好的，我这就去测”，要求语音历史轮询把提醒转为 `completed/voice`。
+- 目的：贴近 PRD #6 “老人语音回好/知道了/收到 -> 状态自动转已完成”的真实 ASR 形态，避免只识别完全等于“好的”的短句，路演时老人自然回答却不完成提醒。
+- 边界：只增强 reminder 域对既有 `xiaozhiclient.GetHistory` 结果的确认短句识别；不改变 GetHistory 契约、不要求 xiaozhi 推送事件、不影响留言/问候/视觉播报。
+- 验证：切片前 `go build ./...`、`go vet ./...`、`go test -count=1 ./...`、Linux amd64 交叉编译和 `npm test --prefix web` 全绿；RED 阶段运行 `go test -count=1 ./internal/domains/reminder`，按预期失败于提醒仍停留在 `played`。
+
 ### PRD #4 对话记录空正文过滤 RED 测试
 
 - 文件：`server/internal/domains/status/service_test.go`
