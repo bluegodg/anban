@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const indexHTML = await readFile(new URL('./index.html', import.meta.url), 'utf8');
+const appJS = await readFile(new URL('./app.js', import.meta.url), 'utf8').catch(() => '');
 
 test('P1 loads the Stitch application through an ES module entrypoint', () => {
   assert.match(indexHTML, /<script\s+type="module"\s+src="\.\/app\.js"><\/script>/);
@@ -59,4 +60,8 @@ test('P1 unsupported features always use the required Chinese notice', async () 
   assert.equal(NOT_IMPLEMENTED_MESSAGE, '该功能未实现');
   assert.equal(notImplemented('附件', notices.push.bind(notices)), '该功能未实现');
   assert.deepEqual(notices, ['该功能未实现']);
+});
+
+test('P1 declares detail edit state for ES module strict mode', () => {
+  assert.match(appJS, /var _detailEditTarget;/);
 });

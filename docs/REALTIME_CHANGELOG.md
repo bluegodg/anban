@@ -3683,3 +3683,11 @@
 - 内容：新增 childweb 原生 ESM 测试入口，要求 Stitch 页面改用模块脚本、逐字复用 `web/api/client.js`、以 localStorage 持久化 `baseURL/accessCode/deviceId`，并统一输出“该功能未实现”。
 - 目的：先锁定 P1 的最小接入边界，避免后续直接改屏幕逻辑时继续依赖散落的 mock 状态。
 - 功能影响：暂无生产功能；这是 TDD RED 阶段，当前缺少模块入口、API 客户端副本、配置模块和统一未实现提示。
+
+### 22:52 childweb P1 脚手架 GREEN 实现
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/api/client.js`、`childweb/config.js`、`childweb/not-implemented.js`、`childweb/server.js`、`childweb/smoke.test.mjs`
+- 内容：将 Stitch 内联脚本无行为改写地拆为 ES module，显式暴露原有内联事件和懒初始化函数；逐字复制已验证的 API client；新增 `baseURL/accessCode/deviceId` localStorage 配置与统一“该功能未实现”提示；将静态服务器改为 ESM。
+- 修复：浏览器回归发现原稿 `_detailEditTarget` 依赖隐式全局，在 module 严格模式下点击提醒时间会报错；先补 RED 测试，再显式声明状态。
+- 功能：页面仍保持原有 mock 行为，但已具备后续 P2-P6 接真实后端的单一 API/config 入口。
+- 验证：`npm test --prefix childweb` 通过，5 个测试全绿；本地静态服务返回 200；Playwright 验证登录、提醒列表、详情和时间弹窗，控制台 0 error / 0 warning。
