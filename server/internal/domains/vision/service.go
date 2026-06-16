@@ -81,6 +81,31 @@ func (s *Service) CaptureAndObservePresence(ctx context.Context, req CaptureRequ
 	}, err
 }
 
+func (s *Service) PollPresence(ctx context.Context, deviceID string) (PresencePollResult, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return PresencePollResult{}, ErrInvalidInput
+	}
+
+	workflowCtx, cancel := withVisionMCPTimeout(ctx)
+	defer cancel()
+
+	result := PresencePollResult{DeviceID: deviceID}
+	status, err := s.xc.GetDeviceStatus(workflowCtx, deviceID)
+	if err != nil {
+		return result, err
+	}
+	if !status.Online {
+		result.Skipped = true
+		result.SkipReason = "device offline"
+		return result, nil
+	}
+
+	check, err := s.CaptureAndObservePresence(workflowCtx, CaptureRequest{DeviceID: deviceID})
+	result.Check = check
+	return result, err
+}
+
 func (s *Service) ObservePresence(ctx context.Context, req PresenceObservationRequest) (PresenceObservationResult, error) {
 	deviceID := strings.TrimSpace(req.DeviceID)
 	presence := normalizePresence(req.Presence)

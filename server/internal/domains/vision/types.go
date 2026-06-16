@@ -53,3 +53,10 @@ type PresenceCheckResult struct {
 	Capture     CaptureResult             `json:"capture"`
 	Observation PresenceObservationResult `json:"observation"`
 }
+
+type PresencePollResult struct {
+	DeviceID   string              `json:"deviceId"`
+	Skipped    bool                `json:"skipped"`
+	SkipReason string              `json:"skipReason,omitempty"`
+	Check      PresenceCheckResult `json:"check"`
+}

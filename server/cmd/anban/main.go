@@ -129,6 +129,7 @@ func main() {
 	}
 
 	visionService := vision.NewService(xc, greetingService)
+	startVisionPresencePoller(sch, cfg.VisionPresenceInterval, profileStore, visionService)
 	visionHandler := vision.NewHandler(visionService)
 
 	r := childapi.NewRouter(childapi.Deps{
@@ -145,5 +146,48 @@ func main() {
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)
 	if err := r.Run(cfg.ListenAddr); err != nil {
 		log.Fatalf("HTTP 服务退出: %v", err)
+	}
+}
+
+func startVisionPresencePoller(sch *scheduler.Scheduler, interval time.Duration, profileStore *profile.Store, visionService *vision.Service) {
+	if interval <= 0 {
+		log.Printf("vision presence poller disabled: ANBAN_VISION_PRESENCE_INTERVAL=%s", interval)
+		return
+	}
+
+	var scheduleNext func()
+	scheduleNext = func() {
+		if _, err := sch.ScheduleAt(time.Now().Add(interval), func() {
+			runVisionPresencePoll(profileStore, visionService)
+			scheduleNext()
+		}); err != nil {
+			log.Printf("vision presence poller 调度失败: %v", err)
+		}
+	}
+	scheduleNext()
+	log.Printf("vision presence poller enabled: interval=%s", interval)
+}
+
+func runVisionPresencePoll(profileStore *profile.Store, visionService *vision.Service) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deviceIDs, err := profileStore.ListDeviceIDs(ctx)
+	if err != nil {
+		log.Printf("vision presence 获取设备列表失败: %v", err)
+		return
+	}
+	for _, deviceID := range deviceIDs {
+		result, err := visionService.PollPresence(ctx, deviceID)
+		if err != nil {
+			log.Printf("vision presence 检测失败 device=%s: %v", deviceID, err)
+			continue
+		}
+		if result.Skipped {
+			continue
+		}
+		if result.Check.Observation.TriggeredGreeting {
+			log.Printf("vision presence 触发问候 device=%s", result.DeviceID)
+		}
 	}
 }

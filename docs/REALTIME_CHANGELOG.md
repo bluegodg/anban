@@ -3857,3 +3857,11 @@
 - 内容：要求 vision 服务提供后台轮询入口：先查 `GetDeviceStatus`，设备离线时静默跳过且不调用相机 MCP；设备在线时才使用默认 `self.camera.take_photo` 做 presence 检测。
 - 目的：补齐 PRD #7 的“presence 触发”后台路径，避免只完成 childweb 手动“看一眼”入口。
 - 功能影响：暂无；当前服务还没有 `PollPresence`，测试应保持 RED。
+
+### 03:49 W1.4 视觉 presence 轮询 GREEN 实现
+
+- 文件：`server/internal/domains/vision/service.go`、`server/internal/domains/vision/types.go`、`server/internal/config/config.go`、`server/cmd/anban/main.go`
+- 内容：新增 `PollPresence`，后台轮询先查设备在线状态，离线静默跳过，在线才调默认相机 MCP 并进入 NO_ONE→SOMEONE 状态机；新增 `ANBAN_VISION_PRESENCE_INTERVAL`（默认 30s，0 可关闭，低于 10s 拒绝）并在启动时用现有 scheduler 周期轮询已建画像设备。
+- 目的：补齐 PRD #7 的 presence 触发链路，使视觉不止有 childweb 手动“看一眼”，也具备可演示的后台回家触发问候路径。
+- 边界：不改 xiaozhi、不改设备协议、不修保活；视觉触发问候仍走 greeting 服务和共享 10 分钟主动语音配额。
+- 验证：`go test ./internal/config ./internal/domains/vision` 从 RED 变 GREEN；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 33/33。

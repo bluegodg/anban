@@ -3,6 +3,7 @@ package config
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestLoadFailsWhenManagerTokenMissing(t *testing.T) {
@@ -43,6 +44,9 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	}
 	if c.LLM.Enabled() {
 		t.Fatal("LLM.Enabled() = true with no ANBAN_LLM_* env; want profile-only fallback")
+	}
+	if c.VisionPresenceInterval != 30*time.Second {
+		t.Fatalf("VisionPresenceInterval default = %s, want 30s", c.VisionPresenceInterval)
 	}
 }
 
@@ -87,6 +91,32 @@ func TestLoadParsesAllowedOrigins(t *testing.T) {
 	want := []string{"http://child.local:5173", "https://demo.example"}
 	if !reflect.DeepEqual(c.AllowedOrigins, want) {
 		t.Fatalf("AllowedOrigins = %#v, want %#v", c.AllowedOrigins, want)
+	}
+}
+
+func TestLoadParsesVisionPresenceInterval(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+	t.Setenv("ANBAN_VISION_PRESENCE_INTERVAL", "45s")
+
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.VisionPresenceInterval != 45*time.Second {
+		t.Fatalf("VisionPresenceInterval = %s, want 45s", c.VisionPresenceInterval)
+	}
+}
+
+func TestLoadRejectsTooFrequentVisionPresenceInterval(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+	t.Setenv("ANBAN_VISION_PRESENCE_INTERVAL", "5s")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected ANBAN_VISION_PRESENCE_INTERVAL below 10s to be rejected")
 	}
 }
 
