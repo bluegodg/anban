@@ -48,6 +48,44 @@ export function formatGreetingTriggerResult(greeting = {}) {
   };
 }
 
+export function formatVisionPresenceResult(result = {}) {
+  const observation = result.observation || {};
+  const greeting = observation.greeting || {};
+  const text = String(greeting.text || '').trim();
+
+  if (observation.presence === 'someone' && observation.triggeredGreeting) {
+    if (greeting.status === 'pending') {
+      return {
+        detail: '看见有人，问候已排队',
+        notice: withOptionalText('视觉触发问候已排队', text),
+      };
+    }
+    return {
+      detail: '看见有人，已触发问候',
+      notice: withOptionalText('视觉触发问候已触发', text),
+    };
+  }
+
+  if (observation.presence === 'someone') {
+    return {
+      detail: '看见有人，暂未触发问候',
+      notice: '看一眼完成：看见有人',
+    };
+  }
+
+  if (observation.presence === 'no_one') {
+    return {
+      detail: '暂时没有看到老人',
+      notice: '看一眼完成：暂时没有看到老人',
+    };
+  }
+
+  return {
+    detail: '看一眼结果暂不可用',
+    notice: '看一眼完成：结果暂不可用',
+  };
+}
+
 const DEFAULT_GREETING_SLOTS = Object.freeze([
   Object.freeze({ label: 'morning', time: '08:00', enabled: true, tonePreset: 'warm' }),
   Object.freeze({ label: 'noon', time: '12:30', enabled: true, tonePreset: 'warm' }),

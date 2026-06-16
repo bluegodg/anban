@@ -3842,3 +3842,11 @@
 - 目的：把 PRD #7 已在后端/web 骨架存在的视觉能力接到当前路演优先的 childweb，明确选择“可行则实装”的路线，而不是继续把 childweb 视觉入口留空。
 - 功能影响：暂无；当前 childweb 缺少视觉格式化函数、按钮和调用代码，测试应保持 RED。
 - 验证：`npm test --prefix childweb` 按预期失败 2 项：`formatVisionPresenceResult is not a function`，以及缺少 `id="visionLookButton"`。
+
+### 03:35 W1.4 视觉 childweb 看一眼 GREEN 实现
+
+- 文件：`childweb/integration-core.js`、`childweb/app.js`、`childweb/index.html`、`childweb/README.md`
+- 内容：新增 `formatVisionPresenceResult`；首页增加“看一眼”卡片和状态文本；点击后先读设备状态，离线时静默跳过 MCP 调用，在线时通过现有 `checkVisionPresence` 使用 `self.camera.take_photo`，并展示“无人/有人/问候已排队/已触发”结果。
+- 目的：完成 PRD #7 可行路径：不改 xiaozhi 和设备协议，复用 manager OpenAPI MCP 调用与后端 vision presence 状态机，把视觉触发接到当前 childweb 演示入口。
+- 边界：不修设备保活；不新增设备协议；视觉触发问候仍走后端 greeting 服务和共享 10 分钟主动语音配额；如果真实设备 MCP 不稳定，现场可按 PRD 降级为加分项。
+- 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 从 RED 变 GREEN，33/33；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 33/33。

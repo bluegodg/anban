@@ -6,6 +6,7 @@ import {
   buildReminderScheduleOptions,
   formatGreetingTriggerResult,
   formatLoginError,
+  formatVisionPresenceResult,
   formatRelativeTime,
   mapFieldsToStitchProfile,
   mapStitchProfileToFields,
@@ -14,6 +15,8 @@ import {
   normalizeHistoryMessages,
 } from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
+
+const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
 
 var anbanConfig = loadConfig();
 var anbanClient = createAnbanClient(anbanConfig);
@@ -406,6 +409,33 @@ function initHome() {
       } finally {
         greetingButton.disabled = false;
         greetingButton.classList.remove('opacity-70');
+      }
+    });
+  }
+
+  var visionButton = document.getElementById('visionLookButton');
+  if (visionButton) {
+    visionButton.addEventListener('click', async function() {
+      var statusText = document.getElementById('visionStatusText');
+      visionButton.disabled = true;
+      visionButton.classList.add('opacity-70');
+      if (statusText) statusText.textContent = '正在看一眼...';
+      try {
+        var status = await anbanClient.getStatus({ deviceId: anbanConfig.deviceId });
+        if (status && status.online === false) {
+          if (statusText) statusText.textContent = '设备暂时离线，稍后再看';
+          return;
+        }
+        var presence = await anbanClient.checkVisionPresence({ deviceId: anbanConfig.deviceId, tool: VISION_CAPTURE_TOOL });
+        var result = formatVisionPresenceResult(presence);
+        if (statusText) statusText.textContent = result.detail;
+        showToast(result.notice);
+      } catch (error) {
+        if (statusText) statusText.textContent = '看一眼失败';
+        showToast(error.message || '看一眼失败');
+      } finally {
+        visionButton.disabled = false;
+        visionButton.classList.remove('opacity-70');
       }
     });
   }
