@@ -5,6 +5,7 @@
 只部署 xiaozhi 时，设备应保持原版小智对话能力；再部署本仓库的 `anban` 服务，才增加子女端留言、问候、提醒、画像、状态和视觉等安伴功能。
 
 当前执行稿见 [方案 C 当前执行说明](docs/deployment/方案C当前执行说明.md)。
+仓库边界、两服务部署口径和可插拔验收的决策记录见 [方案 C：仓库边界、两服务部署与可插拔验收](docs/decisions/2026-06-16-scheme-c-repo-boundary-and-deployment.md)。
 当前最短入口见 [方案 C 仓库边界与部署总纲](docs/deployment/方案C仓库边界与部署总纲.md)。
 当前阶段、目标验收和仓库边界见 [真机后阶段对齐与方案 C 部署说明](docs/plans/2026-06-14-真机后阶段对齐与方案C部署说明.md)。
 此前设备到手前的阶段说明见 [当前阶段对齐与方案 C 执行说明](docs/plans/2026-06-12-phase-alignment-scheme-c.md)。

@@ -44,6 +44,7 @@
 ## 已落定的决策
 
 - [x] [`2026-05-29-server-architecture.md`](./2026-05-29-server-architecture.md) —— 服务端架构选 **C**（安伴做独立第三服务 + 冻结 xiaozhi），经真代码深读证实。
+- [x] [`2026-06-16-scheme-c-repo-boundary-and-deployment.md`](./2026-06-16-scheme-c-repo-boundary-and-deployment.md) —— 设备到手后的仓库边界、两服务部署口径、Gate A/B/C/D 和可插拔验收。
 
 ## 当前待写的决策
 

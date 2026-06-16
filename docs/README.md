@@ -15,7 +15,8 @@ https://github.com/bluegodg/AnBan-docs-repo
 - plans/2026-05-29-anban-backend-foundation.md — 地基计划 + 末尾 Roadmap（每个域第一步）
 - plans/2026-06-14-真机后阶段对齐与方案C部署说明.md — 真机验证后的当前阶段、方案 C 两进程部署、可插拔边界和下一步 PRD 收口
 - plans/2026-06-12-phase-alignment-scheme-c.md — 设备到手前的阶段对齐、目标验收、方案 C 部署顺序与仓库边界
-- decisions/ — 服务端选 C 的决策记录
+- decisions/ — 服务端选 C、方案 C 仓库边界和部署 Gate 的决策记录
+- decisions/2026-06-16-scheme-c-repo-boundary-and-deployment.md — 设备到手后的仓库建设、两服务部署、可插拔验收和 PRD 基础阶段口径
 - deployment/README.md — 方案 C 部署入口：先回答“现在是什么阶段、这个仓库是什么、设备到了怎么部署”
 - deployment/方案C当前执行说明.md — 当前执行稿：阶段判断、仓库边界、Gate A/B/C/D 部署顺序和下一步收口
 - deployment/方案C仓库边界与部署总纲.md — 当前入口文档：仓库边界、两进程拓扑、设备到手后的 Gate A/B/C/D
