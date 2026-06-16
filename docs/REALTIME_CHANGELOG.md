@@ -3834,3 +3834,11 @@
 - 目的：落地 PRD #5 route C，使有 Ark key 的部署能从对话历史沉淀长期事实并在下次角色 prompt 中使用；无 key 的路演环境仍不阻塞画像保存与同步。
 - 边界：memory 只通过 `xiaozhiclient.GetHistory` 读取 xiaozhi 历史，并通过 profile 服务同步 prompt；不直接碰 xiaozhi HTTP、设备协议、留言配额、主动语音配额或保活问题；测试中的 LLM 使用 fake/httptest，不打真实网络。
 - 验证：`go test ./internal/llm ./internal/config ./internal/domains/profile ./internal/memory` 从 RED 变 GREEN；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 31/31。
+
+### 03:27 W1.4 视觉 childweb 看一眼 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：要求 childweb 提供 `formatVisionPresenceResult`，首页暴露“看一眼”按钮和状态文本，并使用真实 ESP32 MCP 工具 `self.camera.take_photo` 调用现有 `checkVisionPresence`。
+- 目的：把 PRD #7 已在后端/web 骨架存在的视觉能力接到当前路演优先的 childweb，明确选择“可行则实装”的路线，而不是继续把 childweb 视觉入口留空。
+- 功能影响：暂无；当前 childweb 缺少视觉格式化函数、按钮和调用代码，测试应保持 RED。
+- 验证：`npm test --prefix childweb` 按预期失败 2 项：`formatVisionPresenceResult is not a function`，以及缺少 `id="visionLookButton"`。

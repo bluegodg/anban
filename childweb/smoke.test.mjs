@@ -358,3 +358,34 @@ test('W1.1 childweb can trigger greetings and configure greeting schedule', () =
   assert.match(appJS, /anbanClient\.updateGreetingSchedule\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*slots:/);
   assert.match(appJS, /问候时段已保存/);
 });
+
+test('W1.4 formats vision presence results for childweb', async () => {
+  const { formatVisionPresenceResult } = await import('./integration-core.js');
+
+  assert.deepEqual(formatVisionPresenceResult({
+    observation: {
+      presence: 'someone',
+      triggeredGreeting: true,
+      greeting: { status: 'pending', text: '王阿姨，回来啦' },
+    },
+  }), {
+    detail: '看见有人，问候已排队',
+    notice: '视觉触发问候已排队：王阿姨，回来啦',
+  });
+
+  assert.deepEqual(formatVisionPresenceResult({
+    observation: { presence: 'no_one', triggeredGreeting: false },
+  }), {
+    detail: '暂时没有看到老人',
+    notice: '看一眼完成：暂时没有看到老人',
+  });
+});
+
+test('W1.4 childweb exposes look action through the real ESP32 camera MCP tool', () => {
+  assert.match(indexHTML, /id="visionLookButton"/);
+  assert.match(indexHTML, /看一眼/);
+  assert.match(indexHTML, /id="visionStatusText"/);
+  assert.match(appJS, /const VISION_CAPTURE_TOOL = 'self\.camera\.take_photo';/);
+  assert.match(appJS, /anbanClient\.checkVisionPresence\(\{ deviceId: anbanConfig\.deviceId, tool: VISION_CAPTURE_TOOL \}\)/);
+  assert.match(appJS, /formatVisionPresenceResult\(/);
+});
