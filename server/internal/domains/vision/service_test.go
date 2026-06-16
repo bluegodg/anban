@@ -153,6 +153,56 @@ func TestServiceCaptureAndObservePresenceRequiresPresenceSignal(t *testing.T) {
 	}
 }
 
+func TestServicePollPresenceSkipsOfflineDevice(t *testing.T) {
+	xc := &visionClient{
+		status: xiaozhiclient.DeviceStatus{DeviceID: "dev-001", Online: false},
+		raw:    json.RawMessage(`{"presence":"someone"}`),
+	}
+	svc := NewService(xc, &fakeGreetingTrigger{})
+
+	result, err := svc.PollPresence(context.Background(), " dev-001 ")
+	if err != nil {
+		t.Fatalf("PollPresence offline: %v", err)
+	}
+	if !result.Skipped || result.SkipReason != "device offline" {
+		t.Fatalf("result = %+v, want skipped device offline", result)
+	}
+	if result.DeviceID != "dev-001" {
+		t.Fatalf("DeviceID = %q, want trimmed dev-001", result.DeviceID)
+	}
+	if xc.statusCalls != 1 {
+		t.Fatalf("statusCalls = %d, want one status check", xc.statusCalls)
+	}
+	if xc.mcpCalls != 0 {
+		t.Fatalf("mcpCalls = %d, want no camera call for offline device", xc.mcpCalls)
+	}
+}
+
+func TestServicePollPresenceCapturesOnlineDevice(t *testing.T) {
+	xc := &visionClient{
+		status: xiaozhiclient.DeviceStatus{DeviceID: "dev-001", Online: true},
+		raw:    json.RawMessage(`{"presence":"no_one"}`),
+	}
+	svc := NewService(xc, &fakeGreetingTrigger{})
+
+	result, err := svc.PollPresence(context.Background(), "dev-001")
+	if err != nil {
+		t.Fatalf("PollPresence online: %v", err)
+	}
+	if result.Skipped {
+		t.Fatalf("result = %+v, want online device captured", result)
+	}
+	if result.Check.Observation.Presence != PresenceNoOne {
+		t.Fatalf("presence = %q, want no_one", result.Check.Observation.Presence)
+	}
+	if xc.statusCalls != 1 {
+		t.Fatalf("statusCalls = %d, want one status check", xc.statusCalls)
+	}
+	if xc.mcpCalls != 1 || xc.gotTool != DefaultCaptureTool {
+		t.Fatalf("mcpCalls = %d tool=%q, want one default camera call", xc.mcpCalls, xc.gotTool)
+	}
+}
+
 func TestServiceObservePresenceTriggersGreetingWhenSomeoneReturns(t *testing.T) {
 	trigger := &fakeGreetingTrigger{
 		result: sharedtypes.ProactiveGreetingResult{
@@ -234,6 +284,10 @@ type visionClient struct {
 	xiaozhiclient.FakeClient
 	raw         json.RawMessage
 	err         error
+	status      xiaozhiclient.DeviceStatus
+	statusErr   error
+	statusCalls int
+	mcpCalls    int
 	gotDeviceID string
 	gotTool     string
 	gotArgs     map[string]any
@@ -241,7 +295,17 @@ type visionClient struct {
 	deadline    time.Time
 }
 
+func (c *visionClient) GetDeviceStatus(ctx context.Context, deviceID string) (xiaozhiclient.DeviceStatus, error) {
+	c.statusCalls++
+	status := c.status
+	if status.DeviceID == "" {
+		status.DeviceID = deviceID
+	}
+	return status, c.statusErr
+}
+
 func (c *visionClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
+	c.mcpCalls++
 	c.gotDeviceID = deviceID
 	c.gotTool = tool
 	c.gotArgs = args

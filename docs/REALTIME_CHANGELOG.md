@@ -3850,3 +3850,10 @@
 - 目的：完成 PRD #7 可行路径：不改 xiaozhi 和设备协议，复用 manager OpenAPI MCP 调用与后端 vision presence 状态机，把视觉触发接到当前 childweb 演示入口。
 - 边界：不修设备保活；不新增设备协议；视觉触发问候仍走后端 greeting 服务和共享 10 分钟主动语音配额；如果真实设备 MCP 不稳定，现场可按 PRD 降级为加分项。
 - 验证：`node --check childweb/app.js` 通过；`npm test --prefix childweb` 从 RED 变 GREEN，33/33；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 33/33。
+
+### 03:42 W1.4 视觉 presence 轮询 RED 测试
+
+- 文件：`server/internal/domains/vision/service_test.go`
+- 内容：要求 vision 服务提供后台轮询入口：先查 `GetDeviceStatus`，设备离线时静默跳过且不调用相机 MCP；设备在线时才使用默认 `self.camera.take_photo` 做 presence 检测。
+- 目的：补齐 PRD #7 的“presence 触发”后台路径，避免只完成 childweb 手动“看一眼”入口。
+- 功能影响：暂无；当前服务还没有 `PollPresence`，测试应保持 RED。
