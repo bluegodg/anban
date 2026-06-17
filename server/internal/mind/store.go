@@ -37,6 +37,15 @@ func (s *Store) AutoMigrate() error {
 	)
 }
 
+func (s *Store) WithinTransaction(ctx context.Context, fn func(*Store) error) error {
+	if fn == nil {
+		return ErrInvalidInput
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&Store{db: tx})
+	})
+}
+
 type eventRecord struct {
 	ID          uint      `gorm:"primaryKey"`
 	EventID     string    `gorm:"uniqueIndex;size:80;not null"`

@@ -140,6 +140,40 @@ func TestStoreAppendEventDuplicateReturnsErrDuplicateEvent(t *testing.T) {
 	}
 }
 
+func TestStoreWithinTransactionRollsBackOnError(t *testing.T) {
+	ms := newMindStoreForTest(t)
+	ctx := context.Background()
+	sentinel := errors.New("force rollback after append")
+
+	err := ms.WithinTransaction(ctx, func(txStore *Store) error {
+		if err := txStore.AppendEvent(ctx, Event{
+			ID:         "evt-rollback",
+			DeviceID:   "dev-001",
+			Type:       EventReminderDue,
+			Source:     SourceScheduler,
+			At:         time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC),
+			Summary:    "事务内写入后失败",
+			Salience:   0.8,
+			Emotion:    "neutral",
+			Confidence: 1,
+		}); err != nil {
+			return err
+		}
+		return sentinel
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("WithinTransaction error = %v, want sentinel", err)
+	}
+
+	events, err := ms.ListRecentEvents(ctx, "dev-001", 10)
+	if err != nil {
+		t.Fatalf("ListRecentEvents: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("events after rollback = %+v, want none", events)
+	}
+}
+
 func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	ms := newMindStoreForTest(t)
 	ctx := context.Background()

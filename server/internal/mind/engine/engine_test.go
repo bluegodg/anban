@@ -74,17 +74,17 @@ func TestIngestLateOutOfOrderEventUsesCurrentEventForThoughts(t *testing.T) {
 	earlier := later.Add(-time.Hour)
 
 	if _, err := svc.Ingest(context.Background(), mind.Event{
-		ID:         "evt-presence-later",
+		ID:         "evt-elder-spoke-later",
 		DeviceID:   "dev-001",
-		Type:       mind.EventPresenceSeen,
-		Source:     mind.SourceVision,
+		Type:       mind.EventElderSpoke,
+		Source:     mind.SourceXiaozhi,
 		At:         later,
-		Summary:    "老人出现在客厅",
+		Summary:    "老人稍后正在聊天",
 		Salience:   0.5,
 		Emotion:    "calm",
 		Confidence: 0.9,
 	}); err != nil {
-		t.Fatalf("Ingest later presence: %v", err)
+		t.Fatalf("Ingest later elder spoke: %v", err)
 	}
 
 	actions, err := svc.Ingest(context.Background(), mind.Event{
@@ -106,6 +106,9 @@ func TestIngestLateOutOfOrderEventUsesCurrentEventForThoughts(t *testing.T) {
 	}
 	if actions[0].Type != mind.ActionSpeak || actions[0].Executor != "reminder" {
 		t.Fatalf("action = %+v, want reminder speak from current event", actions[0])
+	}
+	if actions[0].Status != mind.ActionPending {
+		t.Fatalf("action status = %s, want pending so future conversation does not defer it", actions[0].Status)
 	}
 }
 
@@ -143,6 +146,84 @@ func TestIngestDuplicateEventIDIsIdempotent(t *testing.T) {
 	}
 	if got := countRows(t, st, "mind_actions"); got != 1 {
 		t.Fatalf("action rows = %d, want 1", got)
+	}
+}
+
+func TestIngestRollsBackEventWhenPipelinePersistenceFails(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	at := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+
+	if err := st.DB.Exec(
+		"INSERT INTO mind_thoughts (thought_id, device_id, at, status) VALUES (?, ?, ?, ?)",
+		"thought-evt-post-append-failure-reminder",
+		"dev-001",
+		at,
+		string(mind.ThoughtPending),
+	).Error; err != nil {
+		t.Fatalf("seed duplicate thought: %v", err)
+	}
+
+	actions, err := svc.Ingest(ctx, mind.Event{
+		ID:         "evt-post-append-failure",
+		DeviceID:   "dev-001",
+		Type:       mind.EventReminderDue,
+		Source:     mind.SourceScheduler,
+		At:         at,
+		Summary:    "吃药提醒",
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	})
+	if err == nil {
+		t.Fatal("Ingest error = nil, want duplicate thought persistence error")
+	}
+	if len(actions) != 0 {
+		t.Fatalf("actions = %+v, want none on failed transaction", actions)
+	}
+
+	var count int64
+	if err := st.DB.Raw("SELECT COUNT(*) FROM mind_events WHERE event_id = ?", "evt-post-append-failure").Scan(&count).Error; err != nil {
+		t.Fatalf("count failed event: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("event rows after failed pipeline = %d, want 0", count)
+	}
+}
+
+func TestIngestBlankEventIDsGenerateDistinctPersistentIDs(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	at := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+	event := mind.Event{
+		DeviceID:   "dev-001",
+		Type:       mind.EventReminderDue,
+		Source:     mind.SourceScheduler,
+		At:         at,
+		Summary:    "吃药提醒",
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	}
+
+	for i := 0; i < 2; i++ {
+		actions, err := svc.Ingest(ctx, event)
+		if err != nil {
+			t.Fatalf("Ingest blank ID #%d: %v", i+1, err)
+		}
+		if len(actions) != 1 || actions[0].Type != mind.ActionSpeak || actions[0].Executor != "reminder" {
+			t.Fatalf("actions #%d = %+v, want reminder speak", i+1, actions)
+		}
+	}
+
+	if got := countRows(t, st, "mind_events"); got != 2 {
+		t.Fatalf("event rows = %d, want 2", got)
+	}
+	if got := countRows(t, st, "mind_thoughts"); got != 2 {
+		t.Fatalf("thought rows = %d, want 2", got)
+	}
+	if got := countRows(t, st, "mind_actions"); got != 2 {
+		t.Fatalf("action rows = %d, want 2", got)
 	}
 }
 
@@ -210,13 +291,33 @@ func TestReflectValidatesInputsAndIsIdempotent(t *testing.T) {
 		t.Fatalf("reflection rows = %d, want 1", got)
 	}
 
+	adjacentWindow := mind.TimeWindow{
+		From: time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC),
+		To:   window.To,
+	}
+	if err := svc.Reflect(ctx, "dev-001", adjacentWindow); err != nil {
+		t.Fatalf("Reflect adjacent window with same To: %v", err)
+	}
+	if got := countRows(t, st, "mind_reflections"); got != 2 {
+		t.Fatalf("reflection rows after distinct same-To window = %d, want 2", got)
+	}
+
 	if err := svc.Reflect(ctx, "  ", window); !errors.Is(err, mind.ErrInvalidInput) {
 		t.Fatalf("Reflect blank device error = %v, want ErrInvalidInput", err)
 	}
 	if err := svc.Reflect(ctx, "dev-001", mind.TimeWindow{}); !errors.Is(err, mind.ErrInvalidInput) {
 		t.Fatalf("Reflect zero window error = %v, want ErrInvalidInput", err)
 	}
-	if got := countRows(t, st, "mind_reflections"); got != 1 {
-		t.Fatalf("reflection rows after invalid calls = %d, want 1", got)
+	if err := svc.Reflect(ctx, "dev-001", mind.TimeWindow{From: window.From}); !errors.Is(err, mind.ErrInvalidInput) {
+		t.Fatalf("Reflect zero To error = %v, want ErrInvalidInput", err)
+	}
+	if err := svc.Reflect(ctx, "dev-001", mind.TimeWindow{To: window.To}); !errors.Is(err, mind.ErrInvalidInput) {
+		t.Fatalf("Reflect zero From error = %v, want ErrInvalidInput", err)
+	}
+	if err := svc.Reflect(ctx, "dev-001", mind.TimeWindow{From: window.To, To: window.From}); !errors.Is(err, mind.ErrInvalidInput) {
+		t.Fatalf("Reflect reversed window error = %v, want ErrInvalidInput", err)
+	}
+	if got := countRows(t, st, "mind_reflections"); got != 2 {
+		t.Fatalf("reflection rows after invalid calls = %d, want 2", got)
 	}
 }
