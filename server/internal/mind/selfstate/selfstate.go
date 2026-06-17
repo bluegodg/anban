@@ -8,6 +8,8 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind"
 )
 
+const maxProcessedEventIDs = 128
+
 func Default(deviceID string, at time.Time) mind.SelfState {
 	return mind.SelfState{
 		DeviceID:      deviceID,
@@ -27,7 +29,12 @@ func Default(deviceID string, at time.Time) mind.SelfState {
 }
 
 func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
-	cutoff := state.At
+	state.ProcessedEventIDs = normalizeProcessedEventIDs(state.ProcessedEventIDs)
+	processed := make(map[string]struct{}, len(state.ProcessedEventIDs)+len(events))
+	for _, id := range state.ProcessedEventIDs {
+		processed[id] = struct{}{}
+	}
+
 	ordered := make([]orderedEvent, len(events))
 	for i, event := range events {
 		ordered[i] = orderedEvent{event: event, index: i}
@@ -35,6 +42,7 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 	sort.Slice(ordered, func(i, j int) bool {
 		left := ordered[i]
 		right := ordered[j]
+		// Recent windows arrive newest-first; descending index makes equal timestamps apply older before newer.
 		if left.event.At.Equal(right.event.At) {
 			return left.index > right.index
 		}
@@ -43,8 +51,13 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 
 	for _, item := range ordered {
 		event := item.event
-		if event.At.IsZero() || event.At.Before(cutoff) {
+		if event.At.IsZero() {
 			continue
+		}
+		if event.ID != "" {
+			if _, ok := processed[event.ID]; ok {
+				continue
+			}
 		}
 		if event.At.After(state.At) {
 			state.At = event.At
@@ -67,6 +80,14 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 				state.Playfulness = clamp(state.Playfulness - 0.04)
 			}
 		}
+		if event.ID == "" {
+			continue
+		}
+		processed[event.ID] = struct{}{}
+		state.ProcessedEventIDs = append(state.ProcessedEventIDs, event.ID)
+		if len(state.ProcessedEventIDs) > maxProcessedEventIDs {
+			state.ProcessedEventIDs = state.ProcessedEventIDs[len(state.ProcessedEventIDs)-maxProcessedEventIDs:]
+		}
 	}
 	return state
 }
@@ -74,6 +95,32 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 type orderedEvent struct {
 	event mind.Event
 	index int
+}
+
+func normalizeProcessedEventIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(ids))
+	reversed := make([]string, 0, min(len(ids), maxProcessedEventIDs))
+	for i := len(ids) - 1; i >= 0 && len(reversed) < maxProcessedEventIDs; i-- {
+		id := ids[i]
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		reversed = append(reversed, id)
+	}
+
+	out := make([]string, len(reversed))
+	for i := range reversed {
+		out[len(reversed)-1-i] = reversed[i]
+	}
+	return out
 }
 
 func clamp(value float64) float64 {

@@ -95,22 +95,23 @@ func (memoryRecord) TableName() string {
 }
 
 type selfStateRecord struct {
-	ID            uint   `gorm:"primaryKey"`
-	DeviceID      string `gorm:"uniqueIndex;not null"`
-	At            time.Time
-	Warmth        float64
-	Concern       float64
-	Curiosity     float64
-	Playfulness   float64
-	Energy        float64
-	Quietness     float64
-	Patience      float64
-	Confidence    float64
-	FamilyWeight  float64
-	PetWeight     float64
-	StewardWeight float64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                    uint   `gorm:"primaryKey"`
+	DeviceID              string `gorm:"uniqueIndex;not null"`
+	At                    time.Time
+	Warmth                float64
+	Concern               float64
+	Curiosity             float64
+	Playfulness           float64
+	Energy                float64
+	Quietness             float64
+	Patience              float64
+	Confidence            float64
+	FamilyWeight          float64
+	PetWeight             float64
+	StewardWeight         float64
+	ProcessedEventIDsJSON string `gorm:"type:text"`
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 func (selfStateRecord) TableName() string {
@@ -340,20 +341,26 @@ func (s *Store) SaveMemory(ctx context.Context, memory MemoryItem) error {
 }
 
 func (s *Store) SaveSelfState(ctx context.Context, state SelfState) error {
+	processedEventIDs, err := encodeJSON(state.ProcessedEventIDs)
+	if err != nil {
+		return err
+	}
+
 	rec := selfStateRecord{
-		DeviceID:      state.DeviceID,
-		At:            state.At,
-		Warmth:        state.Warmth,
-		Concern:       state.Concern,
-		Curiosity:     state.Curiosity,
-		Playfulness:   state.Playfulness,
-		Energy:        state.Energy,
-		Quietness:     state.Quietness,
-		Patience:      state.Patience,
-		Confidence:    state.Confidence,
-		FamilyWeight:  state.FamilyWeight,
-		PetWeight:     state.PetWeight,
-		StewardWeight: state.StewardWeight,
+		DeviceID:              state.DeviceID,
+		At:                    state.At,
+		Warmth:                state.Warmth,
+		Concern:               state.Concern,
+		Curiosity:             state.Curiosity,
+		Playfulness:           state.Playfulness,
+		Energy:                state.Energy,
+		Quietness:             state.Quietness,
+		Patience:              state.Patience,
+		Confidence:            state.Confidence,
+		FamilyWeight:          state.FamilyWeight,
+		PetWeight:             state.PetWeight,
+		StewardWeight:         state.StewardWeight,
+		ProcessedEventIDsJSON: processedEventIDs,
 	}
 
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
@@ -371,6 +378,7 @@ func (s *Store) SaveSelfState(ctx context.Context, state SelfState) error {
 			"family_weight",
 			"pet_weight",
 			"steward_weight",
+			"processed_event_ids_json",
 			"updated_at",
 		}),
 	}).Create(&rec).Error
@@ -386,20 +394,28 @@ func (s *Store) GetSelfState(ctx context.Context, deviceID string) (SelfState, e
 		return SelfState{}, err
 	}
 
+	var processedEventIDs []string
+	if rec.ProcessedEventIDsJSON != "" {
+		if err := json.Unmarshal([]byte(rec.ProcessedEventIDsJSON), &processedEventIDs); err != nil {
+			return SelfState{}, err
+		}
+	}
+
 	return SelfState{
-		DeviceID:      rec.DeviceID,
-		At:            rec.At,
-		Warmth:        rec.Warmth,
-		Concern:       rec.Concern,
-		Curiosity:     rec.Curiosity,
-		Playfulness:   rec.Playfulness,
-		Energy:        rec.Energy,
-		Quietness:     rec.Quietness,
-		Patience:      rec.Patience,
-		Confidence:    rec.Confidence,
-		FamilyWeight:  rec.FamilyWeight,
-		PetWeight:     rec.PetWeight,
-		StewardWeight: rec.StewardWeight,
+		DeviceID:          rec.DeviceID,
+		At:                rec.At,
+		Warmth:            rec.Warmth,
+		Concern:           rec.Concern,
+		Curiosity:         rec.Curiosity,
+		Playfulness:       rec.Playfulness,
+		Energy:            rec.Energy,
+		Quietness:         rec.Quietness,
+		Patience:          rec.Patience,
+		Confidence:        rec.Confidence,
+		FamilyWeight:      rec.FamilyWeight,
+		PetWeight:         rec.PetWeight,
+		StewardWeight:     rec.StewardWeight,
+		ProcessedEventIDs: processedEventIDs,
 	}, nil
 }
 

@@ -34,6 +34,39 @@ func TestApplyEventsAdjustsConcernAndPlayfulness(t *testing.T) {
 	}
 }
 
+func TestApplyEventsSkipsProcessedEventIDs(t *testing.T) {
+	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
+	state := Default("dev-001", at)
+	event := mind.Event{ID: "evt-duplicate", DeviceID: "dev-001", Type: mind.EventLongSilence, At: at}
+
+	first := ApplyEvents(state, []mind.Event{event})
+	second := ApplyEvents(first, []mind.Event{event})
+
+	if second.Concern != first.Concern {
+		t.Fatalf("Concern = %.2f, want unchanged at %.2f for processed event", second.Concern, first.Concern)
+	}
+	if !slices.Equal(second.ProcessedEventIDs, []string{"evt-duplicate"}) {
+		t.Fatalf("ProcessedEventIDs = %+v, want duplicate event recorded once", second.ProcessedEventIDs)
+	}
+}
+
+func TestApplyEventsAppliesEqualTimeDifferentIDsWhenUnprocessed(t *testing.T) {
+	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
+	state := Default("dev-001", at)
+	state.ProcessedEventIDs = []string{"evt-already"}
+
+	updated := ApplyEvents(state, []mind.Event{
+		{ID: "evt-new", DeviceID: "dev-001", Type: mind.EventLongSilence, At: at},
+	})
+
+	if updated.Concern <= state.Concern {
+		t.Fatalf("Concern = %.2f, want equal-time unprocessed event to apply over %.2f", updated.Concern, state.Concern)
+	}
+	if !slices.Equal(updated.ProcessedEventIDs, []string{"evt-already", "evt-new"}) {
+		t.Fatalf("ProcessedEventIDs = %+v, want existing and new event IDs", updated.ProcessedEventIDs)
+	}
+}
+
 func TestApplyEventsAdvancesAtToNewestEventAndPreservesDeviceID(t *testing.T) {
 	at := time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC)
 	state := Default("dev-001", at)
@@ -111,18 +144,17 @@ func TestApplyEventsSameTimestampTreatsEarlierRecentFirstEventAsNewer(t *testing
 	}
 }
 
-func TestApplyEventsIgnoresZeroTimeAndStaleEvents(t *testing.T) {
+func TestApplyEventsIgnoresZeroTimeEvent(t *testing.T) {
 	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
 	state := Default("dev-001", at)
 	updated := ApplyEvents(state, []mind.Event{
 		{ID: "evt-zero", DeviceID: "dev-001", Type: mind.EventLongSilence},
-		{ID: "evt-old", DeviceID: "dev-001", Type: mind.EventLongSilence, At: at.Add(-time.Minute)},
 		{ID: "evt-equal", DeviceID: "dev-001", Type: mind.EventPresenceSeen, At: at},
 		{ID: "evt-new", DeviceID: "dev-001", Type: mind.EventChildMessageReceived, At: at.Add(time.Minute)},
 	})
 
 	if updated.Concern != state.Concern {
-		t.Fatalf("Concern = %.2f, want stale long silence ignored at %.2f", updated.Concern, state.Concern)
+		t.Fatalf("Concern = %.2f, want zero-time long silence ignored at %.2f", updated.Concern, state.Concern)
 	}
 	if updated.Curiosity <= state.Curiosity {
 		t.Fatalf("Curiosity = %.2f, want equal-time presence to apply over %.2f", updated.Curiosity, state.Curiosity)

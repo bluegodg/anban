@@ -7,6 +7,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind"
 )
 
+// Build uses at's own location and wall clock; callers must pass device-local time.
 func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
 	out := mind.Situation{
 		DeviceID:        deviceID,
@@ -25,6 +26,7 @@ func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
 	sort.Slice(ordered, func(i, j int) bool {
 		left := ordered[i]
 		right := ordered[j]
+		// Recent windows arrive newest-first; descending index makes equal timestamps apply older before newer.
 		if left.event.At.Equal(right.event.At) {
 			return left.index > right.index
 		}

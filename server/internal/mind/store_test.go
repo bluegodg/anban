@@ -115,7 +115,16 @@ func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	ctx := context.Background()
 	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
 
-	state := SelfState{DeviceID: "dev-001", At: at, Warmth: 0.6, Concern: 0.4, FamilyWeight: 0.6, PetWeight: 0.25, StewardWeight: 0.15}
+	state := SelfState{
+		DeviceID:          "dev-001",
+		At:                at,
+		Warmth:            0.6,
+		Concern:           0.4,
+		FamilyWeight:      0.6,
+		PetWeight:         0.25,
+		StewardWeight:     0.15,
+		ProcessedEventIDs: []string{"evt-1", "evt-2"},
+	}
 	if err := ms.SaveSelfState(ctx, state); err != nil {
 		t.Fatalf("SaveSelfState: %v", err)
 	}
@@ -148,6 +157,21 @@ func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	}
 	if !selfStateRec.CreatedAt.Equal(selfStateCreatedAt) {
 		t.Fatalf("self state created_at = %v, want preserved %v", selfStateRec.CreatedAt, selfStateCreatedAt)
+	}
+	if !slices.Equal(got.ProcessedEventIDs, []string{"evt-1", "evt-2"}) {
+		t.Fatalf("processed event IDs = %+v, want initial IDs", got.ProcessedEventIDs)
+	}
+
+	state.ProcessedEventIDs = []string{"evt-3", "evt-4"}
+	if err := ms.SaveSelfState(ctx, state); err != nil {
+		t.Fatalf("SaveSelfState watermark update: %v", err)
+	}
+	got, err = ms.GetSelfState(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("GetSelfState watermark update: %v", err)
+	}
+	if !slices.Equal(got.ProcessedEventIDs, []string{"evt-3", "evt-4"}) {
+		t.Fatalf("processed event IDs = %+v, want updated IDs", got.ProcessedEventIDs)
 	}
 
 	life := LifeState{DeviceID: "dev-001", At: at, TodayTheme: "让今天轻一点", LingeringThoughts: []string{"昨天聊到老歌"}, SocialEnergy: 0.5, CareFocus: "上午互动少", PlayfulnessTrend: 0.2, RelationshipTemperature: 0.6}

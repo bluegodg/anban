@@ -95,19 +95,20 @@ type MemoryItem struct {
 }
 
 type SelfState struct {
-	DeviceID      string
-	At            time.Time
-	Warmth        float64
-	Concern       float64
-	Curiosity     float64
-	Playfulness   float64
-	Energy        float64
-	Quietness     float64
-	Patience      float64
-	Confidence    float64
-	FamilyWeight  float64
-	PetWeight     float64
-	StewardWeight float64
+	DeviceID          string
+	At                time.Time
+	Warmth            float64
+	Concern           float64
+	Curiosity         float64
+	Playfulness       float64
+	Energy            float64
+	Quietness         float64
+	Patience          float64
+	Confidence        float64
+	FamilyWeight      float64
+	PetWeight         float64
+	StewardWeight     float64
+	ProcessedEventIDs []string
 }
 
 type Drive struct {
