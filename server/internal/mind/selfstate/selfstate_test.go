@@ -57,6 +57,26 @@ func TestApplyEventsConversationChangesPresenceState(t *testing.T) {
 	}
 }
 
+func TestApplyEventsLearnsFromActionExecutionStatus(t *testing.T) {
+	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
+	state := Default("dev-001", at)
+	updated := ApplyEvents(state, []mind.Event{
+		{ID: "evt-executed", DeviceID: "dev-001", Type: mind.EventActionExecuted, At: at.Add(time.Minute), Payload: map[string]any{"status": string(mind.ActionExecuted)}},
+		{ID: "evt-failed", DeviceID: "dev-001", Type: mind.EventActionExecuted, At: at.Add(2 * time.Minute), Payload: map[string]any{"status": string(mind.ActionFailed)}},
+		{ID: "evt-deferred", DeviceID: "dev-001", Type: mind.EventActionExecuted, At: at.Add(3 * time.Minute), Payload: map[string]any{"status": string(mind.ActionDeferred)}},
+	})
+
+	if updated.Concern <= state.Concern {
+		t.Fatalf("Concern = %.2f, want greater than %.2f after failed action", updated.Concern, state.Concern)
+	}
+	if updated.Quietness <= state.Quietness {
+		t.Fatalf("Quietness = %.2f, want greater than %.2f after deferred action", updated.Quietness, state.Quietness)
+	}
+	if updated.Confidence <= state.Confidence {
+		t.Fatalf("Confidence = %.2f, want net confidence above %.2f after successful action", updated.Confidence, state.Confidence)
+	}
+}
+
 func TestApplyEventsSkipsProcessedEventIDs(t *testing.T) {
 	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
 	state := Default("dev-001", at)

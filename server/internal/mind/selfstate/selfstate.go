@@ -88,6 +88,18 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 				state.Quietness = clamp(state.Quietness + 0.08)
 				state.Playfulness = clamp(state.Playfulness - 0.04)
 			}
+		case mind.EventActionExecuted:
+			switch payloadString(event.Payload, "status") {
+			case string(mind.ActionExecuted):
+				state.Confidence = clamp(state.Confidence + 0.04)
+				state.Quietness = clamp(state.Quietness - 0.01)
+			case string(mind.ActionDeferred):
+				state.Quietness = clamp(state.Quietness + 0.03)
+				state.Patience = clamp(state.Patience + 0.01)
+			case string(mind.ActionFailed):
+				state.Concern = clamp(state.Concern + 0.05)
+				state.Confidence = clamp(state.Confidence - 0.02)
+			}
 		}
 		processed[event.ID] = struct{}{}
 		state.ProcessedEventIDs = append(state.ProcessedEventIDs, event.ID)
@@ -127,6 +139,14 @@ func normalizeProcessedEventIDs(ids []string) []string {
 		out[len(reversed)-1-i] = reversed[i]
 	}
 	return out
+}
+
+func payloadString(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, _ := payload[key].(string)
+	return value
 }
 
 func clamp(value float64) float64 {
