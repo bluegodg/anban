@@ -79,6 +79,19 @@ func TestSpeakFuncAdaptsFunction(t *testing.T) {
 	}
 }
 
+func TestSpeakFuncReturnsDomainReference(t *testing.T) {
+	exec := SpeakFunc(func(ctx context.Context, action mind.Action) (Result, error) {
+		return Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: "message:12"}, nil
+	})
+	got, err := exec.Speak(context.Background(), mind.Action{ID: "action-1", Type: mind.ActionSpeak})
+	if err != nil {
+		t.Fatalf("Speak: %v", err)
+	}
+	if got.ExecutorRef != "message:12" {
+		t.Fatalf("ExecutorRef = %q, want message:12", got.ExecutorRef)
+	}
+}
+
 type fakeSpeakExecutor struct{ calls int }
 
 func (f *fakeSpeakExecutor) Speak(ctx context.Context, action mind.Action) (Result, error) {
