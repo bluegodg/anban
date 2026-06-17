@@ -196,6 +196,7 @@ func main() {
 		}),
 	})
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
+	startMindLoops(sch, profileStore, mindEngine, 15*time.Minute)
 
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
@@ -253,6 +254,50 @@ func runVisionPresencePoll(profileStore *profile.Store, visionService *vision.Se
 		}
 		if result.Check.Observation.TriggeredGreeting {
 			log.Printf("vision presence 触发问候 device=%s", result.DeviceID)
+		}
+	}
+}
+
+func startMindLoops(sch *scheduler.Scheduler, profileStore *profile.Store, mindEngine mind.Engine, interval time.Duration) {
+	if interval <= 0 {
+		interval = 15 * time.Minute
+	}
+
+	var scheduleNext func()
+	scheduleNext = func() {
+		if _, err := sch.ScheduleAt(time.Now().Add(interval), func() {
+			runMindLoops(profileStore, mindEngine)
+			scheduleNext()
+		}); err != nil {
+			log.Printf("mind loops 调度失败: %v", err)
+		}
+	}
+	scheduleNext()
+	log.Printf("mind loops enabled: interval=%s", interval)
+}
+
+func runMindLoops(profileStore *profile.Store, mindEngine mind.Engine) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deviceIDs, err := profileStore.ListDeviceIDs(ctx)
+	if err != nil {
+		log.Printf("mind loops 获取设备列表失败: %v", err)
+		return
+	}
+	now := time.Now().UTC()
+	for _, deviceID := range deviceIDs {
+		if _, err := mindEngine.TickIdle(ctx, deviceID, now); err != nil {
+			log.Printf("mind idle tick 失败 device=%s: %v", deviceID, err)
+		}
+
+		window := mind.TimeWindow{From: now.Add(-30 * time.Minute), To: now}
+		if err := mindEngine.Reflect(ctx, deviceID, window); err != nil {
+			log.Printf("mind reflection 失败 device=%s: %v", deviceID, err)
+		}
+
+		if err := mindEngine.UpdateLife(ctx, deviceID, now); err != nil {
+			log.Printf("mind life update 失败 device=%s: %v", deviceID, err)
 		}
 	}
 }

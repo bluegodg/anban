@@ -433,6 +433,42 @@ func TestTickIdleCreatesLongSilenceEventAndWaitAction(t *testing.T) {
 	}
 }
 
+func TestUpdateLifePersistsLifeStateFromRecentEvents(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC)
+
+	if _, err := svc.Ingest(ctx, mind.Event{
+		ID:         "evt-life-long-silence",
+		DeviceID:   deviceID,
+		Type:       mind.EventLongSilence,
+		Source:     mind.SourceMind,
+		At:         at,
+		Summary:    "上午互动少",
+		Salience:   0.7,
+		Emotion:    "quiet",
+		Confidence: 0.9,
+	}); err != nil {
+		t.Fatalf("Ingest long silence: %v", err)
+	}
+
+	if err := svc.UpdateLife(ctx, deviceID, at.Add(5*time.Minute)); err != nil {
+		t.Fatalf("UpdateLife: %v", err)
+	}
+	ms := mind.NewStore(st.DB)
+	lifeState, err := ms.GetLifeState(ctx, deviceID)
+	if err != nil {
+		t.Fatalf("GetLifeState: %v", err)
+	}
+	if lifeState.TodayTheme == "" || lifeState.CareFocus == "" {
+		t.Fatalf("lifeState = %+v, want theme and care focus", lifeState)
+	}
+	if len(lifeState.LingeringThoughts) != 1 {
+		t.Fatalf("LingeringThoughts = %+v, want one recent trace", lifeState.LingeringThoughts)
+	}
+}
+
 func TestEngineRejectsBlankDeviceIDs(t *testing.T) {
 	svc, st := newEngineForTest(t)
 	ctx := context.Background()
@@ -457,6 +493,9 @@ func TestEngineRejectsBlankDeviceIDs(t *testing.T) {
 	}
 	if len(actions) != 0 {
 		t.Fatalf("TickIdle actions = %+v, want none", actions)
+	}
+	if err := svc.UpdateLife(ctx, " \t ", time.Date(2026, 6, 16, 22, 0, 0, 0, time.UTC)); !errors.Is(err, mind.ErrInvalidInput) {
+		t.Fatalf("UpdateLife error = %v, want ErrInvalidInput", err)
 	}
 	if got := countRows(t, st, "mind_events"); got != 0 {
 		t.Fatalf("event rows = %d, want 0", got)
