@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
@@ -24,6 +25,11 @@ func New(store *mind.Store) *Service {
 }
 
 func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, error) {
+	event.DeviceID = strings.TrimSpace(event.DeviceID)
+	if event.DeviceID == "" {
+		return nil, mind.ErrInvalidInput
+	}
+	event.ID = strings.TrimSpace(event.ID)
 	if event.At.IsZero() {
 		event.At = time.Now().UTC()
 	}
@@ -31,6 +37,9 @@ func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, 
 		event.ID = fmt.Sprintf("evt-%s-%d", event.DeviceID, event.At.UnixNano())
 	}
 	if err := s.store.AppendEvent(ctx, event); err != nil {
+		if errors.Is(err, mind.ErrDuplicateEvent) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -38,10 +47,14 @@ func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, 
 	if err != nil {
 		return nil, err
 	}
-	return s.runPipeline(ctx, event.DeviceID, event.At, recent)
+	return s.runPipeline(ctx, event.DeviceID, event.At, event, recent)
 }
 
 func (s *Service) TickIdle(ctx context.Context, deviceID string, at time.Time) ([]mind.Action, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return nil, mind.ErrInvalidInput
+	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
@@ -59,6 +72,10 @@ func (s *Service) TickIdle(ctx context.Context, deviceID string, at time.Time) (
 }
 
 func (s *Service) Reflect(ctx context.Context, deviceID string, window mind.TimeWindow) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" || window.To.IsZero() {
+		return mind.ErrInvalidInput
+	}
 	reflection := mind.Reflection{
 		ID:               fmt.Sprintf("reflection-%s-%d", deviceID, window.To.UnixNano()),
 		DeviceID:         deviceID,
@@ -70,7 +87,7 @@ func (s *Service) Reflect(ctx context.Context, deviceID string, window mind.Time
 	return s.store.SaveReflection(ctx, reflection)
 }
 
-func (s *Service) runPipeline(ctx context.Context, deviceID string, at time.Time, recent []mind.Event) ([]mind.Action, error) {
+func (s *Service) runPipeline(ctx context.Context, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event) ([]mind.Action, error) {
 	sit := situation.Build(deviceID, at, recent)
 
 	state, err := s.store.GetSelfState(ctx, deviceID)
@@ -85,7 +102,10 @@ func (s *Service) runPipeline(ctx context.Context, deviceID string, at time.Time
 	}
 
 	activeDrives := drives.Activate(sit, state, recent)
-	generatedThoughts := thoughts.Generate(sit, state, activeDrives, newestEvent(recent))
+	// recent stays newest-first for situation, self state, and drives; thought/action
+	// generation is anchored to the just-appended event so late arrivals do not replay
+	// an already-processed newer event.
+	generatedThoughts := thoughts.Generate(sit, state, activeDrives, []mind.Event{currentEvent})
 	for _, thought := range generatedThoughts {
 		if err := s.store.SaveThought(ctx, thought); err != nil {
 			return nil, err
@@ -102,11 +122,4 @@ func (s *Service) runPipeline(ctx context.Context, deviceID string, at time.Time
 		out = append(out, selected)
 	}
 	return out, nil
-}
-
-func newestEvent(recent []mind.Event) []mind.Event {
-	if len(recent) == 0 {
-		return nil
-	}
-	return recent[:1]
 }

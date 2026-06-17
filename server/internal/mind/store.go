@@ -11,6 +11,8 @@ import (
 )
 
 var ErrNotFound = errors.New("mind: not found")
+var ErrDuplicateEvent = errors.New("mind: duplicate event")
+var ErrInvalidInput = errors.New("mind: invalid input")
 
 type Store struct {
 	db *gorm.DB
@@ -251,7 +253,17 @@ func (s *Store) AppendEvent(ctx context.Context, event Event) error {
 		Emotion:     event.Emotion,
 		Confidence:  event.Confidence,
 	}
-	return s.db.WithContext(ctx).Create(&rec).Error
+	result := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "event_id"}},
+		DoNothing: true,
+	}).Create(&rec)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrDuplicateEvent
+	}
+	return nil
 }
 
 func (s *Store) ListRecentEvents(ctx context.Context, deviceID string, limit int) ([]Event, error) {
@@ -533,7 +545,10 @@ func (s *Store) SaveReflection(ctx context.Context, reflection Reflection) error
 		StateAdjustmentsJSON: adjustments,
 		BehaviorLessonsJSON:  lessons,
 	}
-	return s.db.WithContext(ctx).Create(&rec).Error
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "reflection_id"}},
+		DoNothing: true,
+	}).Create(&rec).Error
 }
 
 func (s *Store) SaveLifeState(ctx context.Context, life LifeState) error {

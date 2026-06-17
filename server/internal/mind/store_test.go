@@ -110,6 +110,36 @@ func TestStoreAppendsAndListsRecentEvents(t *testing.T) {
 	}
 }
 
+func TestStoreAppendEventDuplicateReturnsErrDuplicateEvent(t *testing.T) {
+	ms := newMindStoreForTest(t)
+	ctx := context.Background()
+	event := Event{
+		ID:         "evt-duplicate",
+		DeviceID:   "dev-001",
+		Type:       EventReminderDue,
+		Source:     SourceScheduler,
+		At:         time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC),
+		Summary:    "早间提醒",
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	}
+
+	if err := ms.AppendEvent(ctx, event); err != nil {
+		t.Fatalf("AppendEvent first: %v", err)
+	}
+	if err := ms.AppendEvent(ctx, event); !errors.Is(err, ErrDuplicateEvent) {
+		t.Fatalf("AppendEvent duplicate error = %v, want ErrDuplicateEvent", err)
+	}
+	var count int64
+	if err := ms.db.Model(&eventRecord{}).Where("event_id = ?", "evt-duplicate").Count(&count).Error; err != nil {
+		t.Fatalf("count duplicate event rows: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("event rows = %d, want 1", count)
+	}
+}
+
 func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	ms := newMindStoreForTest(t)
 	ctx := context.Background()
@@ -466,5 +496,39 @@ func TestStorePersistsThoughtActionFeedbackReflection(t *testing.T) {
 	}
 	if !slices.Equal(behaviorLessons, []string{"夜晚长沉默先观察", "先低打扰确认"}) {
 		t.Fatalf("behavior lessons = %+v, want saved slice", behaviorLessons)
+	}
+}
+
+func TestStoreSaveReflectionIsIdempotent(t *testing.T) {
+	ms := newMindStoreForTest(t)
+	ctx := context.Background()
+	at := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	reflection := Reflection{
+		ID: "reflection-duplicate", DeviceID: "dev-001", At: at, EpisodeSummary: "保持安静",
+		MemoryIDs: []string{"memory-1"}, StateAdjustments: map[string]float64{"quietness": 0.02},
+		BehaviorLessons: []string{"先观察"},
+	}
+
+	if err := ms.SaveReflection(ctx, reflection); err != nil {
+		t.Fatalf("SaveReflection first: %v", err)
+	}
+	reflection.EpisodeSummary = "重复调用不覆盖"
+	if err := ms.SaveReflection(ctx, reflection); err != nil {
+		t.Fatalf("SaveReflection duplicate: %v", err)
+	}
+
+	var count int64
+	if err := ms.db.Model(&reflectionRecord{}).Where("reflection_id = ?", "reflection-duplicate").Count(&count).Error; err != nil {
+		t.Fatalf("count reflection rows: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("reflection rows = %d, want 1", count)
+	}
+	var rec reflectionRecord
+	if err := ms.db.Where("reflection_id = ?", "reflection-duplicate").First(&rec).Error; err != nil {
+		t.Fatalf("read reflection: %v", err)
+	}
+	if rec.EpisodeSummary != "保持安静" {
+		t.Fatalf("EpisodeSummary = %q, want first insert preserved", rec.EpisodeSummary)
 	}
 }
