@@ -68,6 +68,118 @@ func TestIngestReminderDueProducesReminderSpeakAction(t *testing.T) {
 	}
 }
 
+func TestIngestExecutesPendingActionsWhenExecutorConfigured(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	exec := &fakeActionExecutor{
+		result: ExecutionResult{
+			Status:      mind.ActionExecuted,
+			ExecutorRef: "fake:action-1",
+		},
+	}
+	svc.UseExecutor(exec)
+	at := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+
+	actions, err := svc.Ingest(context.Background(), mind.Event{
+		ID:         "evt-exec",
+		DeviceID:   "dev-001",
+		Type:       mind.EventReminderDue,
+		Source:     mind.SourceScheduler,
+		At:         at,
+		Summary:    "吃药提醒",
+		Payload:    map[string]any{"reminderId": float64(12)},
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	})
+	if err != nil {
+		t.Fatalf("Ingest: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	if exec.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", exec.calls)
+	}
+	if exec.lastAction.Args["reminderId"] != float64(12) {
+		t.Fatalf("executor action args = %+v, want reminderId payload", exec.lastAction.Args)
+	}
+	if actions[0].Status != mind.ActionExecuted || actions[0].ExecutorRef != "fake:action-1" {
+		t.Fatalf("returned action = %+v, want executed fake ref", actions[0])
+	}
+
+	var status, executorRef string
+	if err := st.DB.Raw(
+		"SELECT status, executor_ref FROM mind_actions WHERE action_id = ?",
+		actions[0].ID,
+	).Row().Scan(&status, &executorRef); err != nil {
+		t.Fatalf("query action: %v", err)
+	}
+	if status != string(mind.ActionExecuted) || executorRef != "fake:action-1" {
+		t.Fatalf("persisted status=%q executor_ref=%q, want executed fake ref", status, executorRef)
+	}
+}
+
+func TestIngestMarksActionFailedWhenExecutorFails(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	exec := &fakeActionExecutor{
+		result: ExecutionResult{
+			Status:       mind.ActionFailed,
+			ErrorMessage: "speaker unavailable",
+		},
+		err: errors.New("speaker unavailable"),
+	}
+	svc.UseExecutor(exec)
+	at := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+
+	actions, err := svc.Ingest(context.Background(), mind.Event{
+		ID:         "evt-exec-fails",
+		DeviceID:   "dev-001",
+		Type:       mind.EventReminderDue,
+		Source:     mind.SourceScheduler,
+		At:         at,
+		Summary:    "吃药提醒",
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	})
+	if !errors.Is(err, exec.err) {
+		t.Fatalf("Ingest error = %v, want executor error", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want returned failed action", actions)
+	}
+	if exec.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", exec.calls)
+	}
+	if actions[0].Status != mind.ActionFailed || actions[0].Reason != "speaker unavailable" {
+		t.Fatalf("returned action = %+v, want failed with reason", actions[0])
+	}
+
+	var status, reason string
+	if err := st.DB.Raw(
+		"SELECT status, reason FROM mind_actions WHERE action_id = ?",
+		actions[0].ID,
+	).Row().Scan(&status, &reason); err != nil {
+		t.Fatalf("query action: %v", err)
+	}
+	if status != string(mind.ActionFailed) || reason != "speaker unavailable" {
+		t.Fatalf("persisted status=%q reason=%q, want failed speaker unavailable", status, reason)
+	}
+}
+
+type fakeActionExecutor struct {
+	calls      int
+	lastAction mind.Action
+	result     ExecutionResult
+	err        error
+}
+
+func (f *fakeActionExecutor) Execute(ctx context.Context, action mind.Action) (ExecutionResult, error) {
+	f.calls++
+	f.lastAction = action
+	return f.result, f.err
+}
+
 func TestIngestLateOutOfOrderEventUsesCurrentEventForThoughts(t *testing.T) {
 	svc, _ := newEngineForTest(t)
 	later := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)

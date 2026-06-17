@@ -21,11 +21,26 @@ import (
 )
 
 type Service struct {
-	store *mind.Store
+	store    *mind.Store
+	executor ActionExecutor
+}
+
+type ExecutionResult struct {
+	Status       mind.ActionStatus
+	ExecutorRef  string
+	ErrorMessage string
+}
+
+type ActionExecutor interface {
+	Execute(ctx context.Context, action mind.Action) (ExecutionResult, error)
 }
 
 func New(store *mind.Store) *Service {
 	return &Service{store: store}
+}
+
+func (s *Service) UseExecutor(executor ActionExecutor) {
+	s.executor = executor
 }
 
 func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, error) {
@@ -73,6 +88,9 @@ func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, 
 	}
 	if duplicate {
 		return nil, nil
+	}
+	if err := s.executePendingActions(ctx, actions); err != nil {
+		return actions, err
 	}
 	return actions, nil
 }
@@ -165,10 +183,63 @@ func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID s
 	out := make([]mind.Action, 0, len(candidates))
 	for _, candidate := range candidates {
 		selected := expression.Gate(candidate, sit, state)
+		selected.Args = mergeActionArgs(selected.Args, currentEvent.Payload)
 		if err := store.SaveAction(ctx, selected); err != nil {
 			return nil, err
 		}
 		out = append(out, selected)
 	}
 	return out, nil
+}
+
+func (s *Service) executePendingActions(ctx context.Context, actions []mind.Action) error {
+	if s.executor == nil {
+		return nil
+	}
+
+	for i := range actions {
+		if actions[i].Status != mind.ActionPending {
+			continue
+		}
+
+		result, err := s.executor.Execute(ctx, actions[i])
+		updated := actions[i]
+		switch {
+		case result.Status != "":
+			updated.Status = result.Status
+		case err != nil:
+			updated.Status = mind.ActionFailed
+		default:
+			updated.Status = mind.ActionExecuted
+		}
+		updated.ExecutorRef = result.ExecutorRef
+		if result.ErrorMessage != "" {
+			updated.Reason = result.ErrorMessage
+		} else if err != nil {
+			updated.Reason = err.Error()
+		}
+
+		if saveErr := s.store.SaveAction(ctx, updated); saveErr != nil {
+			return saveErr
+		}
+		actions[i] = updated
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func mergeActionArgs(actionArgs map[string]any, eventPayload map[string]any) map[string]any {
+	if len(eventPayload) == 0 {
+		return actionArgs
+	}
+	merged := make(map[string]any, len(eventPayload)+len(actionArgs))
+	for key, value := range eventPayload {
+		merged[key] = value
+	}
+	for key, value := range actionArgs {
+		merged[key] = value
+	}
+	return merged
 }
