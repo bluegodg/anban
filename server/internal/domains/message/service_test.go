@@ -87,6 +87,54 @@ func TestServiceSendMessageInjectsAndPersistsPlayed(t *testing.T) {
 	}
 }
 
+func TestServiceQueueAndPlaySupportMindOrchestration(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	ctx := context.Background()
+
+	queued, err := svc.Queue(ctx, SendRequest{DeviceID: "dev-001", Text: "妈，我今天晚点到家", FromName: "小明"})
+	if err != nil {
+		t.Fatalf("Queue: %v", err)
+	}
+	if queued.Status != StatusPending {
+		t.Fatalf("queued status = %q, want pending", queued.Status)
+	}
+	if len(fake.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want no speech before Mind selects action", len(fake.InjectCalls))
+	}
+
+	played, err := svc.PlayQueued(ctx, queued.ID)
+	if err != nil {
+		t.Fatalf("PlayQueued: %v", err)
+	}
+	if played.Status != StatusPlayed {
+		t.Fatalf("played status = %q, want played", played.Status)
+	}
+	if len(fake.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want one after PlayQueued", len(fake.InjectCalls))
+	}
+}
+
+func TestServicePlayQueuedIsIdempotentForPlayedMessage(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	ctx := context.Background()
+
+	queued, err := svc.Queue(ctx, SendRequest{DeviceID: "dev-001", Text: "晚饭我带过去"})
+	if err != nil {
+		t.Fatalf("Queue: %v", err)
+	}
+	if _, err := svc.PlayQueued(ctx, queued.ID); err != nil {
+		t.Fatalf("PlayQueued first: %v", err)
+	}
+	if _, err := svc.PlayQueued(ctx, queued.ID); err != nil {
+		t.Fatalf("PlayQueued second: %v", err)
+	}
+	if len(fake.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want one after repeated PlayQueued", len(fake.InjectCalls))
+	}
+}
+
 func TestServiceSendBoundsInjectForPRDDeliveryWindow(t *testing.T) {
 	xc := &deadlineMessageClient{}
 	svc := newTestService(t, xc)

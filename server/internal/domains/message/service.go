@@ -36,6 +36,14 @@ func (s *Service) UseProactiveVoiceGate(_ sharedtypes.ProactiveVoiceGate) {
 }
 
 func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
+	msg, err := s.Queue(ctx, req)
+	if err != nil {
+		return Message{}, err
+	}
+	return s.PlayQueued(ctx, msg.ID)
+}
+
+func (s *Service) Queue(ctx context.Context, req SendRequest) (Message, error) {
 	deviceID := strings.TrimSpace(req.DeviceID)
 	text := trimAndLimit(req.Text, MaxTextRunes)
 	if deviceID == "" || text == "" {
@@ -53,7 +61,20 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
 	if err := s.store.Create(ctx, &msg); err != nil {
 		return Message{}, err
 	}
+	return msg, nil
+}
 
+func (s *Service) PlayQueued(ctx context.Context, id uint) (Message, error) {
+	if id == 0 {
+		return Message{}, ErrInvalidInput
+	}
+	msg, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Message{}, err
+	}
+	if msg.Status == StatusPlayed {
+		return msg, nil
+	}
 	if err := s.play(ctx, &msg); err != nil {
 		return msg, err
 	}
