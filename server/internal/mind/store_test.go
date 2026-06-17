@@ -2,6 +2,7 @@ package mind
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -19,6 +20,45 @@ func newMindStoreForTest(t *testing.T) *Store {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 	return ms
+}
+
+func TestStoreAutoMigrateCreatesMindTables(t *testing.T) {
+	ms := newMindStoreForTest(t)
+
+	tables := []string{
+		"mind_events",
+		"mind_situations",
+		"mind_memories",
+		"mind_self_states",
+		"mind_thoughts",
+		"mind_intentions",
+		"mind_actions",
+		"mind_feedback",
+		"mind_reflections",
+		"mind_life_states",
+	}
+	expected := make(map[string]bool, len(tables))
+	for _, table := range tables {
+		expected[table] = true
+		t.Run(table, func(t *testing.T) {
+			if !ms.db.Migrator().HasTable(table) {
+				t.Fatalf("expected table %q to exist", table)
+			}
+		})
+	}
+
+	var actualTables []string
+	if err := ms.db.Raw("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'mind_%'").Scan(&actualTables).Error; err != nil {
+		t.Fatalf("list mind tables: %v", err)
+	}
+	if len(actualTables) != len(expected) {
+		t.Fatalf("mind tables = %+v, want exactly %+v", actualTables, tables)
+	}
+	for _, table := range actualTables {
+		if !expected[table] {
+			t.Fatalf("unexpected mind table %q among %+v", table, actualTables)
+		}
+	}
 }
 
 func TestStoreAppendsAndListsRecentEvents(t *testing.T) {
@@ -89,6 +129,100 @@ func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	}
 	if gotLife.TodayTheme != "让今天轻一点" || len(gotLife.LingeringThoughts) != 1 {
 		t.Fatalf("life = %+v, want saved theme and lingering thought", gotLife)
+	}
+}
+
+func TestStorePersistsSituationMemoryAndIntention(t *testing.T) {
+	ms := newMindStoreForTest(t)
+	ctx := context.Background()
+	at := time.Date(2026, 6, 16, 9, 30, 0, 0, time.UTC)
+	lastUsedAt := at.Add(time.Hour)
+
+	situation := Situation{
+		DeviceID:        "dev-001",
+		At:              at,
+		TimeOfDay:       "morning",
+		ElderPresence:   "present",
+		InteractionMode: "quiet_presence",
+		ActivityLevel:   "low",
+		EmotionalTone:   "calm",
+		SocialContext:   "alone",
+		OpenLoops:       []string{"ask about breakfast", "follow up on sleep"},
+		Constraints:     []string{"do not interrupt music"},
+	}
+	if err := ms.SaveSituation(ctx, situation); err != nil {
+		t.Fatalf("SaveSituation: %v", err)
+	}
+
+	memory := MemoryItem{
+		ID:               "memory-1",
+		DeviceID:         "dev-001",
+		Kind:             MemoryPreference,
+		Content:          "喜欢早上听老歌",
+		EvidenceEventIDs: []string{"evt-1", "evt-2"},
+		Importance:       0.8,
+		Confidence:       0.9,
+		CreatedAt:        at,
+		UpdatedAt:        at,
+		LastUsedAt:       &lastUsedAt,
+		DecayPolicy:      "keep",
+	}
+	if err := ms.SaveMemory(ctx, memory); err != nil {
+		t.Fatalf("SaveMemory: %v", err)
+	}
+
+	intention := Intention{
+		ID:        "intention-1",
+		DeviceID:  "dev-001",
+		ThoughtID: "thought-1",
+		Kind:      IntentionCheckIn,
+		Goal:      "确认老人今天状态",
+		Priority:  0.7,
+	}
+	if err := ms.SaveIntention(ctx, intention); err != nil {
+		t.Fatalf("SaveIntention: %v", err)
+	}
+
+	var situationRec situationRecord
+	if err := ms.db.Where("device_id = ?", "dev-001").First(&situationRec).Error; err != nil {
+		t.Fatalf("read situation record: %v", err)
+	}
+	var openLoops []string
+	if err := json.Unmarshal([]byte(situationRec.OpenLoopsJSON), &openLoops); err != nil {
+		t.Fatalf("decode open loops: %v", err)
+	}
+	if len(openLoops) != 2 || openLoops[0] != "ask about breakfast" {
+		t.Fatalf("open loops = %+v, want saved slice", openLoops)
+	}
+	var constraints []string
+	if err := json.Unmarshal([]byte(situationRec.ConstraintsJSON), &constraints); err != nil {
+		t.Fatalf("decode constraints: %v", err)
+	}
+	if len(constraints) != 1 || constraints[0] != "do not interrupt music" {
+		t.Fatalf("constraints = %+v, want saved slice", constraints)
+	}
+
+	var memoryRec memoryRecord
+	if err := ms.db.Where("memory_id = ?", "memory-1").First(&memoryRec).Error; err != nil {
+		t.Fatalf("read memory record: %v", err)
+	}
+	var evidenceIDs []string
+	if err := json.Unmarshal([]byte(memoryRec.EvidenceEventIDsJSON), &evidenceIDs); err != nil {
+		t.Fatalf("decode evidence ids: %v", err)
+	}
+	if len(evidenceIDs) != 2 || evidenceIDs[1] != "evt-2" {
+		t.Fatalf("evidence ids = %+v, want saved slice", evidenceIDs)
+	}
+	if memoryRec.LastUsedAt == nil || !memoryRec.LastUsedAt.Equal(lastUsedAt) {
+		t.Fatalf("last used at = %+v, want %v", memoryRec.LastUsedAt, lastUsedAt)
+	}
+
+	var intentionRec intentionRecord
+	if err := ms.db.Where("intention_id = ?", "intention-1").First(&intentionRec).Error; err != nil {
+		t.Fatalf("read intention record: %v", err)
+	}
+	if intentionRec.Kind != string(IntentionCheckIn) || intentionRec.Priority != 0.7 {
+		t.Fatalf("intention = %+v, want saved kind and priority", intentionRec)
 	}
 }
 

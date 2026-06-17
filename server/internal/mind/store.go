@@ -22,8 +22,11 @@ func NewStore(db *gorm.DB) *Store {
 func (s *Store) AutoMigrate() error {
 	return s.db.AutoMigrate(
 		&eventRecord{},
+		&situationRecord{},
+		&memoryRecord{},
 		&selfStateRecord{},
 		&thoughtRecord{},
+		&intentionRecord{},
 		&actionRecord{},
 		&feedbackRecord{},
 		&reflectionRecord{},
@@ -47,6 +50,49 @@ type eventRecord struct {
 	UpdatedAt   time.Time
 }
 
+func (eventRecord) TableName() string {
+	return "mind_events"
+}
+
+type situationRecord struct {
+	ID              uint      `gorm:"primaryKey"`
+	DeviceID        string    `gorm:"index;not null"`
+	At              time.Time `gorm:"index;not null"`
+	TimeOfDay       string    `gorm:"size:40;index"`
+	ElderPresence   string    `gorm:"size:40;index"`
+	InteractionMode string    `gorm:"size:60;index"`
+	ActivityLevel   string    `gorm:"size:60"`
+	EmotionalTone   string    `gorm:"size:60"`
+	SocialContext   string    `gorm:"size:100"`
+	OpenLoopsJSON   string    `gorm:"type:text"`
+	ConstraintsJSON string    `gorm:"type:text"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+func (situationRecord) TableName() string {
+	return "mind_situations"
+}
+
+type memoryRecord struct {
+	ID                   uint   `gorm:"primaryKey"`
+	MemoryID             string `gorm:"uniqueIndex;size:80;not null"`
+	DeviceID             string `gorm:"index;not null"`
+	Kind                 string `gorm:"size:60;index"`
+	Content              string `gorm:"size:1000"`
+	EvidenceEventIDsJSON string `gorm:"type:text"`
+	Importance           float64
+	Confidence           float64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	LastUsedAt           *time.Time
+	DecayPolicy          string `gorm:"size:60"`
+}
+
+func (memoryRecord) TableName() string {
+	return "mind_memories"
+}
+
 type selfStateRecord struct {
 	ID            uint   `gorm:"primaryKey"`
 	DeviceID      string `gorm:"uniqueIndex;not null"`
@@ -64,6 +110,10 @@ type selfStateRecord struct {
 	StewardWeight float64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+func (selfStateRecord) TableName() string {
+	return "mind_self_states"
 }
 
 type thoughtRecord struct {
@@ -86,6 +136,26 @@ type thoughtRecord struct {
 	UpdatedAt            time.Time
 }
 
+func (thoughtRecord) TableName() string {
+	return "mind_thoughts"
+}
+
+type intentionRecord struct {
+	ID          uint   `gorm:"primaryKey"`
+	IntentionID string `gorm:"uniqueIndex;size:80;not null"`
+	DeviceID    string `gorm:"index;not null"`
+	ThoughtID   string `gorm:"size:80;index"`
+	Kind        string `gorm:"size:60;index"`
+	Goal        string `gorm:"size:1000"`
+	Priority    float64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (intentionRecord) TableName() string {
+	return "mind_intentions"
+}
+
 type actionRecord struct {
 	ID           uint   `gorm:"primaryKey"`
 	ActionID     string `gorm:"uniqueIndex;size:80;not null"`
@@ -103,6 +173,10 @@ type actionRecord struct {
 	UpdatedAt    time.Time
 }
 
+func (actionRecord) TableName() string {
+	return "mind_actions"
+}
+
 type feedbackRecord struct {
 	ID                uint   `gorm:"primaryKey"`
 	FeedbackID        string `gorm:"uniqueIndex;size:80;not null"`
@@ -115,6 +189,10 @@ type feedbackRecord struct {
 	Notes             string `gorm:"size:500"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+func (feedbackRecord) TableName() string {
+	return "mind_feedback"
 }
 
 type reflectionRecord struct {
@@ -130,6 +208,10 @@ type reflectionRecord struct {
 	UpdatedAt            time.Time
 }
 
+func (reflectionRecord) TableName() string {
+	return "mind_reflections"
+}
+
 type lifeStateRecord struct {
 	ID                      uint   `gorm:"primaryKey"`
 	DeviceID                string `gorm:"uniqueIndex;not null"`
@@ -142,6 +224,10 @@ type lifeStateRecord struct {
 	RelationshipTemperature float64
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
+}
+
+func (lifeStateRecord) TableName() string {
+	return "mind_life_states"
 }
 
 func (s *Store) AppendEvent(ctx context.Context, event Event) error {
@@ -202,6 +288,53 @@ func (s *Store) ListRecentEvents(ctx context.Context, deviceID string, limit int
 		})
 	}
 	return out, nil
+}
+
+func (s *Store) SaveSituation(ctx context.Context, situation Situation) error {
+	openLoops, err := encodeJSON(situation.OpenLoops)
+	if err != nil {
+		return err
+	}
+	constraints, err := encodeJSON(situation.Constraints)
+	if err != nil {
+		return err
+	}
+
+	rec := situationRecord{
+		DeviceID:        situation.DeviceID,
+		At:              situation.At,
+		TimeOfDay:       situation.TimeOfDay,
+		ElderPresence:   situation.ElderPresence,
+		InteractionMode: situation.InteractionMode,
+		ActivityLevel:   situation.ActivityLevel,
+		EmotionalTone:   situation.EmotionalTone,
+		SocialContext:   situation.SocialContext,
+		OpenLoopsJSON:   openLoops,
+		ConstraintsJSON: constraints,
+	}
+	return s.db.WithContext(ctx).Create(&rec).Error
+}
+
+func (s *Store) SaveMemory(ctx context.Context, memory MemoryItem) error {
+	evidenceIDs, err := encodeJSON(memory.EvidenceEventIDs)
+	if err != nil {
+		return err
+	}
+
+	rec := memoryRecord{
+		MemoryID:             memory.ID,
+		DeviceID:             memory.DeviceID,
+		Kind:                 string(memory.Kind),
+		Content:              memory.Content,
+		EvidenceEventIDsJSON: evidenceIDs,
+		Importance:           memory.Importance,
+		Confidence:           memory.Confidence,
+		CreatedAt:            memory.CreatedAt,
+		UpdatedAt:            memory.UpdatedAt,
+		LastUsedAt:           memory.LastUsedAt,
+		DecayPolicy:          memory.DecayPolicy,
+	}
+	return s.db.WithContext(ctx).Create(&rec).Error
 }
 
 func (s *Store) SaveSelfState(ctx context.Context, state SelfState) error {
@@ -287,6 +420,18 @@ func (s *Store) SaveThought(ctx context.Context, thought Thought) error {
 		InterruptionCost:     thought.InterruptionCost,
 		Intimacy:             thought.Intimacy,
 		Status:               string(thought.Status),
+	}
+	return s.db.WithContext(ctx).Create(&rec).Error
+}
+
+func (s *Store) SaveIntention(ctx context.Context, intention Intention) error {
+	rec := intentionRecord{
+		IntentionID: intention.ID,
+		DeviceID:    intention.DeviceID,
+		ThoughtID:   intention.ThoughtID,
+		Kind:        string(intention.Kind),
+		Goal:        intention.Goal,
+		Priority:    intention.Priority,
 	}
 	return s.db.WithContext(ctx).Create(&rec).Error
 }
