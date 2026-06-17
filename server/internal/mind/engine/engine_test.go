@@ -112,6 +112,84 @@ func TestIngestLateOutOfOrderEventUsesCurrentEventForThoughts(t *testing.T) {
 	}
 }
 
+func TestIngestLateOutOfOrderEventDoesNotUseFutureSelfState(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	later := time.Date(2026, 6, 16, 22, 0, 0, 0, time.UTC)
+	earlier := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+
+	if _, err := svc.Ingest(ctx, mind.Event{
+		ID:         "evt-long-silence-future",
+		DeviceID:   deviceID,
+		Type:       mind.EventLongSilence,
+		Source:     mind.SourceScheduler,
+		At:         later,
+		Summary:    "晚上长时间没有互动",
+		Salience:   0.7,
+		Emotion:    "quiet",
+		Confidence: 0.9,
+	}); err != nil {
+		t.Fatalf("Ingest future long silence: %v", err)
+	}
+
+	ms := mind.NewStore(st.DB)
+	futureState, err := ms.GetSelfState(ctx, deviceID)
+	if err != nil {
+		t.Fatalf("GetSelfState after future event: %v", err)
+	}
+
+	actions, err := svc.Ingest(ctx, mind.Event{
+		ID:         "evt-reminder-earlier-than-silence",
+		DeviceID:   deviceID,
+		Type:       mind.EventReminderDue,
+		Source:     mind.SourceScheduler,
+		At:         earlier,
+		Summary:    "中午吃药提醒",
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	})
+	if err != nil {
+		t.Fatalf("Ingest earlier reminder: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	if actions[0].Type != mind.ActionSpeak || actions[0].Executor != "reminder" {
+		t.Fatalf("action = %+v, want reminder speak from as-of self-state", actions[0])
+	}
+	if actions[0].Status != mind.ActionPending {
+		t.Fatalf("action status = %s, want pending so future quietness does not defer it", actions[0].Status)
+	}
+
+	persistedState, err := ms.GetSelfState(ctx, deviceID)
+	if err != nil {
+		t.Fatalf("GetSelfState after late event: %v", err)
+	}
+	if persistedState.Concern < futureState.Concern || persistedState.Quietness < futureState.Quietness {
+		t.Fatalf(
+			"persisted state rewound after late event: concern %.2f quietness %.2f, want at least future concern %.2f quietness %.2f",
+			persistedState.Concern,
+			persistedState.Quietness,
+			futureState.Concern,
+			futureState.Quietness,
+		)
+	}
+	if containsString(persistedState.ProcessedEventIDs, "evt-reminder-earlier-than-silence") {
+		t.Fatalf("persisted state processed late event ID, want late as-of state not saved: %+v", persistedState.ProcessedEventIDs)
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestIngestDuplicateEventIDIsIdempotent(t *testing.T) {
 	svc, st := newEngineForTest(t)
 	event := mind.Event{

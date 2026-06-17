@@ -60,9 +60,10 @@ func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, 
 		if err != nil {
 			return err
 		}
+		lateEvent := hasFutureEvent(recent, event.At)
 		recent = eventsAsOf(recent, event.At)
 
-		actions, err = s.runPipeline(ctx, txStore, event.DeviceID, event.At, event, recent)
+		actions, err = s.runPipeline(ctx, txStore, event.DeviceID, event.At, event, recent, lateEvent)
 		return err
 	})
 	if err != nil {
@@ -102,6 +103,18 @@ func eventsAsOf(events []mind.Event, at time.Time) []mind.Event {
 	return out
 }
 
+func hasFutureEvent(events []mind.Event, at time.Time) bool {
+	if at.IsZero() {
+		return false
+	}
+	for _, event := range events {
+		if event.At.After(at) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Service) TickIdle(ctx context.Context, deviceID string, at time.Time) ([]mind.Action, error) {
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
@@ -139,18 +152,26 @@ func (s *Service) Reflect(ctx context.Context, deviceID string, window mind.Time
 	return s.store.SaveReflection(ctx, reflection)
 }
 
-func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event) ([]mind.Action, error) {
+func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event, lateEvent bool) ([]mind.Action, error) {
 	sit := situation.Build(deviceID, at, recent)
 
-	state, err := store.GetSelfState(ctx, deviceID)
-	if errors.Is(err, mind.ErrNotFound) {
+	var state mind.SelfState
+	if lateEvent {
 		state = selfstate.Default(deviceID, at)
-	} else if err != nil {
-		return nil, err
+	} else {
+		var err error
+		state, err = store.GetSelfState(ctx, deviceID)
+		if errors.Is(err, mind.ErrNotFound) {
+			state = selfstate.Default(deviceID, at)
+		} else if err != nil {
+			return nil, err
+		}
 	}
 	state = selfstate.ApplyEvents(state, recent)
-	if err := store.SaveSelfState(ctx, state); err != nil {
-		return nil, err
+	if !lateEvent {
+		if err := store.SaveSelfState(ctx, state); err != nil {
+			return nil, err
+		}
 	}
 
 	activeDrives := drives.Activate(sit, state, recent)
