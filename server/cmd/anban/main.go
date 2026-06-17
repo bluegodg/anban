@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 	"github.com/bluegodg/anban/server/internal/domains/vision"
 	"github.com/bluegodg/anban/server/internal/llm"
 	"github.com/bluegodg/anban/server/internal/memory"
+	"github.com/bluegodg/anban/server/internal/mind"
+	"github.com/bluegodg/anban/server/internal/mind/engine"
+	"github.com/bluegodg/anban/server/internal/mind/executors"
 	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
@@ -128,9 +132,38 @@ func main() {
 		}
 	}
 
+	mindStore := mind.NewStore(st.DB)
+	if err := mindStore.AutoMigrate(); err != nil {
+		log.Fatalf("mind 表迁移失败: %v", err)
+	}
+	mindEngine := engine.New(mindStore)
+	_ = mindEngine
+
 	visionService := vision.NewService(xc, greetingService)
 	startVisionPresencePoller(sch, cfg.VisionPresenceInterval, profileStore, visionService)
 	visionHandler := vision.NewHandler(visionService)
+
+	mindDispatcher := executors.NewDispatcher(map[string]executors.SpeakExecutor{
+		"message": executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
+			id, _ := action.Args["messageId"].(float64)
+			if id <= 0 {
+				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: "messageId missing"}, nil
+			}
+			msg, err := messageService.PlayQueued(ctx, uint(id))
+			if err != nil {
+				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
+			}
+			return executors.Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: fmt.Sprintf("message:%d", msg.ID)}, nil
+		}),
+		"greeting": executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
+			greeting, err := greetingService.SpeakText(ctx, action.DeviceID, action.Text)
+			if err != nil {
+				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
+			}
+			return executors.Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: fmt.Sprintf("greeting:%d", greeting.ID)}, nil
+		}),
+	})
+	_ = mindDispatcher
 
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
