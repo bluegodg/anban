@@ -1,6 +1,7 @@
 package behavior
 
 import (
+	"crypto/sha1"
 	"fmt"
 	"math"
 	"time"
@@ -10,12 +11,18 @@ import (
 
 func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []mind.Action {
 	out := make([]mind.Action, 0, len(thoughts))
-	for _, thought := range thoughts {
+	thoughtIDCounts := countThoughtIDs(thoughts)
+	reservedActionIDs, reservedIntentionIDs := reservedIDs(thoughtIDCounts)
+	usedActionIDs := map[string]bool{}
+	usedIntentionIDs := map[string]bool{}
+
+	for i, thought := range thoughts {
 		actionType, executor := actionFor(thought, s)
+		identity := actionIdentity(s, thought, i, thoughtIDCounts, usedActionIDs, usedIntentionIDs, reservedActionIDs, reservedIntentionIDs)
 		action := mind.Action{
-			ID:          fmt.Sprintf("action-%s", thought.ID),
-			DeviceID:    thought.DeviceID,
-			IntentionID: fmt.Sprintf("intention-%s", thought.ID),
+			ID:          fmt.Sprintf("action-%s", identity),
+			DeviceID:    deviceIDFor(thought, s),
+			IntentionID: fmt.Sprintf("intention-%s", identity),
 			Type:        actionType,
 			Executor:    executor,
 			Text:        defaultText(thought, actionType),
@@ -24,12 +31,99 @@ func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []m
 			Score:       score(thought, s, state, actionType),
 		}
 		if actionType == mind.ActionScheduleRecheck {
-			next := s.At.Add(20 * time.Minute)
-			action.ScheduledFor = &next
+			if base, ok := scheduleBase(thought, s); ok {
+				next := base.Add(20 * time.Minute)
+				action.ScheduledFor = &next
+			}
 		}
+		usedActionIDs[action.ID] = true
+		usedIntentionIDs[action.IntentionID] = true
 		out = append(out, action)
 	}
 	return out
+}
+
+func countThoughtIDs(thoughts []mind.Thought) map[string]int {
+	counts := map[string]int{}
+	for _, thought := range thoughts {
+		if thought.ID == "" {
+			continue
+		}
+		counts[thought.ID]++
+	}
+	return counts
+}
+
+func reservedIDs(thoughtIDCounts map[string]int) (map[string]bool, map[string]bool) {
+	actionIDs := map[string]bool{}
+	intentionIDs := map[string]bool{}
+	for id, count := range thoughtIDCounts {
+		if count != 1 {
+			continue
+		}
+		actionIDs[fmt.Sprintf("action-%s", id)] = true
+		intentionIDs[fmt.Sprintf("intention-%s", id)] = true
+	}
+	return actionIDs, intentionIDs
+}
+
+func actionIdentity(
+	s mind.Situation,
+	thought mind.Thought,
+	index int,
+	thoughtIDCounts map[string]int,
+	usedActionIDs map[string]bool,
+	usedIntentionIDs map[string]bool,
+	reservedActionIDs map[string]bool,
+	reservedIntentionIDs map[string]bool,
+) string {
+	if thought.ID != "" && thoughtIDCounts[thought.ID] == 1 {
+		return thought.ID
+	}
+
+	base := fallbackIdentity(s, thought, index)
+	for attempt := 0; ; attempt++ {
+		candidate := base
+		if attempt > 0 {
+			candidate = fmt.Sprintf("%s-%d", base, attempt)
+		}
+		actionID := fmt.Sprintf("action-%s", candidate)
+		intentionID := fmt.Sprintf("intention-%s", candidate)
+		if usedActionIDs[actionID] || usedIntentionIDs[intentionID] {
+			continue
+		}
+		if reservedActionIDs[actionID] || reservedIntentionIDs[intentionID] {
+			continue
+		}
+		return candidate
+	}
+}
+
+func fallbackIdentity(s mind.Situation, thought mind.Thought, index int) string {
+	at := thought.At
+	if at.IsZero() {
+		at = s.At
+	}
+	seed := fmt.Sprintf("%s|%s|%d|%d", deviceIDFor(thought, s), thought.DriveName, at.UnixNano(), index)
+	sum := sha1.Sum([]byte(seed))
+	return fmt.Sprintf("fallback-%x-%d", sum[:6], index)
+}
+
+func deviceIDFor(thought mind.Thought, s mind.Situation) string {
+	if thought.DeviceID != "" {
+		return thought.DeviceID
+	}
+	return s.DeviceID
+}
+
+func scheduleBase(thought mind.Thought, s mind.Situation) (time.Time, bool) {
+	if !s.At.IsZero() {
+		return s.At, true
+	}
+	if !thought.At.IsZero() {
+		return thought.At, true
+	}
+	return time.Time{}, false
 }
 
 func actionFor(thought mind.Thought, s mind.Situation) (mind.ActionType, string) {

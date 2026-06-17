@@ -16,7 +16,9 @@ func Gate(action mind.Action, s mind.Situation, state mind.SelfState) mind.Actio
 	case mind.ActionSpeak:
 		if s.InteractionMode == "conversation" && action.Score < 0.85 {
 			action.Status = mind.ActionDeferred
-			action.Reason = "老人正在对话，主动表达延后"
+			if action.Reason == "" {
+				action.Reason = "老人正在对话，主动表达延后"
+			}
 			return action
 		}
 		if action.Score < 0.35 {
