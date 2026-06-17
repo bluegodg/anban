@@ -1,6 +1,7 @@
 package reminder
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -86,4 +87,16 @@ type ListFilter struct {
 
 type AckRequest struct {
 	AckKind AckKind `json:"ackKind"`
+}
+
+type MindEvent struct {
+	DeviceID string
+	Type     string
+	SourceID uint
+	Summary  string
+	Payload  map[string]any
+}
+
+type MindSink interface {
+	IngestMindEvent(ctx context.Context, event MindEvent) error
 }

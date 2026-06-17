@@ -118,6 +118,59 @@ func TestServicePlayScheduledSupportsMindExecutor(t *testing.T) {
 	}
 }
 
+func TestServiceFireEmitsMindEventWhenSinkConfigured(t *testing.T) {
+	sink := &fakeReminderMindSink{}
+	fakeXC := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fakeXC, &fakeScheduler{})
+	svc.UseMindSink(sink)
+	ctx := context.Background()
+	rem, err := svc.Create(ctx, CreateRequest{DeviceID: "dev-001", Content: "吃药", ScheduledAt: svc.now().Add(time.Hour), Category: CategoryMed})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	svc.fire(rem.ID)
+	if len(sink.events) != 1 {
+		t.Fatalf("events = %+v, want 1", sink.events)
+	}
+	if sink.events[0].Type != "reminder_due" || sink.events[0].SourceID != rem.ID {
+		t.Fatalf("event = %+v, want reminder_due for %d", sink.events[0], rem.ID)
+	}
+	if len(fakeXC.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want Mind to choose playback", len(fakeXC.InjectCalls))
+	}
+}
+
+func TestServiceFireFallsBackToDirectPlayWhenMindSinkFails(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fakeXC, &fakeScheduler{})
+	svc.UseMindSink(failingReminderMindSink{err: errors.New("mind unavailable")})
+	ctx := context.Background()
+	rem, err := svc.Create(ctx, CreateRequest{DeviceID: "dev-001", Content: "吃药", ScheduledAt: svc.now().Add(time.Hour), Category: CategoryMed})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	svc.fire(rem.ID)
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want fallback direct playback", len(fakeXC.InjectCalls))
+	}
+}
+
+type fakeReminderMindSink struct{ events []MindEvent }
+
+func (f *fakeReminderMindSink) IngestMindEvent(ctx context.Context, event MindEvent) error {
+	f.events = append(f.events, event)
+	return nil
+}
+
+type failingReminderMindSink struct {
+	err error
+}
+
+func (f failingReminderMindSink) IngestMindEvent(context.Context, MindEvent) error {
+	return f.err
+}
+
 func TestServiceCreateStoresRecurrenceAndImportant(t *testing.T) {
 	fakeSch := &fakeScheduler{}
 	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)

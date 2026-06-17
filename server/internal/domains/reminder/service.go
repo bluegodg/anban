@@ -52,6 +52,7 @@ type Service struct {
 	sch       OneShotScheduler
 	now       func() time.Time
 	voiceGate sharedtypes.ProactiveVoiceGate
+	mindSink  MindSink
 }
 
 func NewService(store *Store, xc xiaozhiclient.Client, sch OneShotScheduler) *Service {
@@ -65,6 +66,10 @@ func NewService(store *Store, xc xiaozhiclient.Client, sch OneShotScheduler) *Se
 
 func (s *Service) UseProactiveVoiceGate(gate sharedtypes.ProactiveVoiceGate) {
 	s.voiceGate = gate
+}
+
+func (s *Service) UseMindSink(sink MindSink) {
+	s.mindSink = sink
 }
 
 func (s *Service) Create(ctx context.Context, req CreateRequest) (Reminder, error) {
@@ -207,6 +212,17 @@ func (s *Service) fire(id uint) {
 	}
 	if rem.Status != StatusScheduled {
 		return
+	}
+	if s.mindSink != nil {
+		if err := s.mindSink.IngestMindEvent(ctx, MindEvent{
+			DeviceID: rem.DeviceID,
+			Type:     "reminder_due",
+			SourceID: rem.ID,
+			Summary:  "提醒到期，交给安伴心智决定表达方式",
+			Payload:  map[string]any{"reminderId": float64(rem.ID), "category": string(rem.Category)},
+		}); err == nil {
+			return
+		}
 	}
 	s.play(ctx, &rem)
 }
