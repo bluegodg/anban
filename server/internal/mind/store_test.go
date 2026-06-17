@@ -119,6 +119,12 @@ func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	if err := ms.SaveSelfState(ctx, state); err != nil {
 		t.Fatalf("SaveSelfState: %v", err)
 	}
+	var selfStateRec selfStateRecord
+	if err := ms.db.Where("device_id = ?", "dev-001").First(&selfStateRec).Error; err != nil {
+		t.Fatalf("read self state record: %v", err)
+	}
+	selfStateCreatedAt := selfStateRec.CreatedAt
+
 	state.Concern = 0.7
 	if err := ms.SaveSelfState(ctx, state); err != nil {
 		t.Fatalf("SaveSelfState update: %v", err)
@@ -129,6 +135,19 @@ func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	}
 	if got.Concern != 0.7 || got.Warmth != 0.6 {
 		t.Fatalf("state = %+v, want concern 0.7 warmth 0.6", got)
+	}
+	var selfStateCount int64
+	if err := ms.db.Model(&selfStateRecord{}).Where("device_id = ?", "dev-001").Count(&selfStateCount).Error; err != nil {
+		t.Fatalf("count self state records: %v", err)
+	}
+	if selfStateCount != 1 {
+		t.Fatalf("self state rows = %d, want 1", selfStateCount)
+	}
+	if err := ms.db.Where("device_id = ?", "dev-001").First(&selfStateRec).Error; err != nil {
+		t.Fatalf("read updated self state record: %v", err)
+	}
+	if !selfStateRec.CreatedAt.Equal(selfStateCreatedAt) {
+		t.Fatalf("self state created_at = %v, want preserved %v", selfStateRec.CreatedAt, selfStateCreatedAt)
 	}
 
 	life := LifeState{DeviceID: "dev-001", At: at, TodayTheme: "让今天轻一点", LingeringThoughts: []string{"昨天聊到老歌"}, SocialEnergy: 0.5, CareFocus: "上午互动少", PlayfulnessTrend: 0.2, RelationshipTemperature: 0.6}
@@ -349,10 +368,13 @@ func TestStorePersistsThoughtActionFeedbackReflection(t *testing.T) {
 	}
 	createdAt := actionRec.CreatedAt
 
-	action.Status = ActionExecuted
-	action.Reason = "老人回应了老歌"
-	action.Score = 0.91
-	if err := ms.SaveAction(ctx, action); err != nil {
+	statusOnlyAction := Action{
+		ID:          "action-1",
+		Status:      ActionExecuted,
+		Reason:      "老人回应了老歌",
+		ExecutorRef: "message:12",
+	}
+	if err := ms.SaveAction(ctx, statusOnlyAction); err != nil {
 		t.Fatalf("SaveAction update: %v", err)
 	}
 	var actionCount int64
@@ -368,8 +390,17 @@ func TestStorePersistsThoughtActionFeedbackReflection(t *testing.T) {
 	if !actionRec.CreatedAt.Equal(createdAt) {
 		t.Fatalf("action created_at = %v, want preserved %v", actionRec.CreatedAt, createdAt)
 	}
-	if actionRec.Status != string(ActionExecuted) || actionRec.Reason != "老人回应了老歌" || actionRec.Score != 0.91 {
-		t.Fatalf("updated action = %+v, want executed reason and score", actionRec)
+	if actionRec.DeviceID != "dev-001" || actionRec.IntentionID != "intent-1" || actionRec.Type != string(ActionSpeak) || actionRec.Executor != "xiaozhi" {
+		t.Fatalf("updated action identity = %+v, want original device, intention, type, and executor", actionRec)
+	}
+	if actionRec.Text != "我们听首老歌好吗" || actionRec.ArgsJSON == "" || actionRec.ScheduledFor == nil || !actionRec.ScheduledFor.Equal(scheduledFor) {
+		t.Fatalf("updated action plan = %+v, want original text, args, and schedule", actionRec)
+	}
+	if actionRec.Score != 0.64 {
+		t.Fatalf("updated action score = %v, want preserved 0.64", actionRec.Score)
+	}
+	if actionRec.Status != string(ActionExecuted) || actionRec.Reason != "老人回应了老歌" || actionRec.ExecutorRef != "message:12" {
+		t.Fatalf("updated action = %+v, want executed reason and executor ref", actionRec)
 	}
 
 	var feedbackRec feedbackRecord

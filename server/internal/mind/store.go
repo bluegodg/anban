@@ -168,6 +168,7 @@ type actionRecord struct {
 	ArgsJSON     string `gorm:"type:text"`
 	ScheduledFor *time.Time
 	Status       string `gorm:"size:30;index"`
+	ExecutorRef  string `gorm:"size:120;index"`
 	Reason       string `gorm:"size:500"`
 	Score        float64
 	CreatedAt    time.Time
@@ -459,22 +460,16 @@ func (s *Store) SaveAction(ctx context.Context, action Action) error {
 		ArgsJSON:     args,
 		ScheduledFor: action.ScheduledFor,
 		Status:       string(action.Status),
+		ExecutorRef:  action.ExecutorRef,
 		Reason:       action.Reason,
 		Score:        action.Score,
 	}
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "action_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"device_id",
-			"intention_id",
-			"type",
-			"executor",
-			"text",
-			"args_json",
-			"scheduled_for",
 			"status",
 			"reason",
-			"score",
+			"executor_ref",
 			"updated_at",
 		}),
 	}).Create(&rec).Error

@@ -212,6 +212,7 @@ type Action struct {
 	Args         map[string]any
 	ScheduledFor *time.Time
 	Status       ActionStatus
+	ExecutorRef  string
 	Reason       string
 	Score        float64
 }
