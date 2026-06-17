@@ -56,12 +56,14 @@ func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, 
 			return err
 		}
 
-		recent, err := txStore.ListRecentEvents(ctx, event.DeviceID, 20)
+		lateEvent, err := txStore.HasEventAfter(ctx, event.DeviceID, event.At)
 		if err != nil {
 			return err
 		}
-		lateEvent := hasFutureEvent(recent, event.At)
-		recent = eventsAsOf(recent, event.At)
+		recent, err := txStore.ListRecentEventsAtOrBefore(ctx, event.DeviceID, event.At, 20)
+		if err != nil {
+			return err
+		}
 
 		actions, err = s.runPipeline(ctx, txStore, event.DeviceID, event.At, event, recent, lateEvent)
 		return err
@@ -87,32 +89,6 @@ func generateEventID(event mind.Event) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("evt-%x-%s", sum[:12], hex.EncodeToString(suffix[:])), nil
-}
-
-func eventsAsOf(events []mind.Event, at time.Time) []mind.Event {
-	if at.IsZero() {
-		return events
-	}
-	out := events[:0]
-	for _, event := range events {
-		if event.At.IsZero() || event.At.After(at) {
-			continue
-		}
-		out = append(out, event)
-	}
-	return out
-}
-
-func hasFutureEvent(events []mind.Event, at time.Time) bool {
-	if at.IsZero() {
-		return false
-	}
-	for _, event := range events {
-		if event.At.After(at) {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Service) TickIdle(ctx context.Context, deviceID string, at time.Time) ([]mind.Action, error) {

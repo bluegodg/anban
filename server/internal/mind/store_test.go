@@ -110,6 +110,69 @@ func TestStoreAppendsAndListsRecentEvents(t *testing.T) {
 	}
 }
 
+func TestStoreListsRecentEventsAtOrBefore(t *testing.T) {
+	ms := newMindStoreForTest(t)
+	ctx := context.Background()
+	base := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+
+	if err := ms.AppendEvent(ctx, Event{
+		ID:       "evt-past",
+		DeviceID: "dev-001",
+		Type:     EventPresenceSeen,
+		Source:   SourceVision,
+		At:       base.Add(-time.Hour),
+		Summary:  "过去的 presence",
+	}); err != nil {
+		t.Fatalf("AppendEvent past: %v", err)
+	}
+	if err := ms.AppendEvent(ctx, Event{
+		ID:       "evt-current",
+		DeviceID: "dev-001",
+		Type:     EventReminderDue,
+		Source:   SourceScheduler,
+		At:       base,
+		Summary:  "当前提醒",
+	}); err != nil {
+		t.Fatalf("AppendEvent current: %v", err)
+	}
+	for i := 0; i < 25; i++ {
+		if err := ms.AppendEvent(ctx, Event{
+			ID:       "evt-future-" + string(rune('a'+i)),
+			DeviceID: "dev-001",
+			Type:     EventElderSpoke,
+			Source:   SourceXiaozhi,
+			At:       base.Add(time.Duration(i+1) * time.Minute),
+			Summary:  "未来对话",
+		}); err != nil {
+			t.Fatalf("AppendEvent future %d: %v", i, err)
+		}
+	}
+
+	hasFuture, err := ms.HasEventAfter(ctx, "dev-001", base)
+	if err != nil {
+		t.Fatalf("HasEventAfter: %v", err)
+	}
+	if !hasFuture {
+		t.Fatal("HasEventAfter = false, want true")
+	}
+
+	got, err := ms.ListRecentEventsAtOrBefore(ctx, "dev-001", base, 10)
+	if err != nil {
+		t.Fatalf("ListRecentEventsAtOrBefore: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("events = %+v, want current and past only", got)
+	}
+	if got[0].ID != "evt-current" || got[1].ID != "evt-past" {
+		t.Fatalf("events order = %+v, want current then past", got)
+	}
+	for _, event := range got {
+		if event.At.After(base) {
+			t.Fatalf("got future event %+v, want at <= %v", event, base)
+		}
+	}
+}
+
 func TestStoreAppendEventDuplicateReturnsErrDuplicateEvent(t *testing.T) {
 	ms := newMindStoreForTest(t)
 	ctx := context.Background()

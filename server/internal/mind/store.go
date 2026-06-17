@@ -290,6 +290,43 @@ func (s *Store) ListRecentEvents(ctx context.Context, deviceID string, limit int
 		return nil, err
 	}
 
+	return eventsFromRecords(records)
+}
+
+func (s *Store) ListRecentEventsAtOrBefore(ctx context.Context, deviceID string, at time.Time, limit int) ([]Event, error) {
+	if at.IsZero() {
+		return s.ListRecentEvents(ctx, deviceID, limit)
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var records []eventRecord
+	err := s.db.WithContext(ctx).
+		Where("device_id = ? AND at <= ?", deviceID, at).
+		Order("at desc, id desc").
+		Limit(limit).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+	return eventsFromRecords(records)
+}
+
+func (s *Store) HasEventAfter(ctx context.Context, deviceID string, at time.Time) (bool, error) {
+	if at.IsZero() {
+		return false, nil
+	}
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&eventRecord{}).
+		Where("device_id = ? AND at > ?", deviceID, at).
+		Limit(1).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func eventsFromRecords(records []eventRecord) ([]Event, error) {
 	out := make([]Event, 0, len(records))
 	for _, rec := range records {
 		payload := map[string]any{}
