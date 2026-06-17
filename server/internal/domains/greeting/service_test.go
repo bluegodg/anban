@@ -90,6 +90,22 @@ func TestServiceTriggerInjectsGreetingAndPersistsPlayed(t *testing.T) {
 	}
 }
 
+func TestServiceSpeakTextSupportsMindExecutor(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	ctx := context.Background()
+	got, err := svc.SpeakText(ctx, "dev-001", "我在这儿呢，慢慢来。")
+	if err != nil {
+		t.Fatalf("SpeakText: %v", err)
+	}
+	if got.Status != StatusPlayed {
+		t.Fatalf("status = %q, want played", got.Status)
+	}
+	if len(fake.InjectCalls) != 1 || fake.InjectCalls[0].Text != "我在这儿呢，慢慢来。" {
+		t.Fatalf("InjectCalls = %+v", fake.InjectCalls)
+	}
+}
+
 func TestServiceTriggerBoundsInjectForPRDClickLatency(t *testing.T) {
 	xc := &deadlineGreetingClient{}
 	svc := newTestService(t, xc)

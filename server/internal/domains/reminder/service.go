@@ -133,6 +133,21 @@ func (s *Service) Acknowledge(ctx context.Context, id uint, req AckRequest) (Rem
 	return s.acknowledge(ctx, id, normalizeAckKind(req.AckKind), true)
 }
 
+func (s *Service) PlayScheduled(ctx context.Context, id uint) (Reminder, error) {
+	if id == 0 {
+		return Reminder{}, ErrInvalidInput
+	}
+	rem, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Reminder{}, err
+	}
+	if rem.Status != StatusScheduled {
+		return rem, nil
+	}
+	s.play(ctx, &rem)
+	return rem, nil
+}
+
 func (s *Service) RestoreScheduled(ctx context.Context) (int, error) {
 	reminders, err := s.store.List(ctx, ListFilter{Status: StatusScheduled})
 	if err != nil {

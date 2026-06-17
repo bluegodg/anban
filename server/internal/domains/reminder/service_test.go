@@ -93,6 +93,31 @@ func TestServiceCreateSchedulesAndFiresReminder(t *testing.T) {
 	}
 }
 
+func TestServicePlayScheduledSupportsMindExecutor(t *testing.T) {
+	fakeXC := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fakeXC, &fakeScheduler{})
+	ctx := context.Background()
+	rem, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		Content:     "吃药",
+		ScheduledAt: svc.now().Add(time.Hour),
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	played, err := svc.PlayScheduled(ctx, rem.ID)
+	if err != nil {
+		t.Fatalf("PlayScheduled: %v", err)
+	}
+	if played.Status != StatusPlayed {
+		t.Fatalf("status = %q, want played", played.Status)
+	}
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want 1", len(fakeXC.InjectCalls))
+	}
+}
+
 func TestServiceCreateStoresRecurrenceAndImportant(t *testing.T) {
 	fakeSch := &fakeScheduler{}
 	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)

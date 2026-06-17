@@ -106,6 +106,29 @@ func (s *Service) Trigger(ctx context.Context, req TriggerRequest) (Greeting, er
 	return greeting, nil
 }
 
+func (s *Service) SpeakText(ctx context.Context, deviceID, text string) (Greeting, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	text = strings.TrimSpace(text)
+	if deviceID == "" || text == "" {
+		return Greeting{}, ErrInvalidInput
+	}
+	now := s.now().UTC()
+	greeting := Greeting{
+		DeviceID:    deviceID,
+		TonePreset:  ToneCasual,
+		Text:        text,
+		Status:      StatusPending,
+		TriggeredAt: now,
+	}
+	if err := s.store.Create(ctx, &greeting); err != nil {
+		return Greeting{}, err
+	}
+	if err := s.play(ctx, &greeting, now); err != nil {
+		return greeting, err
+	}
+	return greeting, nil
+}
+
 func (s *Service) play(ctx context.Context, greeting *Greeting, at time.Time) error {
 	lease, err := s.tryAcquireProactiveVoice(ctx, greeting.DeviceID, at)
 	if err != nil {
