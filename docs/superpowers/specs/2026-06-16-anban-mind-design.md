@@ -710,3 +710,10 @@ AnBan 不再是：
 - 它在用户不说话时也仍然存在。
 - 它有时候开口，有时候安静。
 - 它能记得共同经历，并慢慢形成相处方式。
+
+## 17. 实施状态
+
+- 实施计划：`docs/superpowers/plans/2026-06-16-anban-mind-implementation.md`
+- 代码入口：`server/internal/mind`
+- 装配入口：`server/cmd/anban/main.go`
+- 验证命令：在 `server/` 下运行 `$env:GOPROXY="https://goproxy.cn,direct"; $env:GOSUMDB="off"; $env:CGO_ENABLED="0"; go test ./...`

@@ -2,6 +2,15 @@
 
 > 目的：记录本轮代码编写中每一批改动的文件、内容、目的、功能和验证方式。后续每次代码改动都要同步更新本文件。
 
+## 2026-06-17
+
+### AnBan Mind 统一心智层
+
+- 文件：`server/internal/mind/`、`server/cmd/anban/main.go`、`server/internal/domains/{message,reminder,vision,greeting}/`
+- 内容：新增 AnBan Mind 心智层，统一事件流、处境、自我状态、动机、内心思流、行为选择、表达闸门、反思和生活流；现有 domain 逐步归位为 action executor。
+- 边界：继续保持方案 C；xiaozhi 仍负责语音运行时、设备连接、打断、MCP 和对话历史，安伴负责为什么说、何时说、说什么和是否不说。
+- 验证：`go test ./...`
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试
