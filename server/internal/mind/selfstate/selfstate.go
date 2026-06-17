@@ -51,13 +51,14 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 
 	for _, item := range ordered {
 		event := item.event
+		if event.ID == "" {
+			continue
+		}
 		if event.At.IsZero() {
 			continue
 		}
-		if event.ID != "" {
-			if _, ok := processed[event.ID]; ok {
-				continue
-			}
+		if _, ok := processed[event.ID]; ok {
+			continue
 		}
 		if event.At.After(state.At) {
 			state.At = event.At
@@ -79,9 +80,6 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 				state.Quietness = clamp(state.Quietness + 0.08)
 				state.Playfulness = clamp(state.Playfulness - 0.04)
 			}
-		}
-		if event.ID == "" {
-			continue
 		}
 		processed[event.ID] = struct{}{}
 		state.ProcessedEventIDs = append(state.ProcessedEventIDs, event.ID)

@@ -1,6 +1,7 @@
 package selfstate
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"testing"
@@ -50,6 +51,25 @@ func TestApplyEventsSkipsProcessedEventIDs(t *testing.T) {
 	}
 }
 
+func TestApplyEventsIgnoresEmptyIDEvent(t *testing.T) {
+	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
+	state := Default("dev-001", at)
+
+	updated := ApplyEvents(state, []mind.Event{
+		{DeviceID: "dev-001", Type: mind.EventLongSilence, At: at.Add(time.Minute)},
+	})
+
+	if updated.Concern != state.Concern {
+		t.Fatalf("Concern = %.2f, want empty-ID event ignored at %.2f", updated.Concern, state.Concern)
+	}
+	if !updated.At.Equal(state.At) {
+		t.Fatalf("At = %v, want unchanged at %v for empty-ID event", updated.At, state.At)
+	}
+	if len(updated.ProcessedEventIDs) != 0 {
+		t.Fatalf("ProcessedEventIDs = %+v, want no empty ID recorded", updated.ProcessedEventIDs)
+	}
+}
+
 func TestApplyEventsAppliesEqualTimeDifferentIDsWhenUnprocessed(t *testing.T) {
 	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
 	state := Default("dev-001", at)
@@ -83,6 +103,45 @@ func TestApplyEventsAdvancesAtToNewestEventAndPreservesDeviceID(t *testing.T) {
 	}
 	if !updated.At.Equal(newest) {
 		t.Fatalf("At = %v, want newest event time %v", updated.At, newest)
+	}
+}
+
+func TestApplyEventsNormalizesAndBoundsProcessedEventIDs(t *testing.T) {
+	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
+	state := Default("dev-001", at)
+	state.ProcessedEventIDs = []string{"", "old-1", "old-2", "old-1", "", "old-3", "old-2"}
+
+	events := make([]mind.Event, 132)
+	for i := range events {
+		events[i] = mind.Event{
+			ID:       fmt.Sprintf("evt-%03d", i+1),
+			DeviceID: "dev-001",
+			Type:     mind.EventChildMessageReceived,
+			At:       at.Add(time.Duration(i+1) * time.Minute),
+		}
+	}
+
+	updated := ApplyEvents(state, events)
+
+	if len(updated.ProcessedEventIDs) > maxProcessedEventIDs {
+		t.Fatalf("ProcessedEventIDs len = %d, want <= %d", len(updated.ProcessedEventIDs), maxProcessedEventIDs)
+	}
+
+	seen := make(map[string]struct{}, len(updated.ProcessedEventIDs))
+	for _, id := range updated.ProcessedEventIDs {
+		if id == "" {
+			t.Fatalf("ProcessedEventIDs = %+v, want no empty IDs", updated.ProcessedEventIDs)
+		}
+		if _, ok := seen[id]; ok {
+			t.Fatalf("ProcessedEventIDs = %+v, want no duplicate IDs", updated.ProcessedEventIDs)
+		}
+		seen[id] = struct{}{}
+	}
+
+	for _, id := range []string{"evt-130", "evt-131", "evt-132"} {
+		if _, ok := seen[id]; !ok {
+			t.Fatalf("ProcessedEventIDs = %+v, want newest ID %s retained", updated.ProcessedEventIDs, id)
+		}
 	}
 }
 
