@@ -18,6 +18,13 @@
 - 边界：继续保持 xiaozhi 冻结上游；普通对话感知通过 anban 主动轮询 `xiaozhiclient.GetHistory`，不引入 xiaozhi 到 anban 的反向推送；domains 仍不 import `internal/mind`。
 - 验证：`go test -count=1 ./...`
 
+### AnBan Mind 直达播报与本地时间修复
+
+- 文件：`server/internal/domains/{message,reminder}/`、`server/internal/mind/{engine,situation}/`、`server/internal/config/`、`server/cmd/anban/`
+- 内容：子女留言和到期提醒恢复为业务域直接播报，同时只把事件送入 Mind 观察；Mind dispatcher 不再注册 `message`/`reminder` 执行器，缺失执行器会安全标记为 `deferred`，避免二次播报或错误中断；处境 `time_of_day` 改为按设备本地时区计算，默认 `ANBAN_TIMEZONE=Asia/Shanghai`，非法时区回退 UTC 并记录日志。
+- 边界：不改变 xiaozhi 上游、不引入 xiaozhi 反向推送；消息/提醒仍通过各自 domain 调用 `xiaozhiclient.InjectSpeak`，Mind 仅观察这些事件；事件存储时间仍保留原始 UTC 时间点。
+- 验证：`go test -count=1 ./internal/domains/message ./internal/domains/reminder ./internal/mind/engine ./internal/mind/situation ./cmd/anban ./internal/config`、`go test -count=1 ./...`
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试
