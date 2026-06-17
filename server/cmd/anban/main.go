@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/childapi"
@@ -197,6 +200,7 @@ func main() {
 	})
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
 	startMindLoops(sch, profileStore, mindEngine, 15*time.Minute)
+	startMindHistoryPoller(sch, time.Minute, profileStore, xc, mindEngine)
 
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,
@@ -300,6 +304,119 @@ func runMindLoops(profileStore *profile.Store, mindEngine mind.Engine) {
 			log.Printf("mind life update 失败 device=%s: %v", deviceID, err)
 		}
 	}
+}
+
+const mindHistoryLimit = 50
+
+func startMindHistoryPoller(
+	sch *scheduler.Scheduler,
+	interval time.Duration,
+	profileStore *profile.Store,
+	xc xiaozhiclient.Client,
+	mindEngine mind.Engine,
+) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+
+	var scheduleNext func()
+	scheduleNext = func() {
+		if _, err := sch.ScheduleAt(time.Now().Add(interval), func() {
+			runMindHistoryPoll(profileStore, xc, mindEngine)
+			scheduleNext()
+		}); err != nil {
+			log.Printf("mind history poller 调度失败: %v", err)
+		}
+	}
+	scheduleNext()
+	log.Printf("mind history poller enabled: interval=%s", interval)
+}
+
+func runMindHistoryPoll(profileStore *profile.Store, xc xiaozhiclient.Client, mindEngine mind.Engine) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deviceIDs, err := profileStore.ListDeviceIDs(ctx)
+	if err != nil {
+		log.Printf("mind history 获取设备列表失败: %v", err)
+		return
+	}
+	for _, deviceID := range deviceIDs {
+		history, err := xc.GetHistory(ctx, deviceID, mindHistoryLimit)
+		if err != nil {
+			log.Printf("mind history 读取失败 device=%s: %v", deviceID, err)
+			continue
+		}
+		for _, message := range history {
+			event, ok := historyMindEvent(deviceID, message)
+			if !ok {
+				continue
+			}
+			if _, err := mindEngine.Ingest(ctx, event); err != nil {
+				log.Printf("mind history 进入心智失败 device=%s event=%s: %v", deviceID, event.ID, err)
+			}
+		}
+	}
+}
+
+func historyMindEvent(deviceID string, message xiaozhiclient.HistoryMessage) (mind.Event, bool) {
+	deviceID = strings.TrimSpace(deviceID)
+	role := strings.ToLower(strings.TrimSpace(message.Role))
+	text := strings.TrimSpace(message.Text)
+	if deviceID == "" || text == "" || message.At.IsZero() {
+		return mind.Event{}, false
+	}
+
+	var eventType mind.EventType
+	var salience float64
+	switch role {
+	case "user":
+		eventType = mind.EventElderSpoke
+		salience = 0.55
+	case "assistant":
+		eventType = mind.EventAssistantSpoke
+		salience = 0.45
+	default:
+		return mind.Event{}, false
+	}
+
+	at := message.At.UTC()
+	return mind.Event{
+		ID:       historyEventID(deviceID, role, at, text),
+		DeviceID: deviceID,
+		Type:     eventType,
+		Source:   mind.SourceXiaozhi,
+		At:       at,
+		Summary:  conversationEventSummary(role, text),
+		Payload: map[string]any{
+			"role": role,
+			"text": text,
+		},
+		Salience:   salience,
+		Emotion:    "conversational",
+		Confidence: 0.85,
+	}, true
+}
+
+func historyEventID(deviceID, role string, at time.Time, text string) string {
+	sum := sha256.Sum256([]byte(deviceID + "|" + role + "|" + at.UTC().Format(time.RFC3339Nano) + "|" + text))
+	return fmt.Sprintf("evt-xiaozhi-%s-%s-%s", deviceID, role, hex.EncodeToString(sum[:8]))
+}
+
+func conversationEventSummary(role, text string) string {
+	prefix := "老人说："
+	if role == "assistant" {
+		prefix = "安伴回应："
+	}
+	return prefix + truncateSummaryRunes(text, 80)
+}
+
+func truncateSummaryRunes(value string, limit int) string {
+	runes := []rune(value)
+	if limit <= 0 || len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
 }
 
 type messageMindSink struct {
