@@ -55,6 +55,18 @@ func TestDomainsDoNotImportEachOther(t *testing.T) {
 	}
 }
 
+func TestDomainsDoNotImportMind(t *testing.T) {
+	serverRoot := mustServerRoot(t)
+	domainsDir := filepath.Join(serverRoot, "internal", "domains")
+	for _, file := range goProductionFiles(t, domainsDir) {
+		for _, importPath := range importsOf(t, file) {
+			if strings.Contains(importPath, "/server/internal/mind") {
+				t.Fatalf("%s imports %q; domains must emit local events and remain independent from mind orchestration", rel(t, serverRoot, file), importPath)
+			}
+		}
+	}
+}
+
 func TestDockerComposeWiresAnbanAllowedOrigins(t *testing.T) {
 	serverRoot := mustServerRoot(t)
 	repoRoot := filepath.Clean(filepath.Join(serverRoot, ".."))
