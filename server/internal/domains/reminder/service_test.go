@@ -764,6 +764,39 @@ func TestServiceAcknowledgePlayedReminderCompletesAndCancelsTimeout(t *testing.T
 	}
 }
 
+func TestServiceAcknowledgeEmitsMindEventWhenSinkConfigured(t *testing.T) {
+	fakeSch := &fakeScheduler{}
+	svc := newTestService(t, &xiaozhiclient.FakeClient{}, fakeSch)
+	ctx := context.Background()
+
+	got, err := svc.Create(ctx, CreateRequest{
+		DeviceID:    "dev-001",
+		ScheduledAt: time.Date(2026, 6, 1, 9, 10, 0, 0, time.UTC),
+		Content:     "测血压",
+		Category:    CategoryMed,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	fakeSch.fire(0)
+
+	sink := &fakeReminderMindSink{}
+	svc.UseMindSink(sink)
+	if _, err := svc.Acknowledge(ctx, got.ID, AckRequest{AckKind: AckKindVoice}); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
+	}
+	if len(sink.events) != 1 {
+		t.Fatalf("events = %+v, want 1", sink.events)
+	}
+	event := sink.events[0]
+	if event.Type != "reminder_acknowledged" || event.SourceID != got.ID {
+		t.Fatalf("event = %+v, want reminder_acknowledged for %d", event, got.ID)
+	}
+	if event.Payload["ackKind"] != string(AckKindVoice) || event.Payload["status"] != string(StatusCompleted) {
+		t.Fatalf("payload = %+v, want voice completed", event.Payload)
+	}
+}
+
 func TestServiceCompletesReminderFromVoiceAcknowledgementHistory(t *testing.T) {
 	now := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	xc := &historyClient{}

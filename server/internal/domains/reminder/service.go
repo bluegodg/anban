@@ -465,7 +465,25 @@ func (s *Service) acknowledge(ctx context.Context, id uint, kind AckKind, cancel
 	if err := s.store.Update(ctx, &rem); err != nil {
 		return Reminder{}, err
 	}
+	s.emitAcknowledgementMindEvent(ctx, rem)
 	return rem, nil
+}
+
+func (s *Service) emitAcknowledgementMindEvent(ctx context.Context, rem Reminder) {
+	if s.mindSink == nil {
+		return
+	}
+	_ = s.mindSink.IngestMindEvent(ctx, MindEvent{
+		DeviceID: rem.DeviceID,
+		Type:     "reminder_acknowledged",
+		SourceID: rem.ID,
+		Summary:  "提醒确认结果进入安伴心智",
+		Payload: map[string]any{
+			"reminderId": float64(rem.ID),
+			"ackKind":    string(rem.AckKind),
+			"status":     string(rem.Status),
+		},
+	})
 }
 
 func normalizeAckKind(kind AckKind) AckKind {
