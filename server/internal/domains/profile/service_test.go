@@ -290,6 +290,36 @@ func TestServiceSyncMemoryFactsPreservesFieldsAndMindContext(t *testing.T) {
 	}
 }
 
+func TestServiceSyncMindContextPreservesFieldsAndMemoryFacts(t *testing.T) {
+	xc := &profileClient{}
+	svc, profileStore := newTestServiceWithStore(t, xc)
+	ctx := context.Background()
+	if err := profileStore.Upsert(ctx, &Profile{
+		DeviceID:    "dev-001",
+		Fields:      Fields{Name: "王秀英", Grandchildren: []string{"小宝"}},
+		MemoryFacts: []string{"老人最近喜欢早餐喝豆浆。"},
+		Prompt:      "old prompt",
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+
+	if err := svc.SyncMindContext(ctx, "dev-001", "最近你较挂念老人，语气更关切些。"); err != nil {
+		t.Fatalf("SyncMindContext: %v", err)
+	}
+	saved, err := svc.Get(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if saved.MindContext == "" || len(saved.MemoryFacts) != 1 {
+		t.Fatalf("saved profile = %+v, want mind context and preserved memory facts", saved)
+	}
+	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心境：最近你较挂念老人"} {
+		if !strings.Contains(xc.gotPrompt, want) {
+			t.Fatalf("prompt = %q, want contains %q", xc.gotPrompt, want)
+		}
+	}
+}
+
 func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
 	prompt := BuildPrompt(Fields{
 		Name:          "王秀英",

@@ -123,6 +123,28 @@ func (s *Service) SyncMemoryFacts(ctx context.Context, deviceID string, facts []
 	return s.xc.SetRolePrompt(ctx, deviceID, current.Prompt)
 }
 
+func (s *Service) SyncMindContext(ctx context.Context, deviceID string, mindContext string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return ErrInvalidInput
+	}
+
+	current, err := s.store.Get(ctx, deviceID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if errors.Is(err, ErrNotFound) {
+		current = Profile{DeviceID: deviceID}
+	}
+	current.MemoryFacts = trimStrings(current.MemoryFacts)
+	current.MindContext = strings.TrimSpace(mindContext)
+	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
+	if err := s.store.Upsert(ctx, &current); err != nil {
+		return err
+	}
+	return s.xc.SetRolePrompt(ctx, deviceID, current.Prompt)
+}
+
 func appendPromptLine(lines []string, line string) []string {
 	line = truncateRunes(line, maxProfilePromptLineRunes)
 	available := maxProfilePromptRunes - promptRuneLen(lines)

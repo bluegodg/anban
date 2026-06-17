@@ -16,6 +16,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind/drives"
 	"github.com/bluegodg/anban/server/internal/mind/expression"
 	"github.com/bluegodg/anban/server/internal/mind/life"
+	"github.com/bluegodg/anban/server/internal/mind/promptctx"
 	"github.com/bluegodg/anban/server/internal/mind/reflection"
 	"github.com/bluegodg/anban/server/internal/mind/selfstate"
 	"github.com/bluegodg/anban/server/internal/mind/situation"
@@ -203,6 +204,29 @@ func (s *Service) UpdateLife(ctx context.Context, deviceID string, at time.Time)
 	}
 
 	return s.store.SaveLifeState(ctx, life.Update(deviceID, at, state, recent))
+}
+
+func (s *Service) BuildMindContext(ctx context.Context, deviceID string, at time.Time) (string, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return "", mind.ErrInvalidInput
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+
+	state, err := s.store.GetSelfState(ctx, deviceID)
+	if errors.Is(err, mind.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	recent, err := s.store.ListRecentEventsAtOrBefore(ctx, deviceID, at, 20)
+	if err != nil {
+		return "", err
+	}
+	return promptctx.Build(state, recent), nil
 }
 
 func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event, lateEvent bool) ([]mind.Action, error) {

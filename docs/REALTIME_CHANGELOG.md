@@ -46,6 +46,13 @@
 - 边界：只设画像字段时 prompt 与原有输出逐字等价，守住 #5 画像召回；本阶段 `mindContext` 只预留持久化和装配能力，还不由 Mind 写入。
 - 验证：`go test -count=1 ./internal/domains/profile ./internal/memory`
 
+### AnBan Mind B2 心境软渗透
+
+- 文件：`server/internal/mind/{promptctx,engine}/`、`server/internal/domains/profile/`、`server/cmd/anban/`
+- 内容：新增确定性心境块生成器，从 `SelfState` 和近期事件生成简短 `mindContext`；Mind engine 暴露 `BuildMindContext`，主循环在 reflection/life 后生成非空心境块，并通过 `profile.SyncMindContext` 重建 role prompt，形成对话回答的软渗透。
+- 边界：mind 不 import profile、不直接调用 `SetRolePrompt`；心境块不调 LLM、缺数据返回空块且不写 prompt；画像和记忆事实继续由 profile 统一装配，避免覆盖 #5。
+- 验证：`go test -count=1 ./internal/domains/profile ./internal/mind/promptctx ./internal/mind/engine ./cmd/anban`；后续真机建议：先让 history poller 收到几轮对话，等待一次 mind loop 后再问设备，观察回答关切度随心境变化，同时确认“孙子叫啥”仍能答“小宝”。
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试

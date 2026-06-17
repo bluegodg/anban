@@ -265,4 +265,5 @@ type Engine interface {
 	TickIdle(ctx context.Context, deviceID string, at time.Time) ([]Action, error)
 	Reflect(ctx context.Context, deviceID string, window TimeWindow) error
 	UpdateLife(ctx context.Context, deviceID string, at time.Time) error
+	BuildMindContext(ctx context.Context, deviceID string, at time.Time) (string, error)
 }

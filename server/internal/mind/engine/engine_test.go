@@ -700,6 +700,55 @@ func TestUpdateLifePersistsLifeStateFromRecentEvents(t *testing.T) {
 	}
 }
 
+func TestBuildMindContextUsesSelfStateAndRecentEvents(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 15, 0, 0, 0, time.UTC)
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{
+		DeviceID:  deviceID,
+		At:        at,
+		Concern:   0.78,
+		Warmth:    0.68,
+		Quietness: 0.72,
+	}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+	if err := ms.AppendEvent(ctx, mind.Event{
+		ID:       "evt-user",
+		DeviceID: deviceID,
+		Type:     mind.EventElderSpoke,
+		Source:   mind.SourceXiaozhi,
+		At:       at.Add(-5 * time.Minute),
+		Summary:  "老人说：今天有点累，想看看花",
+		Payload:  map[string]any{"text": "今天有点累，想看看花"},
+	}); err != nil {
+		t.Fatalf("AppendEvent: %v", err)
+	}
+
+	got, err := svc.BuildMindContext(ctx, deviceID, at)
+	if err != nil {
+		t.Fatalf("BuildMindContext: %v", err)
+	}
+	for _, want := range []string{"concern 偏高", "今天有点累"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("context = %q, want contains %q", got, want)
+		}
+	}
+}
+
+func TestBuildMindContextReturnsEmptyWhenStateMissing(t *testing.T) {
+	svc, _ := newEngineForTest(t)
+	got, err := svc.BuildMindContext(context.Background(), "dev-001", time.Date(2026, 6, 16, 15, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("BuildMindContext: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("context = %q, want empty degraded context", got)
+	}
+}
+
 func TestEngineRejectsBlankDeviceIDs(t *testing.T) {
 	svc, st := newEngineForTest(t)
 	ctx := context.Background()
