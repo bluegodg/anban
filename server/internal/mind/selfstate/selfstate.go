@@ -43,7 +43,7 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 
 	for _, item := range ordered {
 		event := item.event
-		if event.At.IsZero() || !event.At.After(cutoff) {
+		if event.At.IsZero() || event.At.Before(cutoff) {
 			continue
 		}
 		if event.At.After(state.At) {
