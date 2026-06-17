@@ -159,6 +159,9 @@ func actionFor(thought mind.Thought, s mind.Situation, state mind.SelfState) (mi
 }
 
 func shouldSpeakQuietPresence(thought mind.Thought, s mind.Situation, state mind.SelfState) bool {
+	if hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly) {
+		return false
+	}
 	if hasConstraint(s, mind.ConstraintMindProactiveCooldownActive) {
 		return false
 	}
@@ -228,6 +231,9 @@ func argsFor(thought mind.Thought, actionType mind.ActionType, executor string) 
 
 func reasonFor(thought mind.Thought, actionType mind.ActionType, s mind.Situation, state mind.SelfState) string {
 	if actionType == mind.ActionWait {
+		if thought.DriveName == mind.DriveQuietPresence && hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly) {
+			return "自主开口仅白天启用，夜间选择等待"
+		}
 		if thought.DriveName == mind.DriveQuietPresence && hasConstraint(s, mind.ConstraintMindProactiveCooldownActive) {
 			return "仍在自主开口冷却期内，选择等待"
 		}

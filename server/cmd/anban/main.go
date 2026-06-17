@@ -141,7 +141,7 @@ func main() {
 		log.Fatalf("mind 表迁移失败: %v", err)
 	}
 	mindEngine := engine.New(mindStore)
-	mindEngine.UseLocation(cfg.TimezoneLocation)
+	configureMindEngine(mindEngine, cfg)
 	messageService.UseMindSink(messageMindSink{engine: mindEngine})
 	reminderService.UseMindSink(reminderMindSink{engine: mindEngine})
 
@@ -185,6 +185,18 @@ func main() {
 	if err := r.Run(cfg.ListenAddr); err != nil {
 		log.Fatalf("HTTP 服务退出: %v", err)
 	}
+}
+
+type mindEngineConfigTarget interface {
+	UseLocation(*time.Location)
+	UseProactiveCooldown(time.Duration)
+	UseProactiveDaytimeOnly(bool)
+}
+
+func configureMindEngine(target mindEngineConfigTarget, cfg config.Config) {
+	target.UseLocation(cfg.TimezoneLocation)
+	target.UseProactiveCooldown(cfg.MindProactiveCooldown)
+	target.UseProactiveDaytimeOnly(cfg.MindProactiveDaytimeOnly)
 }
 
 func startVisionPresencePoller(sch *scheduler.Scheduler, interval time.Duration, profileStore *profile.Store, visionService *vision.Service) {

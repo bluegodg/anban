@@ -32,6 +32,13 @@
 - 边界：只打开心智内部决策口，不新增网络下发通道、不碰 xiaozhi/固件；留言和提醒仍由各自 domain 必达播报，Mind 仅观察。
 - 验证：`go test -count=1 ./internal/mind/...`
 
+### AnBan Mind A2 自主开口接线配置
+
+- 文件：`server/internal/config/`、`server/cmd/anban/`、`server/internal/mind/{engine,behavior}/`
+- 内容：新增 `ANBAN_MIND_PROACTIVE_COOLDOWN`（默认 `30m`）和 `ANBAN_MIND_PROACTIVE_DAYTIME_ONLY`（默认 `true`），启动时统一传给 Mind engine；engine 默认按设备维度识别上一轮 `mindProactive` greeting 执行事件进入冷却，夜间在 daytime-only 前置约束下等待，真正下发仍复用既有 `greeting` executor 和 `ProactiveVoiceGate`。
+- 边界：不新增 xiaozhi/固件改动，不绕过 greeting 既有 voiceGate；夜间 expression 仍保留兜底压制；留言/提醒必达链路不受自主开口冷却影响。
+- 验证：`go test -count=1 ./internal/config ./internal/mind/behavior ./internal/mind/engine ./cmd/anban`；后续真机建议：设备在线唤醒，临时调小 `ANBAN_MIND_LOOP_INTERVAL` 与冷却值，观察静置只轻声开口一次、冷却内不连说、夜间不说、对话中不插话。
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试

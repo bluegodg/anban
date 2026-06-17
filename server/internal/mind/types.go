@@ -130,6 +130,7 @@ const (
 
 const (
 	ConstraintMindProactiveCooldownActive = "mind_proactive_cooldown_active"
+	ConstraintMindProactiveDaytimeOnly    = "mind_proactive_daytime_only"
 )
 
 type ThoughtStatus string

@@ -23,10 +23,11 @@ import (
 )
 
 type Service struct {
-	store             *mind.Store
-	executor          ActionExecutor
-	location          *time.Location
-	proactiveCooldown time.Duration
+	store                *mind.Store
+	executor             ActionExecutor
+	location             *time.Location
+	proactiveCooldown    time.Duration
+	proactiveDaytimeOnly bool
 }
 
 const defaultProactiveCooldown = 30 * time.Minute
@@ -42,7 +43,7 @@ type ActionExecutor interface {
 }
 
 func New(store *mind.Store) *Service {
-	return &Service{store: store, proactiveCooldown: defaultProactiveCooldown}
+	return &Service{store: store, proactiveCooldown: defaultProactiveCooldown, proactiveDaytimeOnly: true}
 }
 
 func (s *Service) UseExecutor(executor ActionExecutor) {
@@ -55,6 +56,10 @@ func (s *Service) UseLocation(location *time.Location) {
 
 func (s *Service) UseProactiveCooldown(cooldown time.Duration) {
 	s.proactiveCooldown = cooldown
+}
+
+func (s *Service) UseProactiveDaytimeOnly(enabled bool) {
+	s.proactiveDaytimeOnly = enabled
 }
 
 func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, error) {
@@ -248,6 +253,9 @@ func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID s
 }
 
 func (s *Service) applyProactiveConstraints(sit mind.Situation, recent []mind.Event, at time.Time) mind.Situation {
+	if s.proactiveDaytimeOnly && sit.TimeOfDay == "night" {
+		sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindProactiveDaytimeOnly)
+	}
 	if s.proactiveCooldown <= 0 || at.IsZero() {
 		return sit
 	}

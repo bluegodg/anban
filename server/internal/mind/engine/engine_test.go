@@ -630,6 +630,40 @@ func TestTickIdleAutonomousGreetingWaitsDuringCooldown(t *testing.T) {
 	}
 }
 
+func TestTickIdleAutonomousGreetingWaitsWhenDaytimeOnlyAtNight(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 22, 0, 0, 0, time.UTC)
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{
+		DeviceID:      deviceID,
+		At:            at.Add(-time.Hour),
+		Concern:       0.88,
+		Warmth:        0.55,
+		Quietness:     0.20,
+		FamilyWeight:  0.60,
+		PetWeight:     0.25,
+		StewardWeight: 0.15,
+	}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+
+	actions, err := svc.TickIdle(ctx, deviceID, at)
+	if err != nil {
+		t.Fatalf("TickIdle: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	if actions[0].Type != mind.ActionWait || actions[0].Status != mind.ActionDeferred {
+		t.Fatalf("action = %+v, want deferred wait for daytime-only night", actions[0])
+	}
+	if !strings.Contains(actions[0].Reason, "仅白天") {
+		t.Fatalf("Reason = %q, want daytime-only reason", actions[0].Reason)
+	}
+}
+
 func TestUpdateLifePersistsLifeStateFromRecentEvents(t *testing.T) {
 	svc, st := newEngineForTest(t)
 	ctx := context.Background()

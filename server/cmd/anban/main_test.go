@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluegodg/anban/server/internal/config"
 	"github.com/bluegodg/anban/server/internal/mind"
 	"github.com/bluegodg/anban/server/internal/mind/executors"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -78,4 +79,43 @@ func TestMindActionExecutorDefersMissingSpeakExecutor(t *testing.T) {
 	if result.Status != mind.ActionDeferred {
 		t.Fatalf("result = %+v, want deferred", result)
 	}
+}
+
+func TestConfigureMindEngineAppliesProactiveOutputSettings(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	target := &fakeMindEngineConfigTarget{}
+
+	configureMindEngine(target, config.Config{
+		TimezoneLocation:         loc,
+		MindProactiveCooldown:    45 * time.Minute,
+		MindProactiveDaytimeOnly: true,
+	})
+
+	if target.location != loc {
+		t.Fatalf("location = %v, want configured location", target.location)
+	}
+	if target.cooldown != 45*time.Minute {
+		t.Fatalf("cooldown = %s, want 45m", target.cooldown)
+	}
+	if !target.daytimeOnly {
+		t.Fatal("daytimeOnly = false, want true")
+	}
+}
+
+type fakeMindEngineConfigTarget struct {
+	location    *time.Location
+	cooldown    time.Duration
+	daytimeOnly bool
+}
+
+func (f *fakeMindEngineConfigTarget) UseLocation(location *time.Location) {
+	f.location = location
+}
+
+func (f *fakeMindEngineConfigTarget) UseProactiveCooldown(cooldown time.Duration) {
+	f.cooldown = cooldown
+}
+
+func (f *fakeMindEngineConfigTarget) UseProactiveDaytimeOnly(enabled bool) {
+	f.daytimeOnly = enabled
 }
