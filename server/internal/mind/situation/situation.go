@@ -7,12 +7,19 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind"
 )
 
-// Build uses at's own location and wall clock; callers must pass device-local time.
 func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
+	return BuildWithLocation(deviceID, at, events, at.Location())
+}
+
+func BuildWithLocation(deviceID string, at time.Time, events []mind.Event, loc *time.Location) mind.Situation {
+	localAt := at
+	if loc != nil {
+		localAt = at.In(loc)
+	}
 	out := mind.Situation{
 		DeviceID:        deviceID,
 		At:              at,
-		TimeOfDay:       timeOfDay(at),
+		TimeOfDay:       timeOfDay(localAt),
 		ElderPresence:   "unknown",
 		InteractionMode: "idle",
 		ActivityLevel:   "normal",

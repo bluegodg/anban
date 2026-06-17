@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -20,6 +21,8 @@ type Config struct {
 	VisionPresenceInterval time.Duration
 	MindLoopInterval       time.Duration
 	MindHistoryInterval    time.Duration
+	TimezoneName           string
+	TimezoneLocation       *time.Location
 }
 
 type LLMConfig struct {
@@ -45,6 +48,13 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	timezoneName := envOr("ANBAN_TIMEZONE", "Asia/Shanghai")
+	timezoneLocation, err := time.LoadLocation(timezoneName)
+	if err != nil {
+		log.Printf("config: ANBAN_TIMEZONE=%q 加载失败，回退 UTC: %v", timezoneName, err)
+		timezoneName = "UTC"
+		timezoneLocation = time.UTC
+	}
 
 	c := Config{
 		ManagerBaseURL:         trimEnv("ANBAN_MANAGER_BASE_URL"),
@@ -57,6 +67,8 @@ func Load() (Config, error) {
 		VisionPresenceInterval: visionPresenceInterval,
 		MindLoopInterval:       mindLoopInterval,
 		MindHistoryInterval:    mindHistoryInterval,
+		TimezoneName:           timezoneName,
+		TimezoneLocation:       timezoneLocation,
 		LLM: LLMConfig{
 			BaseURL: trimEnv("ANBAN_LLM_BASE_URL"),
 			APIKey:  trimEnv("ANBAN_LLM_API_KEY"),

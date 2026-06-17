@@ -68,6 +68,45 @@ func TestIngestReminderDueProducesReminderSpeakAction(t *testing.T) {
 	}
 }
 
+func TestIngestUsesConfiguredLocationForSituationTimeOfDay(t *testing.T) {
+	tests := []struct {
+		name      string
+		eventType mind.EventType
+		at        time.Time
+	}{
+		{name: "beijing morning child message", eventType: mind.EventChildMessageReceived, at: time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)},
+		{name: "beijing noon reminder", eventType: mind.EventReminderDue, at: time.Date(2026, 6, 16, 4, 30, 0, 0, time.UTC)},
+		{name: "beijing evening reminder", eventType: mind.EventReminderDue, at: time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _ := newEngineForTest(t)
+			svc.UseLocation(time.FixedZone("Asia/Shanghai", 8*60*60))
+			actions, err := svc.Ingest(context.Background(), mind.Event{
+				ID:         "evt-" + tt.name,
+				DeviceID:   "dev-001",
+				Type:       tt.eventType,
+				Source:     mind.SourceScheduler,
+				At:         tt.at,
+				Summary:    "进入心智",
+				Salience:   0.8,
+				Emotion:    "neutral",
+				Confidence: 1,
+			})
+			if err != nil {
+				t.Fatalf("Ingest: %v", err)
+			}
+			if len(actions) != 1 {
+				t.Fatalf("actions = %+v, want 1", actions)
+			}
+			if actions[0].Status == mind.ActionSuppressed {
+				t.Fatalf("action = %+v, want local daytime/evening not to be suppressed as UTC night", actions[0])
+			}
+		})
+	}
+}
+
 func TestIngestExecutesPendingActionsWhenExecutorConfigured(t *testing.T) {
 	svc, st := newEngineForTest(t)
 	ctx := context.Background()
@@ -179,6 +218,51 @@ func TestIngestMarksActionFailedWhenExecutorFails(t *testing.T) {
 	}
 	if status != string(mind.ActionFailed) || reason != "speaker unavailable" {
 		t.Fatalf("persisted status=%q reason=%q, want failed speaker unavailable", status, reason)
+	}
+}
+
+func TestIngestSafelyDefersActionWhenExecutorIsMissing(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	exec := &fakeActionExecutor{
+		result: ExecutionResult{
+			Status:       mind.ActionDeferred,
+			ErrorMessage: "executor not found",
+		},
+		err: errors.New("executor not found"),
+	}
+	svc.UseExecutor(exec)
+	at := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
+
+	actions, err := svc.Ingest(context.Background(), mind.Event{
+		ID:         "evt-missing-executor",
+		DeviceID:   "dev-001",
+		Type:       mind.EventReminderDue,
+		Source:     mind.SourceScheduler,
+		At:         at,
+		Summary:    "吃药提醒",
+		Salience:   0.8,
+		Emotion:    "neutral",
+		Confidence: 1,
+	})
+	if err != nil {
+		t.Fatalf("Ingest error = %v, want safe skip for missing executor", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want returned deferred action", actions)
+	}
+	if actions[0].Status != mind.ActionDeferred || actions[0].Reason != "executor not found" {
+		t.Fatalf("returned action = %+v, want deferred with reason", actions[0])
+	}
+
+	var status, reason string
+	if err := st.DB.Raw(
+		"SELECT status, reason FROM mind_actions WHERE action_id = ?",
+		actions[0].ID,
+	).Row().Scan(&status, &reason); err != nil {
+		t.Fatalf("query action: %v", err)
+	}
+	if status != string(mind.ActionDeferred) || reason != "executor not found" {
+		t.Fatalf("persisted status=%q reason=%q, want deferred executor not found", status, reason)
 	}
 }
 

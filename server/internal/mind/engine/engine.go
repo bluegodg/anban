@@ -25,6 +25,7 @@ import (
 type Service struct {
 	store    *mind.Store
 	executor ActionExecutor
+	location *time.Location
 }
 
 type ExecutionResult struct {
@@ -43,6 +44,10 @@ func New(store *mind.Store) *Service {
 
 func (s *Service) UseExecutor(executor ActionExecutor) {
 	s.executor = executor
+}
+
+func (s *Service) UseLocation(location *time.Location) {
+	s.location = location
 }
 
 func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, error) {
@@ -189,7 +194,7 @@ func (s *Service) UpdateLife(ctx context.Context, deviceID string, at time.Time)
 }
 
 func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event, lateEvent bool) ([]mind.Action, error) {
-	sit := situation.Build(deviceID, at, recent)
+	sit := situation.BuildWithLocation(deviceID, at, recent, s.location)
 
 	var state mind.SelfState
 	if lateEvent {
@@ -265,11 +270,15 @@ func (s *Service) executePendingActions(ctx context.Context, actions []mind.Acti
 			return saveErr
 		}
 		actions[i] = updated
-		if err != nil {
+		if err != nil && !isSafeSkippedStatus(updated.Status) {
 			return err
 		}
 	}
 	return nil
+}
+
+func isSafeSkippedStatus(status mind.ActionStatus) bool {
+	return status == mind.ActionDeferred || status == mind.ActionSuppressed
 }
 
 func (s *Service) saveActionExecutionResult(ctx context.Context, action mind.Action) error {

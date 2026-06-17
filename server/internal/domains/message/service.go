@@ -45,9 +45,6 @@ func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
 	if err != nil {
 		return msg, err
 	}
-	if s.mindSink != nil {
-		return msg, nil
-	}
 	return s.PlayQueued(ctx, msg.ID)
 }
 
@@ -70,15 +67,13 @@ func (s *Service) Queue(ctx context.Context, req SendRequest) (Message, error) {
 		return Message{}, err
 	}
 	if s.mindSink != nil {
-		if err := s.mindSink.IngestMindEvent(ctx, MindEvent{
+		_ = s.mindSink.IngestMindEvent(ctx, MindEvent{
 			DeviceID: msg.DeviceID,
 			Type:     "child_message_received",
 			SourceID: msg.ID,
 			Summary:  "子女留言已进入安伴心智",
 			Payload:  map[string]any{"messageId": float64(msg.ID), "fromName": msg.FromName},
-		}); err != nil {
-			return msg, err
-		}
+		})
 	}
 	return msg, nil
 }

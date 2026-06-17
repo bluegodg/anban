@@ -135,8 +135,15 @@ func TestServiceFireEmitsMindEventWhenSinkConfigured(t *testing.T) {
 	if sink.events[0].Type != "reminder_due" || sink.events[0].SourceID != rem.ID {
 		t.Fatalf("event = %+v, want reminder_due for %d", sink.events[0], rem.ID)
 	}
-	if len(fakeXC.InjectCalls) != 0 {
-		t.Fatalf("InjectCalls = %d, want Mind to choose playback", len(fakeXC.InjectCalls))
+	if len(fakeXC.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want direct playback exactly once", len(fakeXC.InjectCalls))
+	}
+	list, err := svc.List(ctx, ListFilter{Status: StatusPlayed})
+	if err != nil {
+		t.Fatalf("List played: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != rem.ID {
+		t.Fatalf("played reminders = %+v, want fired reminder %d", list, rem.ID)
 	}
 }
 

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
+	"github.com/bluegodg/anban/server/internal/mind/executors"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
@@ -58,5 +60,22 @@ func TestHistoryMindEventSkipsUnusableMessages(t *testing.T) {
 		if event, ok := historyMindEvent("dev-001", msg); ok {
 			t.Fatalf("historyMindEvent(%+v) = %+v, want skipped", msg, event)
 		}
+	}
+}
+
+func TestMindActionExecutorDefersMissingSpeakExecutor(t *testing.T) {
+	exec := mindActionExecutor{dispatcher: executors.NewDispatcher(map[string]executors.SpeakExecutor{})}
+
+	result, err := exec.Execute(context.Background(), mind.Action{
+		ID:       "action-message",
+		DeviceID: "dev-001",
+		Type:     mind.ActionSpeak,
+		Executor: "message",
+	})
+	if err != nil {
+		t.Fatalf("Execute error = %v, want missing executor to be a safe defer", err)
+	}
+	if result.Status != mind.ActionDeferred {
+		t.Fatalf("result = %+v, want deferred", result)
 	}
 }

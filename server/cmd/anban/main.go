@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -140,6 +141,7 @@ func main() {
 		log.Fatalf("mind 表迁移失败: %v", err)
 	}
 	mindEngine := engine.New(mindStore)
+	mindEngine.UseLocation(cfg.TimezoneLocation)
 	messageService.UseMindSink(messageMindSink{engine: mindEngine})
 	reminderService.UseMindSink(reminderMindSink{engine: mindEngine})
 
@@ -149,40 +151,6 @@ func main() {
 	visionHandler := vision.NewHandler(visionService)
 
 	mindDispatcher := executors.NewDispatcher(map[string]executors.SpeakExecutor{
-		"message": executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
-			id, ok := uintArg(action.Args, "messageId")
-			if !ok {
-				err := fmt.Errorf("messageId missing")
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
-			}
-			msg, err := messageService.PlayQueued(ctx, id)
-			if err != nil {
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
-			}
-			if msg.Status != message.StatusPlayed {
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: msg.ErrorMessage}, nil
-			}
-			return executors.Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: fmt.Sprintf("message:%d", msg.ID)}, nil
-		}),
-		"reminder": executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
-			id, ok := uintArg(action.Args, "reminderId")
-			if !ok {
-				err := fmt.Errorf("reminderId missing")
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
-			}
-			rem, err := reminderService.PlayScheduled(ctx, id)
-			if err != nil {
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
-			}
-			switch rem.Status {
-			case reminder.StatusPlayed:
-				return executors.Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: fmt.Sprintf("reminder:%d", rem.ID)}, nil
-			case reminder.StatusScheduled:
-				return executors.Result{ActionID: action.ID, Status: mind.ActionDeferred, ExecutorRef: fmt.Sprintf("reminder:%d", rem.ID), ErrorMessage: rem.ErrorMessage}, nil
-			default:
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ExecutorRef: fmt.Sprintf("reminder:%d", rem.ID), ErrorMessage: rem.ErrorMessage}, nil
-			}
-		}),
 		"greeting": executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
 			spokenGreeting, err := greetingService.SpeakText(ctx, action.DeviceID, action.Text)
 			if err != nil {
@@ -482,67 +450,15 @@ type mindActionExecutor struct {
 
 func (e mindActionExecutor) Execute(ctx context.Context, action mind.Action) (engine.ExecutionResult, error) {
 	result, err := e.dispatcher.Execute(ctx, action)
+	if errors.Is(err, executors.ErrExecutorNotFound) {
+		return engine.ExecutionResult{
+			Status:       mind.ActionDeferred,
+			ErrorMessage: err.Error(),
+		}, nil
+	}
 	return engine.ExecutionResult{
 		Status:       result.Status,
 		ExecutorRef:  result.ExecutorRef,
 		ErrorMessage: result.ErrorMessage,
 	}, err
-}
-
-func uintArg(args map[string]any, key string) (uint, bool) {
-	value, ok := args[key]
-	if !ok {
-		return 0, false
-	}
-
-	switch v := value.(type) {
-	case uint:
-		return positiveUint(v)
-	case uint64:
-		if v == 0 {
-			return 0, false
-		}
-		return uint(v), true
-	case uint32:
-		return positiveUint(uint(v))
-	case int:
-		return positiveInt(v)
-	case int64:
-		return positiveInt64(v)
-	case int32:
-		return positiveInt(int(v))
-	case float64:
-		if v <= 0 {
-			return 0, false
-		}
-		return uint(v), true
-	case float32:
-		if v <= 0 {
-			return 0, false
-		}
-		return uint(v), true
-	default:
-		return 0, false
-	}
-}
-
-func positiveUint(value uint) (uint, bool) {
-	if value == 0 {
-		return 0, false
-	}
-	return value, true
-}
-
-func positiveInt(value int) (uint, bool) {
-	if value <= 0 {
-		return 0, false
-	}
-	return uint(value), true
-}
-
-func positiveInt64(value int64) (uint, bool) {
-	if value <= 0 {
-		return 0, false
-	}
-	return uint(value), true
 }

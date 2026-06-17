@@ -141,8 +141,12 @@ func TestServiceSendEmitsMindEventWhenSinkConfigured(t *testing.T) {
 	svc := newTestService(t, fake)
 	svc.UseMindSink(sink)
 
-	if _, err := svc.Send(context.Background(), SendRequest{DeviceID: "dev-001", Text: "今晚早点休息", FromName: "小明"}); err != nil {
+	msg, err := svc.Send(context.Background(), SendRequest{DeviceID: "dev-001", Text: "今晚早点休息", FromName: "小明"})
+	if err != nil {
 		t.Fatalf("Send: %v", err)
+	}
+	if msg.Status != StatusPlayed {
+		t.Fatalf("Status = %q, want %q", msg.Status, StatusPlayed)
 	}
 	if len(sink.events) != 1 {
 		t.Fatalf("events = %+v, want 1", sink.events)
@@ -150,25 +154,25 @@ func TestServiceSendEmitsMindEventWhenSinkConfigured(t *testing.T) {
 	if sink.events[0].Type != "child_message_received" {
 		t.Fatalf("event type = %q, want child_message_received", sink.events[0].Type)
 	}
-	if len(fake.InjectCalls) != 0 {
-		t.Fatalf("InjectCalls = %d, want Mind to choose playback", len(fake.InjectCalls))
+	if len(fake.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want direct playback exactly once", len(fake.InjectCalls))
 	}
 }
 
-func TestServiceSendReturnsMindSinkErrorWithoutDirectPlayback(t *testing.T) {
+func TestServiceSendStillPlaysWhenMindSinkFails(t *testing.T) {
 	fake := &xiaozhiclient.FakeClient{}
 	svc := newTestService(t, fake)
 	svc.UseMindSink(failingMindSink{err: errors.New("mind unavailable")})
 
 	msg, err := svc.Send(context.Background(), SendRequest{DeviceID: "dev-001", Text: "今晚早点休息"})
-	if err == nil {
-		t.Fatal("Send error = nil, want mind sink error")
+	if err != nil {
+		t.Fatalf("Send error = %v, want direct playback to survive mind sink failure", err)
 	}
-	if msg.ID == 0 || msg.Status != StatusPending {
-		t.Fatalf("msg = %+v, want queued pending message", msg)
+	if msg.ID == 0 || msg.Status != StatusPlayed {
+		t.Fatalf("msg = %+v, want played message", msg)
 	}
-	if len(fake.InjectCalls) != 0 {
-		t.Fatalf("InjectCalls = %d, want no direct playback after mind sink failure", len(fake.InjectCalls))
+	if len(fake.InjectCalls) != 1 {
+		t.Fatalf("InjectCalls = %d, want direct playback exactly once", len(fake.InjectCalls))
 	}
 }
 

@@ -214,15 +214,13 @@ func (s *Service) fire(id uint) {
 		return
 	}
 	if s.mindSink != nil {
-		if err := s.mindSink.IngestMindEvent(ctx, MindEvent{
+		_ = s.mindSink.IngestMindEvent(ctx, MindEvent{
 			DeviceID: rem.DeviceID,
 			Type:     "reminder_due",
 			SourceID: rem.ID,
-			Summary:  "提醒到期，交给安伴心智决定表达方式",
+			Summary:  "提醒到期，进入安伴心智观察",
 			Payload:  map[string]any{"reminderId": float64(rem.ID), "category": string(rem.Category)},
-		}); err == nil {
-			return
-		}
+		})
 	}
 	s.play(ctx, &rem)
 }

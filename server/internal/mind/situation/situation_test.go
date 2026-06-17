@@ -111,6 +111,29 @@ func TestTimeOfDayBoundariesUseTimestampLocation(t *testing.T) {
 	}
 }
 
+func TestBuildWithLocationClassifiesChinaLocalWallClock(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	tests := []struct {
+		name string
+		at   time.Time
+		want string
+	}{
+		{name: "beijing 08:00", at: time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC), want: "morning"},
+		{name: "beijing 12:30", at: time.Date(2026, 6, 16, 4, 30, 0, 0, time.UTC), want: "noon"},
+		{name: "beijing 18:00", at: time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC), want: "evening"},
+		{name: "beijing 22:00", at: time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC), want: "night"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := BuildWithLocation("dev-001", tt.at, nil, loc)
+			if got.TimeOfDay != tt.want {
+				t.Fatalf("TimeOfDay = %q, want %q", got.TimeOfDay, tt.want)
+			}
+		})
+	}
+}
+
 func has(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
