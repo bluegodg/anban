@@ -3,6 +3,7 @@ package mind
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -140,6 +141,40 @@ func TestStoreUpsertsSelfStateAndLifeState(t *testing.T) {
 	}
 	if gotLife.TodayTheme != "让今天轻一点" || len(gotLife.LingeringThoughts) != 1 {
 		t.Fatalf("life = %+v, want saved theme and lingering thought", gotLife)
+	}
+
+	life.At = at.Add(time.Hour)
+	life.TodayTheme = "慢慢把精神养回来"
+	life.LingeringThoughts = []string{"午后想起老朋友", "晚饭后再聊老歌"}
+	life.SocialEnergy = 0.8
+	if err := ms.SaveLifeState(ctx, life); err != nil {
+		t.Fatalf("SaveLifeState update: %v", err)
+	}
+	gotLife, err = ms.GetLifeState(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("GetLifeState updated: %v", err)
+	}
+	if gotLife.TodayTheme != "慢慢把精神养回来" || gotLife.SocialEnergy != 0.8 || !slices.Equal(gotLife.LingeringThoughts, []string{"午后想起老朋友", "晚饭后再聊老歌"}) {
+		t.Fatalf("updated life = %+v, want updated theme, social energy, and lingering thoughts", gotLife)
+	}
+	var lifeCount int64
+	if err := ms.db.Model(&lifeStateRecord{}).Where("device_id = ?", "dev-001").Count(&lifeCount).Error; err != nil {
+		t.Fatalf("count life state records: %v", err)
+	}
+	if lifeCount != 1 {
+		t.Fatalf("life state rows = %d, want 1", lifeCount)
+	}
+}
+
+func TestStoreGetStateReturnsNotFoundForMissingDevice(t *testing.T) {
+	ms := newMindStoreForTest(t)
+	ctx := context.Background()
+
+	if _, err := ms.GetSelfState(ctx, "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetSelfState error = %v, want ErrNotFound", err)
+	}
+	if _, err := ms.GetLifeState(ctx, "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetLifeState error = %v, want ErrNotFound", err)
 	}
 }
 
