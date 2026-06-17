@@ -243,7 +243,7 @@ func (s *Service) executePendingActions(ctx context.Context, actions []mind.Acti
 			updated.Reason = err.Error()
 		}
 
-		if saveErr := s.store.SaveAction(ctx, updated); saveErr != nil {
+		if saveErr := s.saveActionExecutionResult(ctx, updated); saveErr != nil {
 			return saveErr
 		}
 		actions[i] = updated
@@ -252,6 +252,67 @@ func (s *Service) executePendingActions(ctx context.Context, actions []mind.Acti
 		}
 	}
 	return nil
+}
+
+func (s *Service) saveActionExecutionResult(ctx context.Context, action mind.Action) error {
+	return s.store.WithinTransaction(ctx, func(txStore *mind.Store) error {
+		if err := txStore.SaveAction(ctx, action); err != nil {
+			return err
+		}
+		err := txStore.AppendEvent(ctx, actionExecutionEvent(action))
+		if errors.Is(err, mind.ErrDuplicateEvent) {
+			return nil
+		}
+		return err
+	})
+}
+
+func actionExecutionEvent(action mind.Action) mind.Event {
+	return mind.Event{
+		ID:       fmt.Sprintf("evt-action-%s-result", action.ID),
+		DeviceID: action.DeviceID,
+		Type:     mind.EventActionExecuted,
+		Source:   mind.SourceMind,
+		At:       time.Now().UTC(),
+		Summary:  "心智动作执行结果已记录",
+		Payload: map[string]any{
+			"actionId":    action.ID,
+			"actionType":  string(action.Type),
+			"executor":    action.Executor,
+			"status":      string(action.Status),
+			"executorRef": action.ExecutorRef,
+			"reason":      action.Reason,
+		},
+		Salience:   actionExecutionSalience(action.Status),
+		Emotion:    actionExecutionEmotion(action.Status),
+		Confidence: 1,
+	}
+}
+
+func actionExecutionSalience(status mind.ActionStatus) float64 {
+	switch status {
+	case mind.ActionFailed:
+		return 0.75
+	case mind.ActionDeferred:
+		return 0.45
+	case mind.ActionExecuted:
+		return 0.6
+	default:
+		return 0.35
+	}
+}
+
+func actionExecutionEmotion(status mind.ActionStatus) string {
+	switch status {
+	case mind.ActionFailed:
+		return "concerned"
+	case mind.ActionDeferred:
+		return "patient"
+	case mind.ActionExecuted:
+		return "settled"
+	default:
+		return "neutral"
+	}
 }
 
 func mergeActionArgs(actionArgs map[string]any, eventPayload map[string]any) map[string]any {

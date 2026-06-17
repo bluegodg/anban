@@ -70,6 +70,7 @@ func TestIngestReminderDueProducesReminderSpeakAction(t *testing.T) {
 
 func TestIngestExecutesPendingActionsWhenExecutorConfigured(t *testing.T) {
 	svc, st := newEngineForTest(t)
+	ctx := context.Background()
 	exec := &fakeActionExecutor{
 		result: ExecutionResult{
 			Status:      mind.ActionExecuted,
@@ -79,7 +80,7 @@ func TestIngestExecutesPendingActionsWhenExecutorConfigured(t *testing.T) {
 	svc.UseExecutor(exec)
 	at := time.Date(2026, 6, 16, 12, 0, 0, 0, time.UTC)
 
-	actions, err := svc.Ingest(context.Background(), mind.Event{
+	actions, err := svc.Ingest(ctx, mind.Event{
 		ID:         "evt-exec",
 		DeviceID:   "dev-001",
 		Type:       mind.EventReminderDue,
@@ -116,6 +117,20 @@ func TestIngestExecutesPendingActionsWhenExecutorConfigured(t *testing.T) {
 	}
 	if status != string(mind.ActionExecuted) || executorRef != "fake:action-1" {
 		t.Fatalf("persisted status=%q executor_ref=%q, want executed fake ref", status, executorRef)
+	}
+
+	events, err := mind.NewStore(st.DB).ListRecentEvents(ctx, "dev-001", 10)
+	if err != nil {
+		t.Fatalf("ListRecentEvents: %v", err)
+	}
+	executionEvent := findEvent(events, mind.EventActionExecuted)
+	if executionEvent == nil {
+		t.Fatalf("events = %+v, want action_executed event", events)
+	}
+	if executionEvent.Payload["actionId"] != actions[0].ID ||
+		executionEvent.Payload["status"] != string(mind.ActionExecuted) ||
+		executionEvent.Payload["executorRef"] != "fake:action-1" {
+		t.Fatalf("execution event payload = %+v, want action id, executed status, and executor ref", executionEvent.Payload)
 	}
 }
 
@@ -178,6 +193,15 @@ func (f *fakeActionExecutor) Execute(ctx context.Context, action mind.Action) (E
 	f.calls++
 	f.lastAction = action
 	return f.result, f.err
+}
+
+func findEvent(events []mind.Event, eventType mind.EventType) *mind.Event {
+	for i := range events {
+		if events[i].Type == eventType {
+			return &events[i]
+		}
+	}
+	return nil
 }
 
 func TestIngestLateOutOfOrderEventUsesCurrentEventForThoughts(t *testing.T) {
