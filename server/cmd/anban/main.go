@@ -151,20 +151,7 @@ func main() {
 	visionHandler := vision.NewHandler(visionService)
 
 	mindDispatcher := executors.NewDispatcher(map[string]executors.SpeakExecutor{
-		"greeting": executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
-			spokenGreeting, err := greetingService.SpeakText(ctx, action.DeviceID, action.Text)
-			if err != nil {
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ErrorMessage: err.Error()}, err
-			}
-			switch spokenGreeting.Status {
-			case greeting.StatusPlayed:
-				return executors.Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: fmt.Sprintf("greeting:%d", spokenGreeting.ID)}, nil
-			case greeting.StatusPending:
-				return executors.Result{ActionID: action.ID, Status: mind.ActionDeferred, ExecutorRef: fmt.Sprintf("greeting:%d", spokenGreeting.ID), ErrorMessage: spokenGreeting.ErrorMessage}, nil
-			default:
-				return executors.Result{ActionID: action.ID, Status: mind.ActionFailed, ExecutorRef: fmt.Sprintf("greeting:%d", spokenGreeting.ID), ErrorMessage: spokenGreeting.ErrorMessage}, nil
-			}
-		}),
+		"greeting": newMindGreetingSpeakExecutor(greetingService),
 	})
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
 	startMindLoops(sch, profileStore, mindEngine, profileService, cfg.MindLoopInterval)
@@ -197,6 +184,61 @@ func configureMindEngine(target mindEngineConfigTarget, cfg config.Config) {
 	target.UseLocation(cfg.TimezoneLocation)
 	target.UseProactiveCooldown(cfg.MindProactiveCooldown)
 	target.UseProactiveDaytimeOnly(cfg.MindProactiveDaytimeOnly)
+}
+
+type mindGreetingSpeaker interface {
+	SpeakText(ctx context.Context, deviceID, text string) (greeting.Greeting, error)
+}
+
+func newMindGreetingSpeakExecutor(speaker mindGreetingSpeaker) executors.SpeakExecutor {
+	return executors.SpeakFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
+		spokenGreeting, err := speaker.SpeakText(ctx, action.DeviceID, action.Text)
+		result := greetingSpeakResult(action, spokenGreeting, err)
+		if err != nil && isMindProactiveAction(action) {
+			if result.Status == mind.ActionFailed {
+				result.Status = mind.ActionDeferred
+			}
+			if result.ErrorMessage == "" {
+				result.ErrorMessage = err.Error()
+			}
+			return result, nil
+		}
+		if err != nil {
+			return result, err
+		}
+		if result.Status == mind.ActionFailed && isMindProactiveAction(action) {
+			result.Status = mind.ActionDeferred
+		}
+		return result, nil
+	})
+}
+
+func greetingSpeakResult(action mind.Action, spokenGreeting greeting.Greeting, err error) executors.Result {
+	result := executors.Result{ActionID: action.ID}
+	if spokenGreeting.ID > 0 {
+		result.ExecutorRef = fmt.Sprintf("greeting:%d", spokenGreeting.ID)
+	}
+	if err != nil {
+		result.Status = mind.ActionFailed
+		result.ErrorMessage = err.Error()
+		return result
+	}
+	switch spokenGreeting.Status {
+	case greeting.StatusPlayed:
+		result.Status = mind.ActionExecuted
+	case greeting.StatusPending:
+		result.Status = mind.ActionDeferred
+		result.ErrorMessage = spokenGreeting.ErrorMessage
+	default:
+		result.Status = mind.ActionFailed
+		result.ErrorMessage = spokenGreeting.ErrorMessage
+	}
+	return result
+}
+
+func isMindProactiveAction(action mind.Action) bool {
+	value, _ := action.Args["mindProactive"].(bool)
+	return value
 }
 
 func startVisionPresencePoller(sch *scheduler.Scheduler, interval time.Duration, profileStore *profile.Store, visionService *vision.Service) {

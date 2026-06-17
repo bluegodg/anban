@@ -53,6 +53,13 @@
 - 边界：mind 不 import profile、不直接调用 `SetRolePrompt`；心境块不调 LLM、缺数据返回空块且不写 prompt；画像和记忆事实继续由 profile 统一装配，避免覆盖 #5。
 - 验证：`go test -count=1 ./internal/domains/profile ./internal/mind/promptctx ./internal/mind/engine ./cmd/anban`；后续真机建议：先让 history poller 收到几轮对话，等待一次 mind loop 后再问设备，观察回答关切度随心境变化，同时确认“孙子叫啥”仍能答“小宝”。
 
+### AnBan Mind 自主开口失败静默跳过
+
+- 文件：`server/cmd/anban/`
+- 内容：Mind 自主 `greeting` 开口若设备离线或注入失败，会把动作记录为 `deferred` 并保留错误原因供排查，但不向 idle loop 返回 error，避免设备离线时按循环频率刷错误日志；普通 greeting 失败仍按原行为返回错误。
+- 边界：只作用于 `mindProactive=true` 的心智自主问候，不改变子女留言、提醒必达、手动问候或 vision 触发问候的失败语义。
+- 验证：`go test -count=1 ./cmd/anban`
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试

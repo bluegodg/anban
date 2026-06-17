@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/config"
+	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/profile"
 	"github.com/bluegodg/anban/server/internal/mind"
 	"github.com/bluegodg/anban/server/internal/mind/executors"
@@ -83,6 +86,54 @@ func TestMindActionExecutorDefersMissingSpeakExecutor(t *testing.T) {
 	}
 }
 
+func TestMindGreetingExecutorSilentlyDefersFailedMindProactiveSpeak(t *testing.T) {
+	speaker := &fakeMindGreetingSpeaker{
+		greeting: greeting.Greeting{ID: 7, Status: greeting.StatusFailed, ErrorMessage: "device offline"},
+		err:      errors.New("device offline"),
+	}
+	exec := newMindGreetingSpeakExecutor(speaker)
+
+	result, err := exec.Speak(context.Background(), mind.Action{
+		ID:       "action-proactive",
+		DeviceID: "dev-001",
+		Type:     mind.ActionSpeak,
+		Executor: "greeting",
+		Text:     "我在这儿呢。",
+		Args:     map[string]any{"mindProactive": true},
+	})
+	if err != nil {
+		t.Fatalf("Speak error = %v, want nil for silent proactive skip", err)
+	}
+	if result.Status != mind.ActionDeferred || result.ExecutorRef != "greeting:7" {
+		t.Fatalf("result = %+v, want deferred greeting ref", result)
+	}
+	if !strings.Contains(result.ErrorMessage, "device offline") {
+		t.Fatalf("ErrorMessage = %q, want device offline detail for action record", result.ErrorMessage)
+	}
+}
+
+func TestMindGreetingExecutorReturnsErrorForNormalGreetingFailure(t *testing.T) {
+	speaker := &fakeMindGreetingSpeaker{
+		greeting: greeting.Greeting{ID: 8, Status: greeting.StatusFailed, ErrorMessage: "device offline"},
+		err:      errors.New("device offline"),
+	}
+	exec := newMindGreetingSpeakExecutor(speaker)
+
+	result, err := exec.Speak(context.Background(), mind.Action{
+		ID:       "action-normal",
+		DeviceID: "dev-001",
+		Type:     mind.ActionSpeak,
+		Executor: "greeting",
+		Text:     "您好。",
+	})
+	if !errors.Is(err, speaker.err) {
+		t.Fatalf("Speak error = %v, want normal greeting error", err)
+	}
+	if result.Status != mind.ActionFailed {
+		t.Fatalf("result = %+v, want failed", result)
+	}
+}
+
 func TestConfigureMindEngineAppliesProactiveOutputSettings(t *testing.T) {
 	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
 	target := &fakeMindEngineConfigTarget{}
@@ -120,6 +171,15 @@ func (f *fakeMindEngineConfigTarget) UseProactiveCooldown(cooldown time.Duration
 
 func (f *fakeMindEngineConfigTarget) UseProactiveDaytimeOnly(enabled bool) {
 	f.daytimeOnly = enabled
+}
+
+type fakeMindGreetingSpeaker struct {
+	greeting greeting.Greeting
+	err      error
+}
+
+func (f *fakeMindGreetingSpeaker) SpeakText(context.Context, string, string) (greeting.Greeting, error) {
+	return f.greeting, f.err
 }
 
 func TestRunMindLoopsSyncsMindContextAfterLifeUpdate(t *testing.T) {
