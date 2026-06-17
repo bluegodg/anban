@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var ErrNotFound = errors.New("mind: not found")
@@ -354,18 +355,24 @@ func (s *Store) SaveSelfState(ctx context.Context, state SelfState) error {
 		StewardWeight: state.StewardWeight,
 	}
 
-	var existing selfStateRecord
-	err := s.db.WithContext(ctx).Where("device_id = ?", state.DeviceID).First(&existing).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return s.db.WithContext(ctx).Create(&rec).Error
-	}
-	if err != nil {
-		return err
-	}
-
-	rec.ID = existing.ID
-	rec.CreatedAt = existing.CreatedAt
-	return s.db.WithContext(ctx).Save(&rec).Error
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "device_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"at",
+			"warmth",
+			"concern",
+			"curiosity",
+			"playfulness",
+			"energy",
+			"quietness",
+			"patience",
+			"confidence",
+			"family_weight",
+			"pet_weight",
+			"steward_weight",
+			"updated_at",
+		}),
+	}).Create(&rec).Error
 }
 
 func (s *Store) GetSelfState(ctx context.Context, deviceID string) (SelfState, error) {
@@ -455,7 +462,22 @@ func (s *Store) SaveAction(ctx context.Context, action Action) error {
 		Reason:       action.Reason,
 		Score:        action.Score,
 	}
-	return s.db.WithContext(ctx).Create(&rec).Error
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "action_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"device_id",
+			"intention_id",
+			"type",
+			"executor",
+			"text",
+			"args_json",
+			"scheduled_for",
+			"status",
+			"reason",
+			"score",
+			"updated_at",
+		}),
+	}).Create(&rec).Error
 }
 
 func (s *Store) SaveFeedback(ctx context.Context, feedback Feedback) error {
@@ -520,18 +542,19 @@ func (s *Store) SaveLifeState(ctx context.Context, life LifeState) error {
 		RelationshipTemperature: life.RelationshipTemperature,
 	}
 
-	var existing lifeStateRecord
-	err = s.db.WithContext(ctx).Where("device_id = ?", life.DeviceID).First(&existing).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return s.db.WithContext(ctx).Create(&rec).Error
-	}
-	if err != nil {
-		return err
-	}
-
-	rec.ID = existing.ID
-	rec.CreatedAt = existing.CreatedAt
-	return s.db.WithContext(ctx).Save(&rec).Error
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "device_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"at",
+			"today_theme",
+			"lingering_thoughts_json",
+			"social_energy",
+			"care_focus",
+			"playfulness_trend",
+			"relationship_temperature",
+			"updated_at",
+		}),
+	}).Create(&rec).Error
 }
 
 func (s *Store) GetLifeState(ctx context.Context, deviceID string) (LifeState, error) {

@@ -3,6 +3,7 @@ package mind
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -15,6 +16,16 @@ func newMindStoreForTest(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
+	sqlDB, err := st.DB.DB()
+	if err != nil {
+		t.Fatalf("st.DB.DB: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := sqlDB.Close(); err != nil {
+			t.Errorf("close test db: %v", err)
+		}
+	})
+
 	ms := NewStore(st.DB)
 	if err := ms.AutoMigrate(); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
@@ -230,12 +241,22 @@ func TestStorePersistsThoughtActionFeedbackReflection(t *testing.T) {
 	ms := newMindStoreForTest(t)
 	ctx := context.Background()
 	at := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	scheduledFor := at.Add(15 * time.Minute)
 
-	thought := Thought{ID: "thought-1", DeviceID: "dev-001", At: at, Content: "他今天比平时安静", SourceEventIDs: []string{"evt-1"}, DriveName: DriveCare, CareValue: 0.8, InterruptionCost: 0.7, Status: ThoughtPending}
+	thought := Thought{
+		ID: "thought-1", DeviceID: "dev-001", At: at, Content: "他今天比平时安静",
+		SourceEventIDs: []string{"evt-1", "evt-2"}, RelatedMemoryIDs: []string{"memory-1", "memory-2"},
+		DriveName: DriveCare, EmotionalTone: "quiet", Urgency: 0.3, CareValue: 0.8, Novelty: 0.2,
+		InterruptionCost: 0.7, Intimacy: 0.6, Status: ThoughtPending,
+	}
 	if err := ms.SaveThought(ctx, thought); err != nil {
 		t.Fatalf("SaveThought: %v", err)
 	}
-	action := Action{ID: "action-1", DeviceID: "dev-001", IntentionID: "intent-1", Type: ActionWait, Executor: "mind", Status: ActionDeferred, Reason: "夜晚打扰成本高", Score: 0.64}
+	action := Action{
+		ID: "action-1", DeviceID: "dev-001", IntentionID: "intent-1", Type: ActionSpeak,
+		Executor: "xiaozhi", Text: "我们听首老歌好吗", Args: map[string]any{"skipLLM": true, "volume": 0.4},
+		ScheduledFor: &scheduledFor, Status: ActionPending, Reason: "适合轻声问候", Score: 0.64,
+	}
 	if err := ms.SaveAction(ctx, action); err != nil {
 		t.Fatalf("SaveAction: %v", err)
 	}
@@ -243,8 +264,117 @@ func TestStorePersistsThoughtActionFeedbackReflection(t *testing.T) {
 	if err := ms.SaveFeedback(ctx, feedback); err != nil {
 		t.Fatalf("SaveFeedback: %v", err)
 	}
-	reflection := Reflection{ID: "reflection-1", DeviceID: "dev-001", At: at, EpisodeSummary: "夜晚保持安静", StateAdjustments: map[string]float64{"quietness": 0.02}, BehaviorLessons: []string{"夜晚长沉默先观察"}}
+	reflection := Reflection{
+		ID: "reflection-1", DeviceID: "dev-001", At: at, EpisodeSummary: "夜晚保持安静",
+		MemoryIDs: []string{"memory-1", "memory-2"}, StateAdjustments: map[string]float64{"quietness": 0.02, "patience": 0.01},
+		BehaviorLessons: []string{"夜晚长沉默先观察", "先低打扰确认"},
+	}
 	if err := ms.SaveReflection(ctx, reflection); err != nil {
 		t.Fatalf("SaveReflection: %v", err)
+	}
+
+	var thoughtRec thoughtRecord
+	if err := ms.db.Where("thought_id = ?", "thought-1").First(&thoughtRec).Error; err != nil {
+		t.Fatalf("read thought record: %v", err)
+	}
+	if thoughtRec.Content != "他今天比平时安静" || thoughtRec.DriveName != DriveCare || thoughtRec.Status != string(ThoughtPending) {
+		t.Fatalf("thought = %+v, want saved content drive and status", thoughtRec)
+	}
+	var sourceEventIDs []string
+	if err := json.Unmarshal([]byte(thoughtRec.SourceEventIDsJSON), &sourceEventIDs); err != nil {
+		t.Fatalf("decode thought source event ids: %v", err)
+	}
+	if !slices.Equal(sourceEventIDs, []string{"evt-1", "evt-2"}) {
+		t.Fatalf("source event ids = %+v, want saved slice", sourceEventIDs)
+	}
+	var relatedMemoryIDs []string
+	if err := json.Unmarshal([]byte(thoughtRec.RelatedMemoryIDsJSON), &relatedMemoryIDs); err != nil {
+		t.Fatalf("decode thought related memory ids: %v", err)
+	}
+	if !slices.Equal(relatedMemoryIDs, []string{"memory-1", "memory-2"}) {
+		t.Fatalf("related memory ids = %+v, want saved slice", relatedMemoryIDs)
+	}
+
+	var actionRec actionRecord
+	if err := ms.db.Where("action_id = ?", "action-1").First(&actionRec).Error; err != nil {
+		t.Fatalf("read action record: %v", err)
+	}
+	if actionRec.Executor != "xiaozhi" || actionRec.Text != "我们听首老歌好吗" || actionRec.Status != string(ActionPending) {
+		t.Fatalf("action = %+v, want saved executor text and status", actionRec)
+	}
+	if actionRec.ScheduledFor == nil || !actionRec.ScheduledFor.Equal(scheduledFor) {
+		t.Fatalf("action scheduled for = %+v, want %v", actionRec.ScheduledFor, scheduledFor)
+	}
+	var args map[string]any
+	if err := json.Unmarshal([]byte(actionRec.ArgsJSON), &args); err != nil {
+		t.Fatalf("decode action args: %v", err)
+	}
+	if args["skipLLM"] != true || args["volume"] != 0.4 {
+		t.Fatalf("action args = %+v, want skipLLM true and volume 0.4", args)
+	}
+	createdAt := actionRec.CreatedAt
+
+	action.Status = ActionExecuted
+	action.Reason = "老人回应了老歌"
+	action.Score = 0.91
+	if err := ms.SaveAction(ctx, action); err != nil {
+		t.Fatalf("SaveAction update: %v", err)
+	}
+	var actionCount int64
+	if err := ms.db.Model(&actionRecord{}).Where("action_id = ?", "action-1").Count(&actionCount).Error; err != nil {
+		t.Fatalf("count action records: %v", err)
+	}
+	if actionCount != 1 {
+		t.Fatalf("action rows = %d, want 1", actionCount)
+	}
+	if err := ms.db.Where("action_id = ?", "action-1").First(&actionRec).Error; err != nil {
+		t.Fatalf("read updated action record: %v", err)
+	}
+	if !actionRec.CreatedAt.Equal(createdAt) {
+		t.Fatalf("action created_at = %v, want preserved %v", actionRec.CreatedAt, createdAt)
+	}
+	if actionRec.Status != string(ActionExecuted) || actionRec.Reason != "老人回应了老歌" || actionRec.Score != 0.91 {
+		t.Fatalf("updated action = %+v, want executed reason and score", actionRec)
+	}
+
+	var feedbackRec feedbackRecord
+	if err := ms.db.Where("feedback_id = ?", "feedback-1").First(&feedbackRec).Error; err != nil {
+		t.Fatalf("read feedback record: %v", err)
+	}
+	if feedbackRec.Kind != "implicit" || feedbackRec.Signal != "waited" || feedbackRec.Notes != "选择等待" {
+		t.Fatalf("feedback = %+v, want saved kind signal and notes", feedbackRec)
+	}
+	var effects map[string]float64
+	if err := json.Unmarshal([]byte(feedbackRec.EffectOnStateJSON), &effects); err != nil {
+		t.Fatalf("decode feedback effects: %v", err)
+	}
+	if effects["quietness"] != 0.02 {
+		t.Fatalf("feedback effects = %+v, want quietness 0.02", effects)
+	}
+
+	var reflectionRec reflectionRecord
+	if err := ms.db.Where("reflection_id = ?", "reflection-1").First(&reflectionRec).Error; err != nil {
+		t.Fatalf("read reflection record: %v", err)
+	}
+	var reflectionMemoryIDs []string
+	if err := json.Unmarshal([]byte(reflectionRec.MemoryIDsJSON), &reflectionMemoryIDs); err != nil {
+		t.Fatalf("decode reflection memory ids: %v", err)
+	}
+	if !slices.Equal(reflectionMemoryIDs, []string{"memory-1", "memory-2"}) {
+		t.Fatalf("reflection memory ids = %+v, want saved slice", reflectionMemoryIDs)
+	}
+	var stateAdjustments map[string]float64
+	if err := json.Unmarshal([]byte(reflectionRec.StateAdjustmentsJSON), &stateAdjustments); err != nil {
+		t.Fatalf("decode reflection state adjustments: %v", err)
+	}
+	if stateAdjustments["quietness"] != 0.02 || stateAdjustments["patience"] != 0.01 {
+		t.Fatalf("state adjustments = %+v, want saved map", stateAdjustments)
+	}
+	var behaviorLessons []string
+	if err := json.Unmarshal([]byte(reflectionRec.BehaviorLessonsJSON), &behaviorLessons); err != nil {
+		t.Fatalf("decode reflection behavior lessons: %v", err)
+	}
+	if !slices.Equal(behaviorLessons, []string{"夜晚长沉默先观察", "先低打扰确认"}) {
+		t.Fatalf("behavior lessons = %+v, want saved slice", behaviorLessons)
 	}
 }
