@@ -39,6 +39,13 @@
 - 边界：不新增 xiaozhi/固件改动，不绕过 greeting 既有 voiceGate；夜间 expression 仍保留兜底压制；留言/提醒必达链路不受自主开口冷却影响。
 - 验证：`go test -count=1 ./internal/config ./internal/mind/behavior ./internal/mind/engine ./cmd/anban`；后续真机建议：设备在线唤醒，临时调小 `ANBAN_MIND_LOOP_INTERVAL` 与冷却值，观察静置只轻声开口一次、冷却内不连说、夜间不说、对话中不插话。
 
+### AnBan Mind B1 统一角色 Prompt 装配
+
+- 文件：`server/internal/domains/profile/`、`server/internal/memory/`
+- 内容：Profile 持久化 `fields`、`memoryFacts`、`mindContext` 三块，并新增 `BuildPromptWith(fields, memoryFacts, mindContext)` 统一重建 role prompt；`Update` 与 `SyncMemoryFacts` 都会读齐另外两块再 `SetRolePrompt`，避免画像、记忆和后续心境互相覆盖。
+- 边界：只设画像字段时 prompt 与原有输出逐字等价，守住 #5 画像召回；本阶段 `mindContext` 只预留持久化和装配能力，还不由 Mind 写入。
+- 验证：`go test -count=1 ./internal/domains/profile ./internal/memory`
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试

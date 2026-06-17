@@ -29,19 +29,24 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (Profile, error
 	}
 
 	fields := normalizeFields(req.Fields)
-	prompt := BuildPrompt(fields)
-	profile := Profile{
-		DeviceID: deviceID,
-		Fields:   fields,
-		Prompt:   prompt,
-	}
-	if err := s.store.Upsert(ctx, &profile); err != nil {
+	current, err := s.store.Get(ctx, deviceID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return Profile{}, err
 	}
-	if err := s.xc.SetRolePrompt(ctx, deviceID, prompt); err != nil {
-		return profile, err
+	if errors.Is(err, ErrNotFound) {
+		current = Profile{DeviceID: deviceID}
 	}
-	return profile, nil
+	current.Fields = fields
+	current.MemoryFacts = trimStrings(current.MemoryFacts)
+	current.MindContext = strings.TrimSpace(current.MindContext)
+	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
+	if err := s.store.Upsert(ctx, &current); err != nil {
+		return Profile{}, err
+	}
+	if err := s.xc.SetRolePrompt(ctx, deviceID, current.Prompt); err != nil {
+		return current, err
+	}
+	return current, nil
 }
 
 func (s *Service) Get(ctx context.Context, deviceID string) (Profile, error) {
@@ -53,10 +58,14 @@ func (s *Service) Get(ctx context.Context, deviceID string) (Profile, error) {
 }
 
 func BuildPrompt(fields Fields) string {
-	return BuildPromptWithMemory(fields, nil)
+	return BuildPromptWith(fields, nil, "")
 }
 
 func BuildPromptWithMemory(fields Fields, memoryFacts []string) string {
+	return BuildPromptWith(fields, memoryFacts, "")
+}
+
+func BuildPromptWith(fields Fields, memoryFacts []string, mindContext string) string {
 	lines := []string{
 		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
 		"请优先使用下面的家庭画像理解老人，不要生硬复述画像内容，回答要自然、简短、关心当下。",
@@ -86,6 +95,9 @@ func BuildPromptWithMemory(fields Fields, memoryFacts []string) string {
 			appendMemoryFact(fact)
 		}
 	}
+	if mindContext = strings.TrimSpace(mindContext); mindContext != "" {
+		lines = appendPromptLine(lines, "心境："+mindContext)
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -102,7 +114,9 @@ func (s *Service) SyncMemoryFacts(ctx context.Context, deviceID string, facts []
 	if errors.Is(err, ErrNotFound) {
 		current = Profile{DeviceID: deviceID}
 	}
-	current.Prompt = BuildPromptWithMemory(current.Fields, facts)
+	current.MemoryFacts = trimStrings(facts)
+	current.MindContext = strings.TrimSpace(current.MindContext)
+	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
 	if err := s.store.Upsert(ctx, &current); err != nil {
 		return err
 	}

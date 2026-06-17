@@ -22,12 +22,14 @@ type Fields struct {
 }
 
 type Profile struct {
-	ID        uint      `json:"profileId" gorm:"primaryKey"`
-	DeviceID  string    `json:"deviceId" gorm:"uniqueIndex;not null"`
-	Fields    Fields    `json:"fields" gorm:"embedded"`
-	Prompt    string    `json:"prompt" gorm:"type:text"`
-	CreatedAt time.Time `json:"-"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          uint      `json:"profileId" gorm:"primaryKey"`
+	DeviceID    string    `json:"deviceId" gorm:"uniqueIndex;not null"`
+	Fields      Fields    `json:"fields" gorm:"embedded"`
+	MemoryFacts []string  `json:"memoryFacts" gorm:"serializer:json"`
+	MindContext string    `json:"mindContext" gorm:"type:text"`
+	Prompt      string    `json:"prompt" gorm:"type:text"`
+	CreatedAt   time.Time `json:"-"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type UpdateRequest struct {
