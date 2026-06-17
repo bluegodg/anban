@@ -72,6 +72,14 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 			state.Warmth = clamp(state.Warmth + 0.02)
 		case mind.EventChildMessageReceived:
 			state.Warmth = clamp(state.Warmth + 0.04)
+		case mind.EventElderSpoke:
+			state.Warmth = clamp(state.Warmth + 0.03)
+			state.Energy = clamp(state.Energy + 0.04)
+			state.Quietness = clamp(state.Quietness - 0.05)
+			state.Curiosity = clamp(state.Curiosity + 0.02)
+		case mind.EventAssistantSpoke:
+			state.Confidence = clamp(state.Confidence + 0.02)
+			state.Patience = clamp(state.Patience - 0.01)
 		case mind.EventReminderAcknowledged:
 			state.Concern = clamp(state.Concern - 0.05)
 			state.Warmth = clamp(state.Warmth + 0.02)

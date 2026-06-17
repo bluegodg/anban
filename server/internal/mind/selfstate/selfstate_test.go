@@ -35,6 +35,28 @@ func TestApplyEventsAdjustsConcernAndPlayfulness(t *testing.T) {
 	}
 }
 
+func TestApplyEventsConversationChangesPresenceState(t *testing.T) {
+	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
+	state := Default("dev-001", at)
+	updated := ApplyEvents(state, []mind.Event{
+		{ID: "evt-user", DeviceID: "dev-001", Type: mind.EventElderSpoke, At: at.Add(time.Minute)},
+		{ID: "evt-assistant", DeviceID: "dev-001", Type: mind.EventAssistantSpoke, At: at.Add(2 * time.Minute)},
+	})
+
+	if updated.Warmth <= state.Warmth {
+		t.Fatalf("Warmth = %.2f, want greater than %.2f after conversation", updated.Warmth, state.Warmth)
+	}
+	if updated.Energy <= state.Energy {
+		t.Fatalf("Energy = %.2f, want greater than %.2f after elder spoke", updated.Energy, state.Energy)
+	}
+	if updated.Quietness >= state.Quietness {
+		t.Fatalf("Quietness = %.2f, want lower than %.2f after elder spoke", updated.Quietness, state.Quietness)
+	}
+	if updated.Confidence <= state.Confidence {
+		t.Fatalf("Confidence = %.2f, want greater than %.2f after assistant response", updated.Confidence, state.Confidence)
+	}
+}
+
 func TestApplyEventsSkipsProcessedEventIDs(t *testing.T) {
 	at := time.Date(2026, 6, 16, 14, 0, 0, 0, time.UTC)
 	state := Default("dev-001", at)
