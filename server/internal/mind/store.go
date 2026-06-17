@@ -568,6 +568,47 @@ func (s *Store) SaveFeedback(ctx context.Context, feedback Feedback) error {
 	return s.db.WithContext(ctx).Create(&rec).Error
 }
 
+func (s *Store) ListFeedback(ctx context.Context, deviceID string, window TimeWindow) ([]Feedback, error) {
+	var records []feedbackRecord
+	err := s.db.WithContext(ctx).
+		Where("device_id = ? AND at >= ? AND at <= ?", deviceID, window.From, window.To).
+		Order("at asc, id asc").
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]Feedback, 0, len(records))
+	for _, rec := range records {
+		effects := map[string]float64{}
+		if rec.EffectOnStateJSON != "" {
+			if err := json.Unmarshal([]byte(rec.EffectOnStateJSON), &effects); err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, Feedback{
+			ID:            rec.FeedbackID,
+			DeviceID:      rec.DeviceID,
+			ActionID:      rec.ActionID,
+			At:            rec.At,
+			Kind:          rec.Kind,
+			Signal:        rec.Signal,
+			EffectOnState: effects,
+			Notes:         rec.Notes,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) ReflectionExists(ctx context.Context, id string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&reflectionRecord{}).
+		Where("reflection_id = ?", id).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (s *Store) SaveReflection(ctx context.Context, reflection Reflection) error {
 	memoryIDs, err := encodeJSON(reflection.MemoryIDs)
 	if err != nil {

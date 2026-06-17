@@ -16,6 +16,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind/drives"
 	"github.com/bluegodg/anban/server/internal/mind/expression"
 	"github.com/bluegodg/anban/server/internal/mind/life"
+	"github.com/bluegodg/anban/server/internal/mind/reflection"
 	"github.com/bluegodg/anban/server/internal/mind/selfstate"
 	"github.com/bluegodg/anban/server/internal/mind/situation"
 	"github.com/bluegodg/anban/server/internal/mind/thoughts"
@@ -136,15 +137,32 @@ func (s *Service) Reflect(ctx context.Context, deviceID string, window mind.Time
 	if deviceID == "" || window.From.IsZero() || window.To.IsZero() || window.From.After(window.To) {
 		return mind.ErrInvalidInput
 	}
-	reflection := mind.Reflection{
-		ID:               fmt.Sprintf("reflection-%s-%d-%d", deviceID, window.From.UnixNano(), window.To.UnixNano()),
-		DeviceID:         deviceID,
-		At:               window.To,
-		EpisodeSummary:   "本轮反思已记录，具体摘要由 reflection 模块补充",
-		StateAdjustments: map[string]float64{},
-		BehaviorLessons:  []string{},
+	feedback, err := s.store.ListFeedback(ctx, deviceID, window)
+	if err != nil {
+		return err
 	}
-	return s.store.SaveReflection(ctx, reflection)
+	ref := reflection.Summarize(deviceID, window.To, feedback)
+	ref.ID = fmt.Sprintf("reflection-%s-%d-%d", deviceID, window.From.UnixNano(), window.To.UnixNano())
+
+	return s.store.WithinTransaction(ctx, func(txStore *mind.Store) error {
+		exists, err := txStore.ReflectionExists(ctx, ref.ID)
+		if err != nil {
+			return err
+		}
+		if !exists && len(ref.StateAdjustments) > 0 {
+			state, err := txStore.GetSelfState(ctx, deviceID)
+			if errors.Is(err, mind.ErrNotFound) {
+				state = selfstate.Default(deviceID, window.To)
+			} else if err != nil {
+				return err
+			}
+			state = applyReflectionAdjustments(state, window.To, ref.StateAdjustments)
+			if err := txStore.SaveSelfState(ctx, state); err != nil {
+				return err
+			}
+		}
+		return txStore.SaveReflection(ctx, ref)
+	})
 }
 
 func (s *Service) UpdateLife(ctx context.Context, deviceID string, at time.Time) error {
@@ -313,6 +331,47 @@ func actionExecutionEmotion(status mind.ActionStatus) string {
 	default:
 		return "neutral"
 	}
+}
+
+func applyReflectionAdjustments(state mind.SelfState, at time.Time, adjustments map[string]float64) mind.SelfState {
+	state.At = at
+	for name, delta := range adjustments {
+		switch name {
+		case "warmth":
+			state.Warmth = clamp01(state.Warmth + delta)
+		case "concern":
+			state.Concern = clamp01(state.Concern + delta)
+		case "curiosity":
+			state.Curiosity = clamp01(state.Curiosity + delta)
+		case "playfulness":
+			state.Playfulness = clamp01(state.Playfulness + delta)
+		case "energy":
+			state.Energy = clamp01(state.Energy + delta)
+		case "quietness":
+			state.Quietness = clamp01(state.Quietness + delta)
+		case "patience":
+			state.Patience = clamp01(state.Patience + delta)
+		case "confidence":
+			state.Confidence = clamp01(state.Confidence + delta)
+		case "family_weight":
+			state.FamilyWeight = clamp01(state.FamilyWeight + delta)
+		case "pet_weight":
+			state.PetWeight = clamp01(state.PetWeight + delta)
+		case "steward_weight":
+			state.StewardWeight = clamp01(state.StewardWeight + delta)
+		}
+	}
+	return state
+}
+
+func clamp01(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+	if value > 1 {
+		return 1
+	}
+	return value
 }
 
 func mergeActionArgs(actionArgs map[string]any, eventPayload map[string]any) map[string]any {

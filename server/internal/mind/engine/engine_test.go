@@ -574,3 +574,48 @@ func TestReflectValidatesInputsAndIsIdempotent(t *testing.T) {
 		t.Fatalf("reflection rows after invalid calls = %d, want 2", got)
 	}
 }
+
+func TestReflectSummarizesFeedbackAndAdjustsSelfState(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	window := mind.TimeWindow{
+		From: time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC),
+		To:   time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC),
+	}
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{DeviceID: deviceID, At: window.From, Warmth: 0.50, Quietness: 0.50}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+	for _, feedback := range []mind.Feedback{
+		{ID: "feedback-replied", DeviceID: deviceID, ActionID: "action-1", At: window.From.Add(5 * time.Minute), Kind: "implicit", Signal: "user_replied"},
+		{ID: "feedback-ignored", DeviceID: deviceID, ActionID: "action-2", At: window.From.Add(10 * time.Minute), Kind: "implicit", Signal: "user_ignored"},
+	} {
+		if err := ms.SaveFeedback(ctx, feedback); err != nil {
+			t.Fatalf("SaveFeedback %s: %v", feedback.ID, err)
+		}
+	}
+
+	if err := svc.Reflect(ctx, deviceID, window); err != nil {
+		t.Fatalf("Reflect: %v", err)
+	}
+
+	state, err := ms.GetSelfState(ctx, deviceID)
+	if err != nil {
+		t.Fatalf("GetSelfState: %v", err)
+	}
+	if state.Warmth <= 0.50 || state.Quietness <= 0.50 {
+		t.Fatalf("state = %+v, want feedback adjustments applied", state)
+	}
+
+	var summary string
+	if err := st.DB.Raw(
+		"SELECT episode_summary FROM mind_reflections WHERE device_id = ? ORDER BY id DESC LIMIT 1",
+		deviceID,
+	).Row().Scan(&summary); err != nil {
+		t.Fatalf("query reflection summary: %v", err)
+	}
+	if summary == "" || summary == "本轮反思已记录，具体摘要由 reflection 模块补充" {
+		t.Fatalf("summary = %q, want summarized feedback", summary)
+	}
+}
