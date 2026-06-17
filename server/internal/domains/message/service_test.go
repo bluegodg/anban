@@ -135,6 +135,60 @@ func TestServicePlayQueuedIsIdempotentForPlayedMessage(t *testing.T) {
 	}
 }
 
+func TestServiceSendEmitsMindEventWhenSinkConfigured(t *testing.T) {
+	sink := &fakeMindSink{}
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	svc.UseMindSink(sink)
+
+	if _, err := svc.Send(context.Background(), SendRequest{DeviceID: "dev-001", Text: "今晚早点休息", FromName: "小明"}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if len(sink.events) != 1 {
+		t.Fatalf("events = %+v, want 1", sink.events)
+	}
+	if sink.events[0].Type != "child_message_received" {
+		t.Fatalf("event type = %q, want child_message_received", sink.events[0].Type)
+	}
+	if len(fake.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want Mind to choose playback", len(fake.InjectCalls))
+	}
+}
+
+func TestServiceSendReturnsMindSinkErrorWithoutDirectPlayback(t *testing.T) {
+	fake := &xiaozhiclient.FakeClient{}
+	svc := newTestService(t, fake)
+	svc.UseMindSink(failingMindSink{err: errors.New("mind unavailable")})
+
+	msg, err := svc.Send(context.Background(), SendRequest{DeviceID: "dev-001", Text: "今晚早点休息"})
+	if err == nil {
+		t.Fatal("Send error = nil, want mind sink error")
+	}
+	if msg.ID == 0 || msg.Status != StatusPending {
+		t.Fatalf("msg = %+v, want queued pending message", msg)
+	}
+	if len(fake.InjectCalls) != 0 {
+		t.Fatalf("InjectCalls = %d, want no direct playback after mind sink failure", len(fake.InjectCalls))
+	}
+}
+
+type fakeMindSink struct {
+	events []MindEvent
+}
+
+func (f *fakeMindSink) IngestMindEvent(ctx context.Context, event MindEvent) error {
+	f.events = append(f.events, event)
+	return nil
+}
+
+type failingMindSink struct {
+	err error
+}
+
+func (f failingMindSink) IngestMindEvent(context.Context, MindEvent) error {
+	return f.err
+}
+
 func TestServiceSendBoundsInjectForPRDDeliveryWindow(t *testing.T) {
 	xc := &deadlineMessageClient{}
 	svc := newTestService(t, xc)

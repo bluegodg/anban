@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -40,4 +41,16 @@ type SendRequest struct {
 type ListFilter struct {
 	DeviceID string
 	Status   Status
+}
+
+type MindEvent struct {
+	DeviceID string
+	Type     string
+	SourceID uint
+	Summary  string
+	Payload  map[string]any
+}
+
+type MindSink interface {
+	IngestMindEvent(ctx context.Context, event MindEvent) error
 }

@@ -18,9 +18,10 @@ type OneShotScheduler interface {
 }
 
 type Service struct {
-	store *Store
-	xc    xiaozhiclient.Client
-	now   func() time.Time
+	store    *Store
+	xc       xiaozhiclient.Client
+	now      func() time.Time
+	mindSink MindSink
 }
 
 func NewService(store *Store, xc xiaozhiclient.Client, schedulers ...OneShotScheduler) *Service {
@@ -35,10 +36,17 @@ func (s *Service) UseProactiveVoiceGate(_ sharedtypes.ProactiveVoiceGate) {
 	// Child messages are point-to-point and must not be throttled by the proactive voice quota.
 }
 
+func (s *Service) UseMindSink(sink MindSink) {
+	s.mindSink = sink
+}
+
 func (s *Service) Send(ctx context.Context, req SendRequest) (Message, error) {
 	msg, err := s.Queue(ctx, req)
 	if err != nil {
-		return Message{}, err
+		return msg, err
+	}
+	if s.mindSink != nil {
+		return msg, nil
 	}
 	return s.PlayQueued(ctx, msg.ID)
 }
@@ -60,6 +68,17 @@ func (s *Service) Queue(ctx context.Context, req SendRequest) (Message, error) {
 	}
 	if err := s.store.Create(ctx, &msg); err != nil {
 		return Message{}, err
+	}
+	if s.mindSink != nil {
+		if err := s.mindSink.IngestMindEvent(ctx, MindEvent{
+			DeviceID: msg.DeviceID,
+			Type:     "child_message_received",
+			SourceID: msg.ID,
+			Summary:  "子女留言已进入安伴心智",
+			Payload:  map[string]any{"messageId": float64(msg.ID), "fromName": msg.FromName},
+		}); err != nil {
+			return msg, err
+		}
 	}
 	return msg, nil
 }

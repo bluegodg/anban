@@ -137,7 +137,7 @@ func main() {
 		log.Fatalf("mind 表迁移失败: %v", err)
 	}
 	mindEngine := engine.New(mindStore)
-	_ = mindEngine
+	messageService.UseMindSink(messageMindSink{engine: mindEngine})
 
 	visionService := vision.NewService(xc, greetingService)
 	startVisionPresencePoller(sch, cfg.VisionPresenceInterval, profileStore, visionService)
@@ -223,4 +223,23 @@ func runVisionPresencePoll(profileStore *profile.Store, visionService *vision.Se
 			log.Printf("vision presence 触发问候 device=%s", result.DeviceID)
 		}
 	}
+}
+
+type messageMindSink struct {
+	engine mind.Engine
+}
+
+func (s messageMindSink) IngestMindEvent(ctx context.Context, event message.MindEvent) error {
+	_, err := s.engine.Ingest(ctx, mind.Event{
+		DeviceID:   event.DeviceID,
+		Type:       mind.EventType(event.Type),
+		Source:     mind.SourceDomain,
+		At:         time.Now().UTC(),
+		Summary:    event.Summary,
+		Payload:    event.Payload,
+		Salience:   0.75,
+		Emotion:    "warm",
+		Confidence: 0.9,
+	})
+	return err
 }
