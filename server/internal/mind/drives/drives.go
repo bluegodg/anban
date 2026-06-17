@@ -43,6 +43,7 @@ type accumulator struct {
 	strengths map[string]float64
 	reasons   map[string]string
 	sourceIDs map[string][]string
+	seenIDs   map[string]map[string]bool
 }
 
 func newAccumulator() *accumulator {
@@ -50,6 +51,7 @@ func newAccumulator() *accumulator {
 		strengths: make(map[string]float64),
 		reasons:   make(map[string]string),
 		sourceIDs: make(map[string][]string),
+		seenIDs:   make(map[string]map[string]bool),
 	}
 }
 
@@ -61,9 +63,17 @@ func (a *accumulator) add(name string, amount float64, reason string, eventID st
 	if a.reasons[name] == "" {
 		a.reasons[name] = reason
 	}
-	if eventID != "" {
-		a.sourceIDs[name] = append(a.sourceIDs[name], eventID)
+	if eventID == "" {
+		return
 	}
+	if a.seenIDs[name] == nil {
+		a.seenIDs[name] = make(map[string]bool)
+	}
+	if a.seenIDs[name][eventID] {
+		return
+	}
+	a.sourceIDs[name] = append(a.sourceIDs[name], eventID)
+	a.seenIDs[name][eventID] = true
 }
 
 func (a *accumulator) drives() []mind.Drive {

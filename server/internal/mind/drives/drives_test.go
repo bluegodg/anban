@@ -1,6 +1,7 @@
 package drives
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -33,6 +34,26 @@ func TestActivateLongSilenceRaisesQuietPresence(t *testing.T) {
 	}
 }
 
+func TestActivateDeduplicatesSourceEventIDsPerDrive(t *testing.T) {
+	got := Activate(
+		mind.Situation{DeviceID: "dev-001"},
+		mind.SelfState{},
+		[]mind.Event{
+			{ID: "evt-1", Type: mind.EventReminderDue},
+			{ID: "evt-2", Type: mind.EventReminderDue},
+			{ID: "evt-1", Type: mind.EventReminderDue},
+		},
+	)
+
+	want := []string{"evt-1", "evt-2"}
+	if sources := sourceEventIDs(got, mind.DriveStewardship); !reflect.DeepEqual(sources, want) {
+		t.Fatalf("stewardship SourceEventIDs = %+v, want %+v", sources, want)
+	}
+	if sources := sourceEventIDs(got, mind.DriveCare); !reflect.DeepEqual(sources, want) {
+		t.Fatalf("care SourceEventIDs = %+v, want %+v", sources, want)
+	}
+}
+
 func strength(drives []mind.Drive, name string) float64 {
 	for _, drive := range drives {
 		if drive.Name == name {
@@ -40,4 +61,13 @@ func strength(drives []mind.Drive, name string) float64 {
 		}
 	}
 	return 0
+}
+
+func sourceEventIDs(drives []mind.Drive, name string) []string {
+	for _, drive := range drives {
+		if drive.Name == name {
+			return drive.SourceEventIDs
+		}
+	}
+	return nil
 }
