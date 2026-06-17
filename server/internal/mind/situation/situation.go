@@ -18,11 +18,20 @@ func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
 		EmotionalTone:   "uncertain",
 		SocialContext:   "alone",
 	}
-	ordered := append([]mind.Event(nil), events...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		return ordered[i].At.Before(ordered[j].At)
+	ordered := make([]orderedEvent, len(events))
+	for i, event := range events {
+		ordered[i] = orderedEvent{event: event, index: i}
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		left := ordered[i]
+		right := ordered[j]
+		if left.event.At.Equal(right.event.At) {
+			return left.index > right.index
+		}
+		return left.event.At.Before(right.event.At)
 	})
-	for _, event := range ordered {
+	for _, item := range ordered {
+		event := item.event
 		switch event.Type {
 		case mind.EventPresenceSeen:
 			out.ElderPresence = "present"
@@ -50,6 +59,11 @@ func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
 		out.Constraints = addUnique(out.Constraints, "prefer_short_phrase")
 	}
 	return out
+}
+
+type orderedEvent struct {
+	event mind.Event
+	index int
 }
 
 // timeOfDay uses at's own location and wall clock; callers must pass device-local time.

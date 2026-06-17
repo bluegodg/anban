@@ -54,6 +54,18 @@ func TestBuildAppliesRecentFirstEventsChronologically(t *testing.T) {
 	}
 }
 
+func TestBuildSameTimestampTreatsEarlierRecentFirstEventAsNewer(t *testing.T) {
+	at := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	got := Build("dev-001", at, []mind.Event{
+		{ID: "evt-new", DeviceID: "dev-001", Type: mind.EventElderSpoke, At: at, Summary: "老人刚刚回应了"},
+		{ID: "evt-old", DeviceID: "dev-001", Type: mind.EventLongSilence, At: at, Summary: "同一时间戳的旧长静默"},
+	})
+
+	if got.InteractionMode != "conversation" || got.ActivityLevel != "normal" {
+		t.Fatalf("situation = %+v, want same-time recent-first elder spoke to win conversation normal", got)
+	}
+}
+
 func TestBuildDedupesConstraintsAndOpenLoops(t *testing.T) {
 	at := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
 	got := Build("dev-001", at, []mind.Event{
@@ -76,22 +88,25 @@ func TestBuildDedupesConstraintsAndOpenLoops(t *testing.T) {
 func TestTimeOfDayBoundariesUseTimestampLocation(t *testing.T) {
 	loc := time.FixedZone("device", 8*60*60)
 	tests := []struct {
-		hour int
-		want string
+		hour   int
+		minute int
+		want   string
 	}{
-		{10, "morning"},
-		{11, "noon"},
-		{13, "noon"},
-		{14, "afternoon"},
-		{17, "afternoon"},
-		{18, "evening"},
-		{21, "evening"},
-		{22, "night"},
+		{4, 59, "night"},
+		{5, 0, "morning"},
+		{10, 0, "morning"},
+		{11, 0, "noon"},
+		{13, 0, "noon"},
+		{14, 0, "afternoon"},
+		{17, 0, "afternoon"},
+		{18, 0, "evening"},
+		{21, 0, "evening"},
+		{22, 0, "night"},
 	}
 	for _, tt := range tests {
-		at := time.Date(2026, 6, 16, tt.hour, 0, 0, 0, loc)
+		at := time.Date(2026, 6, 16, tt.hour, tt.minute, 0, 0, loc)
 		if got := timeOfDay(at); got != tt.want {
-			t.Fatalf("timeOfDay(%02d:00 device-local) = %q, want %q", tt.hour, got, tt.want)
+			t.Fatalf("timeOfDay(%02d:%02d device-local) = %q, want %q", tt.hour, tt.minute, got, tt.want)
 		}
 	}
 }

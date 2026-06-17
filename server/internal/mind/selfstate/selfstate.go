@@ -2,6 +2,7 @@ package selfstate
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
@@ -26,7 +27,25 @@ func Default(deviceID string, at time.Time) mind.SelfState {
 }
 
 func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
-	for _, event := range events {
+	cutoff := state.At
+	ordered := make([]orderedEvent, len(events))
+	for i, event := range events {
+		ordered[i] = orderedEvent{event: event, index: i}
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		left := ordered[i]
+		right := ordered[j]
+		if left.event.At.Equal(right.event.At) {
+			return left.index > right.index
+		}
+		return left.event.At.Before(right.event.At)
+	})
+
+	for _, item := range ordered {
+		event := item.event
+		if event.At.IsZero() || !event.At.After(cutoff) {
+			continue
+		}
 		if event.At.After(state.At) {
 			state.At = event.At
 		}
@@ -50,6 +69,11 @@ func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 		}
 	}
 	return state
+}
+
+type orderedEvent struct {
+	event mind.Event
+	index int
 }
 
 func clamp(value float64) float64 {
