@@ -247,6 +247,33 @@ func TestServiceObservePresenceTriggersGreetingWhenSomeoneReturns(t *testing.T) 
 	}
 }
 
+func TestServiceObservePresenceEmitsMindEventWhenSinkConfigured(t *testing.T) {
+	sink := &fakeVisionMindSink{}
+	trigger := &fakeGreetingTrigger{}
+	svc := NewService(&visionClient{}, trigger)
+	svc.UseMindSink(sink)
+	_, err := svc.ObservePresence(context.Background(), PresenceObservationRequest{DeviceID: "dev-001", Presence: PresenceSomeone})
+	if err != nil {
+		t.Fatalf("ObservePresence: %v", err)
+	}
+	if len(sink.events) != 1 {
+		t.Fatalf("events = %+v, want 1", sink.events)
+	}
+	if sink.events[0].Type != "presence_seen" {
+		t.Fatalf("event = %+v, want presence_seen", sink.events[0])
+	}
+	if trigger.calls != 0 {
+		t.Fatalf("trigger calls = %d, want Mind to decide greeting", trigger.calls)
+	}
+}
+
+type fakeVisionMindSink struct{ events []MindEvent }
+
+func (f *fakeVisionMindSink) IngestMindEvent(ctx context.Context, event MindEvent) error {
+	f.events = append(f.events, event)
+	return nil
+}
+
 func TestServiceObservePresenceDoesNotRepeatGreetingWhileStillSomeone(t *testing.T) {
 	trigger := &fakeGreetingTrigger{}
 	svc := NewService(&visionClient{}, trigger)

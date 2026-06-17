@@ -141,6 +141,7 @@ func main() {
 	reminderService.UseMindSink(reminderMindSink{engine: mindEngine})
 
 	visionService := vision.NewService(xc, greetingService)
+	visionService.UseMindSink(visionMindSink{engine: mindEngine})
 	startVisionPresencePoller(sch, cfg.VisionPresenceInterval, profileStore, visionService)
 	visionHandler := vision.NewHandler(visionService)
 
@@ -260,6 +261,25 @@ func (s reminderMindSink) IngestMindEvent(ctx context.Context, event reminder.Mi
 		Salience:   0.85,
 		Emotion:    "caring",
 		Confidence: 0.95,
+	})
+	return err
+}
+
+type visionMindSink struct {
+	engine mind.Engine
+}
+
+func (s visionMindSink) IngestMindEvent(ctx context.Context, event vision.MindEvent) error {
+	_, err := s.engine.Ingest(ctx, mind.Event{
+		DeviceID:   event.DeviceID,
+		Type:       mind.EventType(event.Type),
+		Source:     mind.SourceVision,
+		At:         time.Now().UTC(),
+		Summary:    event.Summary,
+		Payload:    event.Payload,
+		Salience:   0.55,
+		Emotion:    "warm",
+		Confidence: 0.8,
 	})
 	return err
 }

@@ -17,6 +17,7 @@ const visionMCPTimeout = 8 * time.Second
 type Service struct {
 	xc               xiaozhiclient.Client
 	greetingTrigger  sharedtypes.ProactiveGreetingTrigger
+	mindSink         MindSink
 	mu               sync.Mutex
 	presenceByDevice map[string]Presence
 }
@@ -31,6 +32,10 @@ func NewService(xc xiaozhiclient.Client, triggers ...sharedtypes.ProactiveGreeti
 		greetingTrigger:  trigger,
 		presenceByDevice: make(map[string]Presence),
 	}
+}
+
+func (s *Service) UseMindSink(sink MindSink) {
+	s.mindSink = sink
 }
 
 func (s *Service) Capture(ctx context.Context, req CaptureRequest) (CaptureResult, error) {
@@ -132,6 +137,21 @@ func (s *Service) ObservePresence(ctx context.Context, req PresenceObservationRe
 		PreviousPresence: previous,
 		Presence:         presence,
 		ObservedAt:       observedAt,
+	}
+	if s.mindSink != nil {
+		eventType := "presence_absent"
+		if presence == PresenceSomeone {
+			eventType = "presence_seen"
+		}
+		if err := s.mindSink.IngestMindEvent(ctx, MindEvent{
+			DeviceID: deviceID,
+			Type:     eventType,
+			Summary:  "视觉 presence 进入安伴心智",
+			Payload:  map[string]any{"presence": string(presence)},
+		}); err != nil {
+			return result, err
+		}
+		return result, nil
 	}
 	if !shouldTrigger || s.greetingTrigger == nil {
 		return result, nil

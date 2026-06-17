@@ -1,6 +1,7 @@
 package vision
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -59,4 +60,15 @@ type PresencePollResult struct {
 	Skipped    bool                `json:"skipped"`
 	SkipReason string              `json:"skipReason,omitempty"`
 	Check      PresenceCheckResult `json:"check"`
+}
+
+type MindEvent struct {
+	DeviceID string
+	Type     string
+	Summary  string
+	Payload  map[string]any
+}
+
+type MindSink interface {
+	IngestMindEvent(ctx context.Context, event MindEvent) error
 }
