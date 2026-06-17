@@ -48,6 +48,12 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	if c.VisionPresenceInterval != 30*time.Second {
 		t.Fatalf("VisionPresenceInterval default = %s, want 30s", c.VisionPresenceInterval)
 	}
+	if c.MindLoopInterval != 15*time.Minute {
+		t.Fatalf("MindLoopInterval default = %s, want 15m", c.MindLoopInterval)
+	}
+	if c.MindHistoryInterval != time.Minute {
+		t.Fatalf("MindHistoryInterval default = %s, want 1m", c.MindHistoryInterval)
+	}
 }
 
 func TestLoadParsesOptionalLLMConfig(t *testing.T) {
@@ -99,6 +105,8 @@ func TestLoadParsesVisionPresenceInterval(t *testing.T) {
 	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
 	t.Setenv("ANBAN_ACCESS_CODE", "demo")
 	t.Setenv("ANBAN_VISION_PRESENCE_INTERVAL", "45s")
+	t.Setenv("ANBAN_MIND_LOOP_INTERVAL", "20m")
+	t.Setenv("ANBAN_MIND_HISTORY_INTERVAL", "90s")
 
 	c, err := Load()
 	if err != nil {
@@ -106,6 +114,12 @@ func TestLoadParsesVisionPresenceInterval(t *testing.T) {
 	}
 	if c.VisionPresenceInterval != 45*time.Second {
 		t.Fatalf("VisionPresenceInterval = %s, want 45s", c.VisionPresenceInterval)
+	}
+	if c.MindLoopInterval != 20*time.Minute {
+		t.Fatalf("MindLoopInterval = %s, want 20m", c.MindLoopInterval)
+	}
+	if c.MindHistoryInterval != 90*time.Second {
+		t.Fatalf("MindHistoryInterval = %s, want 90s", c.MindHistoryInterval)
 	}
 }
 

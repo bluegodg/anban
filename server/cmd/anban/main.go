@@ -199,8 +199,8 @@ func main() {
 		}),
 	})
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
-	startMindLoops(sch, profileStore, mindEngine, 15*time.Minute)
-	startMindHistoryPoller(sch, time.Minute, profileStore, xc, mindEngine)
+	startMindLoops(sch, profileStore, mindEngine, cfg.MindLoopInterval)
+	startMindHistoryPoller(sch, cfg.MindHistoryInterval, profileStore, xc, mindEngine)
 
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:     cfg.AccessCode,

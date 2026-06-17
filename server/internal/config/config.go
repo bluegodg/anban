@@ -18,6 +18,8 @@ type Config struct {
 	LLM                    LLMConfig
 	MemoryDistillCron      string
 	VisionPresenceInterval time.Duration
+	MindLoopInterval       time.Duration
+	MindHistoryInterval    time.Duration
 }
 
 type LLMConfig struct {
@@ -35,6 +37,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	mindLoopInterval, err := durationEnv("ANBAN_MIND_LOOP_INTERVAL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	mindHistoryInterval, err := durationEnv("ANBAN_MIND_HISTORY_INTERVAL", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
 
 	c := Config{
 		ManagerBaseURL:         trimEnv("ANBAN_MANAGER_BASE_URL"),
@@ -45,6 +55,8 @@ func Load() (Config, error) {
 		AllowedOrigins:         splitCSV(envOr("ANBAN_ALLOWED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")),
 		MemoryDistillCron:      envOr("ANBAN_MEMORY_DISTILL_CRON", "*/30 * * * *"),
 		VisionPresenceInterval: visionPresenceInterval,
+		MindLoopInterval:       mindLoopInterval,
+		MindHistoryInterval:    mindHistoryInterval,
 		LLM: LLMConfig{
 			BaseURL: trimEnv("ANBAN_LLM_BASE_URL"),
 			APIKey:  trimEnv("ANBAN_LLM_API_KEY"),
@@ -79,7 +91,7 @@ func durationEnv(key string, def time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("config: %s 不能为负数", key)
 	}
 	if d > 0 && d < 10*time.Second {
-		return 0, fmt.Errorf("config: %s 不能小于 10s，避免过度调用设备相机", key)
+		return 0, fmt.Errorf("config: %s 不能小于 10s，避免过度调度", key)
 	}
 	return d, nil
 }
