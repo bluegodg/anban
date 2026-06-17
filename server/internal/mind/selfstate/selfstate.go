@@ -27,6 +27,9 @@ func Default(deviceID string, at time.Time) mind.SelfState {
 
 func ApplyEvents(state mind.SelfState, events []mind.Event) mind.SelfState {
 	for _, event := range events {
+		if event.At.After(state.At) {
+			state.At = event.At
+		}
 		switch event.Type {
 		case mind.EventLongSilence:
 			state.Concern = clamp(state.Concern + 0.08)

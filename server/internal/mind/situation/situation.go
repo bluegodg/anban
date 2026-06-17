@@ -1,6 +1,7 @@
 package situation
 
 import (
+	"sort"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
@@ -17,7 +18,11 @@ func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
 		EmotionalTone:   "uncertain",
 		SocialContext:   "alone",
 	}
-	for _, event := range events {
+	ordered := append([]mind.Event(nil), events...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].At.Before(ordered[j].At)
+	})
+	for _, event := range ordered {
 		switch event.Type {
 		case mind.EventPresenceSeen:
 			out.ElderPresence = "present"
@@ -47,6 +52,7 @@ func Build(deviceID string, at time.Time, events []mind.Event) mind.Situation {
 	return out
 }
 
+// timeOfDay uses at's own location and wall clock; callers must pass device-local time.
 func timeOfDay(at time.Time) string {
 	switch hour := at.Hour(); {
 	case hour >= 5 && hour <= 10:
