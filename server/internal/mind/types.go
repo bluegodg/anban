@@ -128,6 +128,10 @@ const (
 	DriveQuietPresence = "quiet_presence"
 )
 
+const (
+	ConstraintMindProactiveCooldownActive = "mind_proactive_cooldown_active"
+)
+
 type ThoughtStatus string
 
 const (

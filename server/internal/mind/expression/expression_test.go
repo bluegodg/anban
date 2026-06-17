@@ -58,6 +58,20 @@ func TestGateDefersConversationSpeakWithDefaultReasonWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestGateSuppressesNightSpeak(t *testing.T) {
+	decision := Gate(
+		mind.Action{ID: "a1", Type: mind.ActionSpeak, Score: 0.9, Reason: "夜里想关心一下"},
+		mind.Situation{TimeOfDay: "night", InteractionMode: "idle"},
+		mind.SelfState{},
+	)
+	if decision.Status != mind.ActionSuppressed {
+		t.Fatalf("decision = %+v, want suppressed night speak", decision)
+	}
+	if decision.Reason != "夜里想关心一下" {
+		t.Fatalf("Reason = %q, want existing reason preserved", decision.Reason)
+	}
+}
+
 func TestGateDefersScheduleRecheck(t *testing.T) {
 	decision := Gate(mind.Action{ID: "a1", Type: mind.ActionScheduleRecheck, Score: 0.8}, mind.Situation{}, mind.SelfState{})
 	if decision.Status != mind.ActionDeferred {

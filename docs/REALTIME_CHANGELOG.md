@@ -25,6 +25,13 @@
 - 边界：不改变 xiaozhi 上游、不引入 xiaozhi 反向推送；消息/提醒仍通过各自 domain 调用 `xiaozhiclient.InjectSpeak`，Mind 仅观察这些事件；事件存储时间仍保留原始 UTC 时间点。
 - 验证：`go test -count=1 ./internal/domains/message ./internal/domains/reminder ./internal/mind/engine ./internal/mind/situation ./cmd/anban ./internal/config`、`go test -count=1 ./...`
 
+### AnBan Mind A1 自主开口决策
+
+- 文件：`server/internal/mind/{behavior,engine,expression}/`、`server/internal/mind/types.go`
+- 内容：长时间沉默且关心强度较高时，Mind 产出 `greeting` 的自主轻声 `speak` 候选，并用确定性温和模板标记 `mindProactive=true`；低关心或自主开口冷却期内继续等待；夜间 `speak` 由表达闸门压制，对话中仍走既有延后逻辑。
+- 边界：只打开心智内部决策口，不新增网络下发通道、不碰 xiaozhi/固件；留言和提醒仍由各自 domain 必达播报，Mind 仅观察。
+- 验证：`go test -count=1 ./internal/mind/...`
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试

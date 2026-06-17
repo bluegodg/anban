@@ -23,10 +23,13 @@ import (
 )
 
 type Service struct {
-	store    *mind.Store
-	executor ActionExecutor
-	location *time.Location
+	store             *mind.Store
+	executor          ActionExecutor
+	location          *time.Location
+	proactiveCooldown time.Duration
 }
+
+const defaultProactiveCooldown = 30 * time.Minute
 
 type ExecutionResult struct {
 	Status       mind.ActionStatus
@@ -39,7 +42,7 @@ type ActionExecutor interface {
 }
 
 func New(store *mind.Store) *Service {
-	return &Service{store: store}
+	return &Service{store: store, proactiveCooldown: defaultProactiveCooldown}
 }
 
 func (s *Service) UseExecutor(executor ActionExecutor) {
@@ -48,6 +51,10 @@ func (s *Service) UseExecutor(executor ActionExecutor) {
 
 func (s *Service) UseLocation(location *time.Location) {
 	s.location = location
+}
+
+func (s *Service) UseProactiveCooldown(cooldown time.Duration) {
+	s.proactiveCooldown = cooldown
 }
 
 func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, error) {
@@ -195,6 +202,7 @@ func (s *Service) UpdateLife(ctx context.Context, deviceID string, at time.Time)
 
 func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event, lateEvent bool) ([]mind.Action, error) {
 	sit := situation.BuildWithLocation(deviceID, at, recent, s.location)
+	sit = s.applyProactiveConstraints(sit, recent, at)
 
 	var state mind.SelfState
 	if lateEvent {
@@ -237,6 +245,38 @@ func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID s
 		out = append(out, selected)
 	}
 	return out, nil
+}
+
+func (s *Service) applyProactiveConstraints(sit mind.Situation, recent []mind.Event, at time.Time) mind.Situation {
+	if s.proactiveCooldown <= 0 || at.IsZero() {
+		return sit
+	}
+	for _, event := range recent {
+		if isAutonomousGreetingExecution(event) && !event.At.IsZero() && at.Sub(event.At) < s.proactiveCooldown {
+			sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindProactiveCooldownActive)
+			return sit
+		}
+	}
+	return sit
+}
+
+func isAutonomousGreetingExecution(event mind.Event) bool {
+	if event.Type != mind.EventActionExecuted {
+		return false
+	}
+	return payloadString(event.Payload, "actionType") == string(mind.ActionSpeak) &&
+		payloadString(event.Payload, "executor") == "greeting" &&
+		payloadString(event.Payload, "status") == string(mind.ActionExecuted) &&
+		payloadBool(event.Payload, "mindProactive")
+}
+
+func addConstraint(values []string, next string) []string {
+	for _, value := range values {
+		if value == next {
+			return values
+		}
+	}
+	return append(values, next)
 }
 
 func (s *Service) executePendingActions(ctx context.Context, actions []mind.Action) error {
@@ -295,21 +335,25 @@ func (s *Service) saveActionExecutionResult(ctx context.Context, action mind.Act
 }
 
 func actionExecutionEvent(action mind.Action) mind.Event {
+	payload := map[string]any{
+		"actionId":    action.ID,
+		"actionType":  string(action.Type),
+		"executor":    action.Executor,
+		"status":      string(action.Status),
+		"executorRef": action.ExecutorRef,
+		"reason":      action.Reason,
+	}
+	if payloadBool(action.Args, "mindProactive") {
+		payload["mindProactive"] = true
+	}
 	return mind.Event{
-		ID:       fmt.Sprintf("evt-action-%s-result", action.ID),
-		DeviceID: action.DeviceID,
-		Type:     mind.EventActionExecuted,
-		Source:   mind.SourceMind,
-		At:       time.Now().UTC(),
-		Summary:  "心智动作执行结果已记录",
-		Payload: map[string]any{
-			"actionId":    action.ID,
-			"actionType":  string(action.Type),
-			"executor":    action.Executor,
-			"status":      string(action.Status),
-			"executorRef": action.ExecutorRef,
-			"reason":      action.Reason,
-		},
+		ID:         fmt.Sprintf("evt-action-%s-result", action.ID),
+		DeviceID:   action.DeviceID,
+		Type:       mind.EventActionExecuted,
+		Source:     mind.SourceMind,
+		At:         time.Now().UTC(),
+		Summary:    "心智动作执行结果已记录",
+		Payload:    payload,
 		Salience:   actionExecutionSalience(action.Status),
 		Emotion:    actionExecutionEmotion(action.Status),
 		Confidence: 1,
@@ -395,4 +439,20 @@ func mergeActionArgs(actionArgs map[string]any, eventPayload map[string]any) map
 		merged[key] = value
 	}
 	return merged
+}
+
+func payloadBool(payload map[string]any, key string) bool {
+	if payload == nil {
+		return false
+	}
+	value, _ := payload[key].(bool)
+	return value
+}
+
+func payloadString(payload map[string]any, key string) string {
+	if payload == nil {
+		return ""
+	}
+	value, _ := payload[key].(string)
+	return value
 }

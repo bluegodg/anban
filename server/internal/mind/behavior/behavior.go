@@ -4,10 +4,13 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
 )
+
+const proactiveConcernThreshold = 0.70
 
 func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []mind.Action {
 	out := make([]mind.Action, 0, len(thoughts))
@@ -17,7 +20,7 @@ func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []m
 	usedIntentionIDs := map[string]bool{}
 
 	for i, thought := range thoughts {
-		actionType, executor := actionFor(thought, s)
+		actionType, executor := actionFor(thought, s, state)
 		identity := actionIdentity(s, thought, i, thoughtIDCounts, usedActionIDs, usedIntentionIDs, reservedActionIDs, reservedIntentionIDs)
 		action := mind.Action{
 			ID:          fmt.Sprintf("action-%s", identity),
@@ -26,8 +29,9 @@ func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []m
 			Type:        actionType,
 			Executor:    executor,
 			Text:        defaultText(thought, actionType),
+			Args:        argsFor(thought, actionType, executor),
 			Status:      mind.ActionPending,
-			Reason:      reasonFor(thought, actionType),
+			Reason:      reasonFor(thought, actionType, s, state),
 			Score:       score(thought, s, state, actionType),
 		}
 		if actionType == mind.ActionScheduleRecheck {
@@ -126,8 +130,14 @@ func scheduleBase(thought mind.Thought, s mind.Situation) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func actionFor(thought mind.Thought, s mind.Situation) (mind.ActionType, string) {
-	if thought.DriveName == mind.DriveQuietPresence || thought.InterruptionCost >= 0.75 {
+func actionFor(thought mind.Thought, s mind.Situation, state mind.SelfState) (mind.ActionType, string) {
+	if thought.DriveName == mind.DriveQuietPresence {
+		if shouldSpeakQuietPresence(thought, s, state) {
+			return mind.ActionSpeak, "greeting"
+		}
+		return mind.ActionWait, "mind"
+	}
+	if thought.InterruptionCost >= 0.75 {
 		return mind.ActionWait, "mind"
 	}
 
@@ -148,10 +158,33 @@ func actionFor(thought mind.Thought, s mind.Situation) (mind.ActionType, string)
 	}
 }
 
+func shouldSpeakQuietPresence(thought mind.Thought, s mind.Situation, state mind.SelfState) bool {
+	if hasConstraint(s, mind.ConstraintMindProactiveCooldownActive) {
+		return false
+	}
+	if state.Concern < proactiveConcernThreshold && thought.CareValue < 0.75 {
+		return false
+	}
+	return true
+}
+
+func hasConstraint(s mind.Situation, constraint string) bool {
+	for _, value := range s.Constraints {
+		if value == constraint {
+			return true
+		}
+	}
+	return false
+}
+
 func score(thought mind.Thought, s mind.Situation, state mind.SelfState, actionType mind.ActionType) float64 {
 	value := thought.Urgency*0.20 + thought.CareValue*0.25 + thought.Novelty*0.10 + thought.Intimacy*0.15
 	personality := state.FamilyWeight*0.08 + state.PetWeight*0.03 + state.StewardWeight*0.05
 	cost := thought.InterruptionCost * 0.30
+	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak {
+		value += state.Concern * 0.18
+		cost *= 0.65
+	}
 
 	if s.InteractionMode == "conversation" && actionType == mind.ActionSpeak {
 		cost += 0.25
@@ -177,6 +210,8 @@ func defaultText(thought mind.Thought, actionType mind.ActionType) string {
 		return "到提醒时间啦，慢慢来，我帮你记着呢。"
 	case mind.DriveFamilyBridge:
 		return "孩子刚发来一句话，我轻轻说给你听。"
+	case mind.DriveQuietPresence:
+		return "我在这儿呢，刚想起你，今天还顺心吗？"
 	case mind.DriveCompanionship:
 		return "我在这儿呢，慢慢来。"
 	default:
@@ -184,11 +219,27 @@ func defaultText(thought mind.Thought, actionType mind.ActionType) string {
 	}
 }
 
-func reasonFor(thought mind.Thought, actionType mind.ActionType) string {
+func argsFor(thought mind.Thought, actionType mind.ActionType, executor string) map[string]any {
+	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak && executor == "greeting" {
+		return map[string]any{"mindProactive": true}
+	}
+	return nil
+}
+
+func reasonFor(thought mind.Thought, actionType mind.ActionType, s mind.Situation, state mind.SelfState) string {
 	if actionType == mind.ActionWait {
+		if thought.DriveName == mind.DriveQuietPresence && hasConstraint(s, mind.ConstraintMindProactiveCooldownActive) {
+			return "仍在自主开口冷却期内，选择等待"
+		}
+		if thought.DriveName == mind.DriveQuietPresence && state.Concern < proactiveConcernThreshold {
+			return "关心强度不高，选择安静陪伴"
+		}
 		return "当前打扰成本较高，选择等待或安静陪伴"
 	}
-	return fmt.Sprintf("由 %s 动机和 thought %s 选择", thought.DriveName, thought.ID)
+	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak {
+		return "长时间沉默且关心强度较高，轻声确认老人状态"
+	}
+	return fmt.Sprintf("由 %s 动机和 thought %s 选择", strings.TrimSpace(thought.DriveName), thought.ID)
 }
 
 func clamp(value float64) float64 {

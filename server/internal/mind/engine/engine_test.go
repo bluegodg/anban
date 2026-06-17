@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -538,6 +539,94 @@ func TestTickIdleCreatesLongSilenceEventAndWaitAction(t *testing.T) {
 	}
 	if actions[0].Type != mind.ActionWait {
 		t.Fatalf("action = %+v, want wait", actions[0])
+	}
+}
+
+func TestTickIdleHighConcernSilenceProducesAutonomousGreetingSpeak(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{
+		DeviceID:      deviceID,
+		At:            at.Add(-time.Hour),
+		Concern:       0.82,
+		Warmth:        0.55,
+		Quietness:     0.20,
+		FamilyWeight:  0.60,
+		PetWeight:     0.25,
+		StewardWeight: 0.15,
+	}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+
+	actions, err := svc.TickIdle(ctx, deviceID, at)
+	if err != nil {
+		t.Fatalf("TickIdle: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	action := actions[0]
+	if action.Type != mind.ActionSpeak || action.Executor != "greeting" || action.Status != mind.ActionPending {
+		t.Fatalf("action = %+v, want pending greeting speak", action)
+	}
+	if action.Args["mindProactive"] != true {
+		t.Fatalf("Args = %+v, want mindProactive=true", action.Args)
+	}
+	if action.Text == "" {
+		t.Fatal("Text is empty, want deterministic gentle check-in")
+	}
+}
+
+func TestTickIdleAutonomousGreetingWaitsDuringCooldown(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{
+		DeviceID:      deviceID,
+		At:            at.Add(-time.Hour),
+		Concern:       0.85,
+		Warmth:        0.55,
+		Quietness:     0.20,
+		FamilyWeight:  0.60,
+		PetWeight:     0.25,
+		StewardWeight: 0.15,
+	}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+	if err := ms.AppendEvent(ctx, mind.Event{
+		ID:       "evt-last-autonomous-greeting",
+		DeviceID: deviceID,
+		Type:     mind.EventActionExecuted,
+		Source:   mind.SourceMind,
+		At:       at.Add(-20 * time.Minute),
+		Summary:  "上一轮自主问候已执行",
+		Payload: map[string]any{
+			"actionType":    string(mind.ActionSpeak),
+			"executor":      "greeting",
+			"status":        string(mind.ActionExecuted),
+			"mindProactive": true,
+		},
+	}); err != nil {
+		t.Fatalf("AppendEvent: %v", err)
+	}
+
+	actions, err := svc.TickIdle(ctx, deviceID, at)
+	if err != nil {
+		t.Fatalf("TickIdle: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	if actions[0].Type != mind.ActionWait || actions[0].Status != mind.ActionDeferred {
+		t.Fatalf("action = %+v, want deferred wait during cooldown", actions[0])
+	}
+	if !strings.Contains(actions[0].Reason, "冷却") {
+		t.Fatalf("Reason = %q, want cooldown reason", actions[0].Reason)
 	}
 }
 

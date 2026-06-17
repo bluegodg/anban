@@ -14,6 +14,13 @@ func Gate(action mind.Action, s mind.Situation, state mind.SelfState) mind.Actio
 		action.Status = mind.ActionPending
 		return action
 	case mind.ActionSpeak:
+		if s.TimeOfDay == "night" {
+			action.Status = mind.ActionSuppressed
+			if action.Reason == "" {
+				action.Reason = "夜间避免主动开口"
+			}
+			return action
+		}
 		if s.InteractionMode == "conversation" && action.Score < 0.85 {
 			action.Status = mind.ActionDeferred
 			if action.Reason == "" {

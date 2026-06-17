@@ -2,6 +2,7 @@ package behavior
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,6 +142,97 @@ func TestSelectTurnsNightSilenceIntoWait(t *testing.T) {
 	}
 	if got[0].Score <= 0 {
 		t.Fatalf("score = %.2f, want positive", got[0].Score)
+	}
+}
+
+func TestSelectTurnsHighConcernQuietPresenceIntoGreetingSpeak(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	got := Select(
+		mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "morning", InteractionMode: "idle"},
+		mind.SelfState{Concern: 0.82, Warmth: 0.55, FamilyWeight: 0.6, PetWeight: 0.25, StewardWeight: 0.15},
+		[]mind.Thought{{
+			ID:               "thought-silence",
+			DeviceID:         "dev-001",
+			At:               at,
+			DriveName:        mind.DriveQuietPresence,
+			Content:          "老人安静了一段时间",
+			Urgency:          0.52,
+			CareValue:        0.76,
+			InterruptionCost: 0.55,
+			Intimacy:         0.55,
+		}},
+	)
+	if len(got) != 1 {
+		t.Fatalf("actions = %+v, want 1", got)
+	}
+	action := got[0]
+	if action.Type != mind.ActionSpeak || action.Executor != "greeting" {
+		t.Fatalf("action = %+v, want greeting speak", action)
+	}
+	if action.Text == "" || action.Text == "我在呢。" {
+		t.Fatalf("Text = %q, want deterministic gentle check-in template", action.Text)
+	}
+	if action.Args["mindProactive"] != true {
+		t.Fatalf("Args = %+v, want mindProactive=true marker", action.Args)
+	}
+	if action.Score < 0.35 {
+		t.Fatalf("Score = %.2f, want high enough for expression gate", action.Score)
+	}
+}
+
+func TestSelectKeepsQuietPresenceWaitingWhenConcernLowOrCoolingDown(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	thought := mind.Thought{
+		ID:               "thought-silence",
+		DeviceID:         "dev-001",
+		At:               at,
+		DriveName:        mind.DriveQuietPresence,
+		Content:          "老人安静了一段时间",
+		Urgency:          0.40,
+		CareValue:        0.62,
+		InterruptionCost: 0.60,
+		Intimacy:         0.50,
+	}
+
+	tests := []struct {
+		name        string
+		situation   mind.Situation
+		state       mind.SelfState
+		wantReason  string
+		wantNoSpeak bool
+	}{
+		{
+			name:      "low concern waits",
+			situation: mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "morning", InteractionMode: "idle"},
+			state:     mind.SelfState{Concern: 0.35, Quietness: 0.60},
+		},
+		{
+			name: "cooldown waits even with high concern",
+			situation: mind.Situation{
+				DeviceID:        "dev-001",
+				At:              at,
+				TimeOfDay:       "morning",
+				InteractionMode: "idle",
+				Constraints:     []string{mind.ConstraintMindProactiveCooldownActive},
+			},
+			state:      mind.SelfState{Concern: 0.85, Quietness: 0.30},
+			wantReason: "冷却",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Select(tt.situation, tt.state, []mind.Thought{thought})
+			if len(got) != 1 {
+				t.Fatalf("actions = %+v, want 1", got)
+			}
+			if got[0].Type != mind.ActionWait || got[0].Executor != "mind" {
+				t.Fatalf("action = %+v, want wait/mind", got[0])
+			}
+			if tt.wantReason != "" && !strings.Contains(got[0].Reason, tt.wantReason) {
+				t.Fatalf("Reason = %q, want contain %q", got[0].Reason, tt.wantReason)
+			}
+		})
 	}
 }
 
