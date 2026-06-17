@@ -11,6 +11,13 @@
 - 边界：继续保持方案 C；xiaozhi 仍负责语音运行时、设备连接、打断、MCP 和对话历史，安伴负责为什么说、何时说、说什么和是否不说。
 - 验证：`go test ./...`
 
+### AnBan Mind 闭环强化
+
+- 文件：`server/internal/mind/engine/`、`server/internal/mind/selfstate/`、`server/internal/mind/store.go`、`server/internal/domains/reminder/`、`server/cmd/anban/`、`server/internal/config/`
+- 内容：动作执行结果回写为 `action_executed` 事件；Reflection 读取 `mind_feedback` 并反哺 SelfState；提醒确认进入 Mind；轮询 xiaozhi conversation history 并转为 `elder_spoke` / `assistant_spoke` 事件；SelfState 学习普通对话和动作执行状态；新增 `ANBAN_MIND_LOOP_INTERVAL`、`ANBAN_MIND_HISTORY_INTERVAL` 调节心智循环节奏。
+- 边界：继续保持 xiaozhi 冻结上游；普通对话感知通过 anban 主动轮询 `xiaozhiclient.GetHistory`，不引入 xiaozhi 到 anban 的反向推送；domains 仍不 import `internal/mind`。
+- 验证：`go test -count=1 ./...`
+
 ## 2026-06-15
 
 ### 子女端附加面板不阻断核心连接 RED 测试
