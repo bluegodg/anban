@@ -1,6 +1,7 @@
 package drives
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -51,6 +52,54 @@ func TestActivateDeduplicatesSourceEventIDsPerDrive(t *testing.T) {
 	}
 	if sources := sourceEventIDs(got, mind.DriveCare); !reflect.DeepEqual(sources, want) {
 		t.Fatalf("care SourceEventIDs = %+v, want %+v", sources, want)
+	}
+}
+
+func TestActivateDuplicateEventIDDoesNotInflateStrength(t *testing.T) {
+	single := Activate(
+		mind.Situation{DeviceID: "dev-001"},
+		mind.SelfState{},
+		[]mind.Event{{ID: "evt-1", Type: mind.EventReminderDue}},
+	)
+	duplicate := Activate(
+		mind.Situation{DeviceID: "dev-001"},
+		mind.SelfState{},
+		[]mind.Event{
+			{ID: "evt-1", Type: mind.EventReminderDue},
+			{ID: "evt-1", Type: mind.EventReminderDue},
+		},
+	)
+
+	if got, want := strength(duplicate, mind.DriveStewardship), strength(single, mind.DriveStewardship); got != want {
+		t.Fatalf("duplicate stewardship strength = %.2f, want single-event strength %.2f", got, want)
+	}
+	if got, want := strength(duplicate, mind.DriveCare), strength(single, mind.DriveCare); got != want {
+		t.Fatalf("duplicate care strength = %.2f, want single-event strength %.2f", got, want)
+	}
+	wantSources := []string{"evt-1"}
+	if sources := sourceEventIDs(duplicate, mind.DriveStewardship); !reflect.DeepEqual(sources, wantSources) {
+		t.Fatalf("stewardship SourceEventIDs = %+v, want %+v", sources, wantSources)
+	}
+	if sources := sourceEventIDs(duplicate, mind.DriveCare); !reflect.DeepEqual(sources, wantSources) {
+		t.Fatalf("care SourceEventIDs = %+v, want %+v", sources, wantSources)
+	}
+}
+
+func TestActivateClampsNaNStrengthsToZero(t *testing.T) {
+	got := Activate(
+		mind.Situation{DeviceID: "dev-001"},
+		mind.SelfState{Concern: math.NaN(), StewardWeight: math.NaN()},
+		[]mind.Event{{ID: "evt-1", Type: mind.EventReminderDue}},
+	)
+
+	for _, name := range []string{mind.DriveStewardship, mind.DriveCare} {
+		gotStrength := strength(got, name)
+		if math.IsNaN(gotStrength) {
+			t.Fatalf("%s strength is NaN; drives = %+v", name, got)
+		}
+		if gotStrength != 0 {
+			t.Fatalf("%s strength = %.2f, want 0", name, gotStrength)
+		}
 	}
 }
 

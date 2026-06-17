@@ -10,17 +10,17 @@ import (
 
 func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, events []mind.Event) []mind.Thought {
 	out := []mind.Thought{}
-	usedSourceIDs := make(map[string]map[string]bool)
+	usedThoughtBaseIDs := make(map[string]map[string]bool)
 	for i, event := range events {
 		switch event.Type {
 		case mind.EventLongSilence:
-			sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "long-silence", usedSourceIDs)
+			thoughtBaseID, sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "long-silence", usedThoughtBaseIDs)
 			driveName := mind.DriveCare
 			if driveStrength(drives, mind.DriveQuietPresence) >= driveStrength(drives, mind.DriveCare) {
 				driveName = mind.DriveQuietPresence
 			}
 			out = append(out, clampThought(mind.Thought{
-				ID:               fmt.Sprintf("thought-%s-long-silence", sourceID),
+				ID:               fmt.Sprintf("thought-%s-long-silence", thoughtBaseID),
 				DeviceID:         deviceID,
 				At:               at,
 				Content:          "老人安静了一段时间，先判断是否适合轻声关心，或者只安静陪着。",
@@ -35,9 +35,9 @@ func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, event
 				Status:           mind.ThoughtPending,
 			}))
 		case mind.EventChildMessageReceived:
-			sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "child-message", usedSourceIDs)
+			thoughtBaseID, sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "child-message", usedThoughtBaseIDs)
 			out = append(out, clampThought(mind.Thought{
-				ID:               fmt.Sprintf("thought-%s-child-message", sourceID),
+				ID:               fmt.Sprintf("thought-%s-child-message", thoughtBaseID),
 				DeviceID:         deviceID,
 				At:               at,
 				Content:          "子女发来了消息，需要找一个不打扰的时机带给老人。",
@@ -52,9 +52,9 @@ func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, event
 				Status:           mind.ThoughtPending,
 			}))
 		case mind.EventReminderDue:
-			sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "reminder", usedSourceIDs)
+			thoughtBaseID, sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "reminder", usedThoughtBaseIDs)
 			out = append(out, clampThought(mind.Thought{
-				ID:               fmt.Sprintf("thought-%s-reminder", sourceID),
+				ID:               fmt.Sprintf("thought-%s-reminder", thoughtBaseID),
 				DeviceID:         deviceID,
 				At:               at,
 				Content:          "提醒到期了，应该用家人式语气轻轻带到，而不是像命令。",
@@ -69,9 +69,9 @@ func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, event
 				Status:           mind.ThoughtPending,
 			}))
 		case mind.EventPresenceSeen:
-			sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "presence", usedSourceIDs)
+			thoughtBaseID, sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "presence", usedThoughtBaseIDs)
 			out = append(out, clampThought(mind.Thought{
-				ID:               fmt.Sprintf("thought-%s-presence", sourceID),
+				ID:               fmt.Sprintf("thought-%s-presence", thoughtBaseID),
 				DeviceID:         deviceID,
 				At:               at,
 				Content:          "老人出现了，可以轻轻保持存在感，也可以先观察不打扰。",
@@ -90,7 +90,7 @@ func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, event
 	return out
 }
 
-func normalizedEventIdentity(s mind.Situation, event mind.Event, index int, thoughtKind string, used map[string]map[string]bool) (string, string, time.Time) {
+func normalizedEventIdentity(s mind.Situation, event mind.Event, index int, thoughtKind string, used map[string]map[string]bool) (string, string, string, time.Time) {
 	deviceID := event.DeviceID
 	if deviceID == "" {
 		deviceID = s.DeviceID
@@ -101,29 +101,33 @@ func normalizedEventIdentity(s mind.Situation, event mind.Event, index int, thou
 	}
 
 	sourceID := event.ID
-	if sourceID == "" || sourceIDUsed(used, thoughtKind, sourceID) {
+	if sourceID == "" {
 		sourceID = fallbackSourceID(deviceID, event.Type, at, index)
-		for attempt := 1; sourceIDUsed(used, thoughtKind, sourceID); attempt++ {
-			sourceID = fmt.Sprintf("%s-%d", fallbackSourceID(deviceID, event.Type, at, index), attempt)
+	}
+	thoughtBaseID := sourceID
+	if thoughtBaseIDUsed(used, thoughtKind, thoughtBaseID) {
+		thoughtBaseID = fallbackSourceID(deviceID, event.Type, at, index)
+		for attempt := 1; thoughtBaseIDUsed(used, thoughtKind, thoughtBaseID); attempt++ {
+			thoughtBaseID = fmt.Sprintf("%s-%d", fallbackSourceID(deviceID, event.Type, at, index), attempt)
 		}
 	}
-	markSourceIDUsed(used, thoughtKind, sourceID)
-	return sourceID, deviceID, at
+	markThoughtBaseIDUsed(used, thoughtKind, thoughtBaseID)
+	return thoughtBaseID, sourceID, deviceID, at
 }
 
 func fallbackSourceID(deviceID string, eventType mind.EventType, at time.Time, index int) string {
 	return fmt.Sprintf("generated-%s-%s-%s-%d", deviceID, eventType, at.UTC().Format("20060102T150405.000000000Z"), index)
 }
 
-func sourceIDUsed(used map[string]map[string]bool, thoughtKind string, sourceID string) bool {
-	return used[thoughtKind] != nil && used[thoughtKind][sourceID]
+func thoughtBaseIDUsed(used map[string]map[string]bool, thoughtKind string, thoughtBaseID string) bool {
+	return used[thoughtKind] != nil && used[thoughtKind][thoughtBaseID]
 }
 
-func markSourceIDUsed(used map[string]map[string]bool, thoughtKind string, sourceID string) {
+func markThoughtBaseIDUsed(used map[string]map[string]bool, thoughtKind string, thoughtBaseID string) {
 	if used[thoughtKind] == nil {
 		used[thoughtKind] = make(map[string]bool)
 	}
-	used[thoughtKind][sourceID] = true
+	used[thoughtKind][thoughtBaseID] = true
 }
 
 func clampThought(thought mind.Thought) mind.Thought {

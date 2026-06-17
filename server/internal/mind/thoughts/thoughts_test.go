@@ -3,7 +3,6 @@ package thoughts
 import (
 	"math"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -47,24 +46,39 @@ func TestGenerateChildMessageThoughtUsesFamilyBridge(t *testing.T) {
 
 func TestGenerateNormalizesMissingEventIdentityFromSituation(t *testing.T) {
 	at := time.Date(2026, 6, 16, 9, 30, 0, 0, time.UTC)
+	input := []mind.Event{{Type: mind.EventReminderDue}}
 	got := Generate(
 		mind.Situation{DeviceID: "dev-001", At: at},
 		mind.SelfState{},
 		nil,
-		[]mind.Event{{Type: mind.EventReminderDue}},
+		input,
+	)
+	gotAgain := Generate(
+		mind.Situation{DeviceID: "dev-001", At: at},
+		mind.SelfState{},
+		nil,
+		input,
 	)
 	if len(got) != 1 {
 		t.Fatalf("thoughts = %+v, want 1", got)
 	}
 	thought := got[0]
-	if thought.ID == "" || thought.ID == "thought--reminder" {
-		t.Fatalf("ID = %q, want normalized non-empty ID", thought.ID)
+	wantSource := "generated-dev-001-reminder_due-20260616T093000.000000000Z-0"
+	wantID := "thought-generated-dev-001-reminder_due-20260616T093000.000000000Z-0-reminder"
+	if thought.ID != wantID {
+		t.Fatalf("ID = %q, want %q", thought.ID, wantID)
 	}
-	if len(thought.SourceEventIDs) != 1 || thought.SourceEventIDs[0] == "" {
-		t.Fatalf("SourceEventIDs = %+v, want one normalized non-empty ID", thought.SourceEventIDs)
+	if !reflect.DeepEqual(thought.SourceEventIDs, []string{wantSource}) {
+		t.Fatalf("SourceEventIDs = %+v, want [%q]", thought.SourceEventIDs, wantSource)
 	}
-	if !strings.Contains(thought.ID, thought.SourceEventIDs[0]) {
-		t.Fatalf("ID = %q, SourceEventIDs = %+v, want thought ID to use normalized source ID", thought.ID, thought.SourceEventIDs)
+	if len(gotAgain) != 1 {
+		t.Fatalf("second thoughts = %+v, want 1", gotAgain)
+	}
+	if gotAgain[0].ID != thought.ID {
+		t.Fatalf("second ID = %q, want deterministic ID %q", gotAgain[0].ID, thought.ID)
+	}
+	if !reflect.DeepEqual(gotAgain[0].SourceEventIDs, thought.SourceEventIDs) {
+		t.Fatalf("second SourceEventIDs = %+v, want deterministic source IDs %+v", gotAgain[0].SourceEventIDs, thought.SourceEventIDs)
 	}
 	if thought.DeviceID != "dev-001" {
 		t.Fatalf("DeviceID = %q, want situation device", thought.DeviceID)
@@ -97,8 +111,41 @@ func TestGenerateDuplicateEventIDsOfSameTypeGetUniqueThoughtIDs(t *testing.T) {
 	if got[1].ID == got[0].ID {
 		t.Fatalf("duplicate thought IDs: %+v", got)
 	}
-	if got[1].SourceEventIDs[0] == "evt-1" {
-		t.Fatalf("second SourceEventIDs = %+v, want fallback for duplicate event ID", got[1].SourceEventIDs)
+	if got[1].SourceEventIDs[0] != "evt-1" {
+		t.Fatalf("second SourceEventIDs = %+v, want raw duplicate event ID", got[1].SourceEventIDs)
+	}
+}
+
+func TestGenerateEmptyEventIDsUseIndexInFallbackIdentity(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 30, 0, 0, time.UTC)
+	got := Generate(
+		mind.Situation{DeviceID: "dev-001", At: at.Add(time.Hour)},
+		mind.SelfState{},
+		nil,
+		[]mind.Event{
+			{DeviceID: "dev-event", Type: mind.EventReminderDue, At: at},
+			{DeviceID: "dev-event", Type: mind.EventReminderDue, At: at},
+		},
+	)
+	if len(got) != 2 {
+		t.Fatalf("thoughts = %+v, want 2", got)
+	}
+
+	wantSources := []string{
+		"generated-dev-event-reminder_due-20260616T093000.000000000Z-0",
+		"generated-dev-event-reminder_due-20260616T093000.000000000Z-1",
+	}
+	wantIDs := []string{
+		"thought-generated-dev-event-reminder_due-20260616T093000.000000000Z-0-reminder",
+		"thought-generated-dev-event-reminder_due-20260616T093000.000000000Z-1-reminder",
+	}
+	for i, thought := range got {
+		if thought.ID != wantIDs[i] {
+			t.Fatalf("thought[%d].ID = %q, want %q", i, thought.ID, wantIDs[i])
+		}
+		if !reflect.DeepEqual(thought.SourceEventIDs, []string{wantSources[i]}) {
+			t.Fatalf("thought[%d].SourceEventIDs = %+v, want [%q]", i, thought.SourceEventIDs, wantSources[i])
+		}
 	}
 }
 

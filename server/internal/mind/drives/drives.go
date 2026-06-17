@@ -56,6 +56,9 @@ func newAccumulator() *accumulator {
 }
 
 func (a *accumulator) add(name string, amount float64, reason string, eventID string) {
+	if eventID != "" && a.seenIDs[name] != nil && a.seenIDs[name][eventID] {
+		return
+	}
 	if _, ok := a.strengths[name]; !ok {
 		a.order = append(a.order, name)
 	}
@@ -90,5 +93,11 @@ func (a *accumulator) drives() []mind.Drive {
 }
 
 func clamp(value float64) float64 {
-	return math.Max(0, math.Min(1, value))
+	if math.IsNaN(value) || value < 0 {
+		return 0
+	}
+	if value > 1 {
+		return 1
+	}
+	return value
 }
