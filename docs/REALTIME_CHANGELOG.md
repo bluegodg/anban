@@ -3962,3 +3962,12 @@
 - 验证：32x32 PNG 直连 Ark 探针返回中文图片描述；经 AnBan `/api/device/vision` 的未标记 multipart 探针返回 `200 text/plain` 和中文描述，xiaozhi 日志显示 `resultLen=63`；探针后 `/api/vision/captures?deviceId=9c:13:9e:8b:af:28` 仍为 `[]`，证明普通语音看图透明转发没有被保存成安伴 capture。
 - 当前剩余阻塞：设备仍离线，AnBan 状态接口返回 `online=false`、`lastInteractionAt=2026-06-18T10:44:44.057Z`；因此还不能完成 `self.camera.take_photo -> 保存原图 -> childweb 展示` 的真机验收。
 - 边界：只改服务器运行配置，不改 xiaozhi 源码、不改固件、不记录真实 token/API key。
+
+### 23:55 看一眼·原图真机端到端验收通过
+
+- 文件：`docs/REALTIME_CHANGELOG.md`、`docs/decisions/README.md`、`docs/decisions/2026-06-18-vision-vlm-and-device-verification-blocker.md`
+- 远端状态：2026-06-18 23:52 +08:00，AnBan `/health` 正常；线上 `childweb` 页面包含 `visionLookButtonLabel`、`visionRecentList`、`visionResultOverlay`；设备 `9c:13:9e:8b:af:28` 在线；xiaozhi `vision_url` 指向安伴代理，视觉模型为 `doubao-seed-2-0-lite-260215`。
+- 真机验收：通过 `POST /api/vision/look` 触发真实设备 `self.camera.take_photo`，返回 `200`，capture `cap_133f50758b91b80a004466d3242c4691` 状态为 `succeeded`；日志显示设备上传 `camera.jpg` 到 `/api/device/vision`，xiaozhi VLM 返回 `resultLen=265`。
+- 原图验证：`GET /api/vision/captures/cap_133f50758b91b80a004466d3242c4691/image` 返回 `200 image/jpeg`，`Content-Length=29019`，图片 SHA-256 前缀 `7819909ff3e03cc7`；capture DTO 包含拍摄时间、AI 摘要、`presence=no_one` 和可鉴权 `imageUrl`。
+- 普通语音看图兼容：前一条未标记 multipart 探针已返回 xiaozhi 文本结果且未生成 AnBan capture，本条真机验收只保存带 `[[ANBAN_CAPTURE:...]]` 标记的手动“看一眼”图片。
+- 结论：方案 3.3 的 `childweb -> AnBan look -> xiaozhi manager MCP -> 设备拍照 -> AnBan 代理保存原图 -> xiaozhi VLM -> childweb 鉴权读图` 已端到端可用；未改 xiaozhi 源码或固件。

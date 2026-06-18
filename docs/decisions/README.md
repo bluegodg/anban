@@ -45,7 +45,7 @@
 
 - [x] [`2026-05-29-server-architecture.md`](./2026-05-29-server-architecture.md) —— 服务端架构选 **C**（安伴做独立第三服务 + 冻结 xiaozhi），经真代码深读证实。
 - [x] [`2026-06-16-scheme-c-repo-boundary-and-deployment.md`](./2026-06-16-scheme-c-repo-boundary-and-deployment.md) —— 设备到手后的仓库边界、两服务部署口径、Gate A/B/C/D 和可插拔验收。
-- [x] [`2026-06-18-vision-vlm-and-device-verification-blocker.md`](./2026-06-18-vision-vlm-and-device-verification-blocker.md) —— “看一眼·原图”当前阻塞在设备离线与 xiaozhi VLM 模型/endpoint 不可用，暂不宣布端到端完成。
+- [x] [`2026-06-18-vision-vlm-and-device-verification-blocker.md`](./2026-06-18-vision-vlm-and-device-verification-blocker.md) —— “看一眼·原图”采用方案 3.3；已修复远端 VLM 配置，并通过真机 `look -> 拍照 -> 保存原图 -> AI 摘要 -> 鉴权读图` 端到端验收。
 
 ## 当前待写的决策
 
