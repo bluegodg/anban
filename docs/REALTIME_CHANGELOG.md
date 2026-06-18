@@ -3954,3 +3954,11 @@
 - 目的：避免继续误用本地旧控制台或把 VLM 配置问题误判成 childweb 接线问题；按方案 3.3 保持代理路线，但不虚报“看一眼·原图”已完成。
 - 远端验证：2026-06-18 23:29 +08:00 SSH 到 `101.34.214.149`，AnBan `/health` 正常；`childweb` 页面包含 `visionRecentList` 与 `visionResultOverlay`；设备 `9c:13:9e:8b:af:28` 仍离线，`lastInteractionAt=2026-06-18T10:44:44.057Z`；capture 列表为空；xiaozhi 视觉日志显示 VLM 到达调用层但模型/endpoint 不可用，返回空识别结果。
 - 边界：不改 xiaozhi 源码、不改固件、不输出或记录任何真实入口令牌/API key；最终真机验收仍需设备上线并配置可用 VLM。
+
+### 23:45 看一眼·原图远端 VLM 配置修复
+
+- 文件：`docs/REALTIME_CHANGELOG.md`、`docs/decisions/2026-06-18-vision-vlm-and-device-verification-blocker.md`
+- 远端配置：备份 `/home/ubuntu/xiaozhi-esp32-server-golang/config/config.yaml` 为 `config.yaml.bak-vlm-model-20260618-234224`，将 `vision.vllm.doubao_vision.model_name` 从不可用的 `doubao-1.5-vision-lite-250315` 切到已用当前 Ark key 验证支持图片输入的 `doubao-seed-2-0-lite-260215`，并重启 `xiaozhi-main-server`。
+- 验证：32x32 PNG 直连 Ark 探针返回中文图片描述；经 AnBan `/api/device/vision` 的未标记 multipart 探针返回 `200 text/plain` 和中文描述，xiaozhi 日志显示 `resultLen=63`；探针后 `/api/vision/captures?deviceId=9c:13:9e:8b:af:28` 仍为 `[]`，证明普通语音看图透明转发没有被保存成安伴 capture。
+- 当前剩余阻塞：设备仍离线，AnBan 状态接口返回 `online=false`、`lastInteractionAt=2026-06-18T10:44:44.057Z`；因此还不能完成 `self.camera.take_photo -> 保存原图 -> childweb 展示` 的真机验收。
+- 边界：只改服务器运行配置，不改 xiaozhi 源码、不改固件、不记录真实 token/API key。
