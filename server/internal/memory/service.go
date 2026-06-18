@@ -90,9 +90,72 @@ func (s *Service) DistillDevice(ctx context.Context, deviceID string) (DistillRe
 	return result, nil
 }
 
+func (s *Service) ListFacts(ctx context.Context, deviceID string, limit int) ([]Fact, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return nil, ErrInvalidInput
+	}
+	return s.store.ListFactItems(ctx, deviceID, limit)
+}
+
+func (s *Service) AddManualFact(ctx context.Context, req FactRequest) (Fact, error) {
+	deviceID := strings.TrimSpace(req.DeviceID)
+	if deviceID == "" {
+		return Fact{}, ErrInvalidInput
+	}
+	fact, err := s.store.AddManualFact(ctx, deviceID, req.Text, time.Now().UTC())
+	if err != nil {
+		return Fact{}, err
+	}
+	if err := s.syncAllFacts(ctx, deviceID); err != nil {
+		return fact, err
+	}
+	return fact, nil
+}
+
+func (s *Service) UpdateFact(ctx context.Context, deviceID string, factID uint, req FactRequest) (Fact, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		deviceID = strings.TrimSpace(req.DeviceID)
+	}
+	if deviceID == "" {
+		return Fact{}, ErrInvalidInput
+	}
+	fact, err := s.store.UpdateFact(ctx, deviceID, factID, req.Text)
+	if err != nil {
+		return Fact{}, err
+	}
+	if err := s.syncAllFacts(ctx, deviceID); err != nil {
+		return fact, err
+	}
+	return fact, nil
+}
+
+func (s *Service) DeleteFact(ctx context.Context, deviceID string, factID uint) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return ErrInvalidInput
+	}
+	if err := s.store.DeleteFact(ctx, deviceID, factID); err != nil {
+		return err
+	}
+	return s.syncAllFacts(ctx, deviceID)
+}
+
 func (s *Service) syncFacts(ctx context.Context, deviceID string, facts []string) error {
-	if s.syncer == nil || len(facts) == 0 {
+	if s.syncer == nil {
 		return nil
+	}
+	return s.syncer.SyncMemoryFacts(ctx, deviceID, facts)
+}
+
+func (s *Service) syncAllFacts(ctx context.Context, deviceID string) error {
+	if s.syncer == nil {
+		return nil
+	}
+	facts, err := s.store.ListFacts(ctx, deviceID, s.opts.MaxFacts)
+	if err != nil {
+		return err
 	}
 	return s.syncer.SyncMemoryFacts(ctx, deviceID, facts)
 }

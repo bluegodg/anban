@@ -6,16 +6,20 @@ import (
 	"time"
 )
 
-var ErrInvalidInput = errors.New("memory: invalid input")
+var (
+	ErrInvalidInput = errors.New("memory: invalid input")
+	ErrNotFound     = errors.New("memory: not found")
+)
 
 type Fact struct {
-	ID        uint      `gorm:"primaryKey"`
-	DeviceID  string    `gorm:"size:64;not null;index;uniqueIndex:idx_memory_fact_device_hash"`
-	Hash      string    `gorm:"size:64;not null;uniqueIndex:idx_memory_fact_device_hash"`
-	Text      string    `gorm:"size:240;not null"`
-	SourceAt  time.Time `gorm:"index"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uint      `json:"factId" gorm:"primaryKey"`
+	DeviceID  string    `json:"deviceId" gorm:"size:64;not null;index;uniqueIndex:idx_memory_fact_device_hash"`
+	Hash      string    `json:"-" gorm:"size:64;not null;uniqueIndex:idx_memory_fact_device_hash"`
+	Text      string    `json:"text" gorm:"size:240;not null"`
+	Source    string    `json:"source" gorm:"size:32;not null;default:dialogue"`
+	SourceAt  time.Time `json:"sourceAt" gorm:"index"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Options struct {
@@ -33,4 +37,9 @@ type DistillResult struct {
 
 type PromptSyncer interface {
 	SyncMemoryFacts(ctx context.Context, deviceID string, facts []string) error
+}
+
+type FactRequest struct {
+	DeviceID string `json:"deviceId"`
+	Text     string `json:"text"`
 }

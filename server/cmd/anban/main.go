@@ -139,6 +139,7 @@ func main() {
 		log.Printf("memory distill disabled: ANBAN_LLM_BASE_URL/API_KEY/MODEL 未完整配置，保持只画像注入")
 	}
 	memoryService := memory.NewService(memoryStore, xc, factExtractor, profileService, memory.Options{})
+	memoryHandler := memory.NewHandler(memoryService)
 	if factExtractor != nil && cfg.MemoryDistillCron != "" {
 		if _, err := sch.RegisterCron(cfg.MemoryDistillCron, func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -209,6 +210,7 @@ func main() {
 		ReminderRoutes:       reminderHandler,
 		StatusRoutes:         statusHandler,
 		ProfileRoutes:        profileHandler,
+		MemoryRoutes:         memoryHandler,
 		VisionRoutes:         visionHandler,
 		TimelineRoutes:       timelineHandler,
 	})

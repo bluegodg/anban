@@ -515,6 +515,9 @@ function applyBindingState() {
   document.querySelectorAll('a[href="#family-edit"]').forEach(function(profileEdit) {
     profileEdit.style.display = admin ? '' : 'none';
   });
+  document.querySelectorAll('.memory-admin-control').forEach(function(memoryControl) {
+    memoryControl.style.display = admin ? '' : 'none';
+  });
   renderAccountSettings();
 }
 
@@ -1839,6 +1842,7 @@ async function initFamily() {
   document.getElementById('profileName').textContent = profile.name || '妈妈';
   document.getElementById('profileSubtitle').innerHTML = (profile.age || 72) + '岁 · ' + (profile.livingSituation || '与爸爸同住') + ' · ' + (profile.occupation || '退休教师');
   document.getElementById('aiPortraitText').textContent = profile.aiPortrait || defaultProfile.aiPortrait;
+  var isAdmin = !isAccountMode() || (anbanSession.binding && anbanSession.binding.role === 'admin');
 
   var hobbyContainer = document.getElementById('hobbyTags');
   if (hobbyContainer) {
@@ -1900,6 +1904,103 @@ async function initFamily() {
   if (timeEl) {
     timeEl.textContent = 'AI 认知画像更新于 ' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
   }
+
+  async function loadMemoryFacts() {
+    var list = document.getElementById('memoryFacts');
+    if (list) list.innerHTML = '<div class="font-body-md text-body-md text-text-secondary">正在读取记忆…</div>';
+    try {
+      var payload = await anbanClient.listMemoryFacts({ deviceId: anbanConfig.deviceId, limit: 20 });
+      renderMemoryFacts(Array.isArray(payload.facts) ? payload.facts : []);
+    } catch (error) {
+      if (list) list.innerHTML = '<div class="font-body-md text-body-md text-text-secondary">记忆读取失败</div>';
+    }
+  }
+
+  function renderMemoryFacts(facts) {
+    var list = document.getElementById('memoryFacts');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!facts.length) {
+      var empty = document.createElement('div');
+      empty.className = 'font-body-md text-body-md text-text-secondary';
+      empty.textContent = '暂无专属记忆';
+      list.appendChild(empty);
+      return;
+    }
+    facts.forEach(function(fact) {
+      var item = document.createElement('div');
+      item.className = 'bg-background-cream rounded-xl px-4 py-3 flex items-start gap-2.5';
+      var text = document.createElement('p');
+      text.className = 'font-body-md text-body-md text-on-surface-variant leading-relaxed flex-1';
+      text.textContent = fact.text || '';
+      item.appendChild(text);
+      if (isAdmin) {
+        var edit = document.createElement('button');
+        edit.className = 'memory-admin-control w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform flex-shrink-0';
+        edit.type = 'button';
+        edit.title = '编辑记忆';
+        edit.innerHTML = '<span class="material-symbols-outlined text-primary text-[18px]">edit</span>';
+        edit.addEventListener('click', async function() {
+          var next = window.prompt('编辑这条记忆', fact.text || '');
+          if (next === null) return;
+          next = next.trim();
+          if (!next) {
+            showToast('记忆内容不能为空');
+            return;
+          }
+          try {
+            await anbanClient.updateMemoryFact(fact.factId, { deviceId: anbanConfig.deviceId, text: next });
+            showToast('记忆已更新');
+            loadMemoryFacts();
+          } catch (error) {
+            showToast(error.message || '记忆更新失败');
+          }
+        });
+        item.appendChild(edit);
+
+        var remove = document.createElement('button');
+        remove.className = 'memory-admin-control w-8 h-8 flex items-center justify-center rounded-full active:scale-90 transition-transform flex-shrink-0';
+        remove.type = 'button';
+        remove.title = '删除记忆';
+        remove.innerHTML = '<span class="material-symbols-outlined text-danger text-[18px]">delete</span>';
+        remove.addEventListener('click', async function() {
+          if (!window.confirm('删除这条记忆？')) return;
+          try {
+            await anbanClient.deleteMemoryFact(fact.factId, { deviceId: anbanConfig.deviceId });
+            showToast('记忆已删除');
+            loadMemoryFacts();
+          } catch (error) {
+            showToast(error.message || '记忆删除失败');
+          }
+        });
+        item.appendChild(remove);
+      }
+      list.appendChild(item);
+    });
+  }
+
+  var memoryInput = document.getElementById('memoryInput');
+  var memoryAddButton = document.getElementById('memoryAddButton');
+  async function addMemoryFact() {
+    if (!isAdmin || !memoryInput) return;
+    var text = memoryInput.value.trim();
+    if (!text) return;
+    try {
+      await anbanClient.addMemoryFact({ deviceId: anbanConfig.deviceId, text: text });
+      memoryInput.value = '';
+      showToast('记忆已添加');
+      loadMemoryFacts();
+    } catch (error) {
+      showToast(error.message || '记忆添加失败');
+    }
+  }
+  if (memoryAddButton) memoryAddButton.onclick = addMemoryFact;
+  if (memoryInput) {
+    memoryInput.onkeydown = function(e) {
+      if (e.key === 'Enter') addMemoryFact();
+    };
+  }
+  loadMemoryFacts();
 }
 
 // ============================

@@ -20,6 +20,7 @@ type Deps struct {
 	ReminderRoutes       RouteRegistrar
 	StatusRoutes         RouteRegistrar
 	ProfileRoutes        RouteRegistrar
+	MemoryRoutes         RouteRegistrar
 	VisionRoutes         RouteRegistrar
 	AccountService       *account.Service
 	DeviceBindingService *devicebinding.Service
@@ -81,6 +82,14 @@ func NewRouter(d Deps) *gin.Engine {
 		deviceAPI.GET("/profile", notImpl)  // profile 域
 		deviceAPI.PUT("/profile", notImpl)  // profile 域
 		deviceAPI.POST("/profile", notImpl) // profile 域
+	}
+	if d.MemoryRoutes != nil {
+		d.MemoryRoutes.RegisterRoutes(deviceAPI)
+	} else {
+		deviceAPI.GET("/memory/facts", notImpl)        // memory 域
+		deviceAPI.POST("/memory/facts", notImpl)       // memory 域
+		deviceAPI.PUT("/memory/facts/:id", notImpl)    // memory 域
+		deviceAPI.DELETE("/memory/facts/:id", notImpl) // memory 域
 	}
 	if d.StatusRoutes != nil {
 		d.StatusRoutes.RegisterRoutes(deviceAPI)
@@ -208,12 +217,21 @@ func RequireBearerAccount(accountService *account.Service) gin.HandlerFunc {
 func RequireAdminForProfileWrites() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetString(sharedtypes.GinContextAuthMode) == "account" &&
-			(c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPost) &&
-			c.Request.URL.Path == "/api/profile" &&
+			isAdminOnlyWritePath(c.Request.Method, c.Request.URL.Path) &&
 			c.GetString(sharedtypes.GinContextDeviceRole) != string(devicebinding.RoleAdmin) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin_required", "message": "只有家庭管理员可以编辑家人画像"})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin_required", "message": "只有家庭管理员可以编辑家人资料和记忆"})
 			return
 		}
 		c.Next()
 	}
+}
+
+func isAdminOnlyWritePath(method, path string) bool {
+	if method != http.MethodPut && method != http.MethodPost && method != http.MethodDelete {
+		return false
+	}
+	if path == "/api/profile" {
+		return true
+	}
+	return path == "/api/memory/facts" || strings.HasPrefix(path, "/api/memory/facts/")
 }

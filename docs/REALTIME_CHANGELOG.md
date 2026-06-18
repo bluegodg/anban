@@ -2,6 +2,16 @@
 
 > 目的：记录本轮代码编写中每一批改动的文件、内容、目的、功能和验证方式。后续每次代码改动都要同步更新本文件。
 
+## 2026-06-19
+
+### 家人页专属记忆库管理
+
+- 文件：`server/internal/memory/`、`server/internal/childapi/`、`server/cmd/anban/`、`childweb/`、`web/api/client.js`
+- 内容：新增专属记忆分条管理接口 `GET/POST/PUT/DELETE /api/memory/facts`，手动新增、编辑、删除记忆后会重新读取本设备全部记忆并通过 `profile.SyncMemoryFacts` 重建 role prompt；子女端 `childweb` 家人页新增“专属记忆”区块，管理员可添加、编辑、删除，普通成员只读。
+- 目的：把原本隐藏在后台的记忆沉淀能力暴露为可管理的家人端功能，支持清理“王阿姨”等旧演示对象记忆，避免旧事实继续参与小智 agent prompt。
+- 边界：不改 xiaozhi 源码、不改固件、不绕过 `xiaozhiclient`；自动沉淀仍沿用 `memory.DistillDevice -> profile.SyncMemoryFacts`，本切片只补手动管理入口和空记忆同步防线。
+- 验证：`go test -count=1 ./internal/memory ./internal/childapi ./cmd/anban`；`node --test childweb/smoke.test.mjs`
+
 ## 2026-06-17
 
 ### AnBan Mind 统一心智层

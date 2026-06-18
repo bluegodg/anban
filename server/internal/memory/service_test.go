@@ -86,6 +86,49 @@ func TestServiceDistillDeviceWithoutExtractorDegradesWithoutHistoryCall(t *testi
 	}
 }
 
+func TestServiceManualFactsCanBeListedEditedDeletedAndSynced(t *testing.T) {
+	ctx := context.Background()
+	syncer := &fakePromptSyncer{}
+	svc, _ := newTestMemoryService(t, &memoryHistoryClient{}, nil, syncer)
+
+	fact, err := svc.AddManualFact(ctx, FactRequest{DeviceID: " dev-001 ", Text: " 蓝喜欢早饭后晒太阳。 "})
+	if err != nil {
+		t.Fatalf("AddManualFact: %v", err)
+	}
+	if fact.DeviceID != "dev-001" || fact.Source != "manual" || fact.Text != "蓝喜欢早饭后晒太阳。" {
+		t.Fatalf("fact = %+v, want normalized manual fact", fact)
+	}
+	if syncer.deviceID != "dev-001" || len(syncer.facts) != 1 || syncer.facts[0] != "蓝喜欢早饭后晒太阳。" {
+		t.Fatalf("prompt sync = %q/%+v, want one manual fact", syncer.deviceID, syncer.facts)
+	}
+
+	got, err := svc.ListFacts(ctx, "dev-001", 10)
+	if err != nil {
+		t.Fatalf("ListFacts: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != fact.ID {
+		t.Fatalf("facts = %+v, want added fact", got)
+	}
+
+	updated, err := svc.UpdateFact(ctx, "dev-001", fact.ID, FactRequest{Text: "蓝喜欢傍晚给花浇水。"})
+	if err != nil {
+		t.Fatalf("UpdateFact: %v", err)
+	}
+	if updated.Text != "蓝喜欢傍晚给花浇水。" {
+		t.Fatalf("updated text = %q", updated.Text)
+	}
+	if len(syncer.facts) != 1 || syncer.facts[0] != "蓝喜欢傍晚给花浇水。" {
+		t.Fatalf("prompt sync after update = %+v", syncer.facts)
+	}
+
+	if err := svc.DeleteFact(ctx, "dev-001", fact.ID); err != nil {
+		t.Fatalf("DeleteFact: %v", err)
+	}
+	if syncer.deviceID != "dev-001" || len(syncer.facts) != 0 {
+		t.Fatalf("prompt sync after delete = %q/%+v, want empty fact list for dev-001", syncer.deviceID, syncer.facts)
+	}
+}
+
 type fakeFactExtractor struct {
 	facts []string
 	got   llm.FactExtractionRequest

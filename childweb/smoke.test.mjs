@@ -255,6 +255,16 @@ test('P6 loads and saves profiles through the shared client', () => {
   assert.match(appJS, /anbanClient\.updateProfile\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*fields:/);
 });
 
+test('family page exposes editable memory library through the shared client', () => {
+  assert.match(indexHTML, /专属记忆/);
+  assert.match(indexHTML, /id="memoryFacts"/);
+  assert.match(indexHTML, /id="memoryInput"/);
+  assert.match(appJS, /anbanClient\.listMemoryFacts\(\{ deviceId: anbanConfig\.deviceId, limit: 20 \}\)/);
+  assert.match(appJS, /anbanClient\.addMemoryFact\(\{ deviceId: anbanConfig\.deviceId, text: text \}\)/);
+  assert.match(appJS, /anbanClient\.updateMemoryFact\(fact\.factId/);
+  assert.match(appJS, /anbanClient\.deleteMemoryFact\(fact\.factId/);
+});
+
 test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
   assert.doesNotMatch(indexHTML, /max-width:466px/);
   assert.doesNotMatch(indexHTML, /width:430px;height:932px/);

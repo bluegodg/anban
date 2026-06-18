@@ -178,6 +178,25 @@ export function createAnbanClient({ baseURL = '', accessCode = '', token = '', i
     updateProfile(payload) {
       return request('/api/profile', { method: 'PUT', body: payload, device: true });
     },
+    listMemoryFacts({ deviceId, limit } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'limit', limit);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/memory/facts${suffix}`, { device: true });
+    },
+    addMemoryFact(payload) {
+      return request('/api/memory/facts', { method: 'POST', body: payload, device: true });
+    },
+    updateMemoryFact(factId, payload) {
+      return request(`/api/memory/facts/${encodePathSegment(factId)}`, { method: 'PUT', body: payload, device: true });
+    },
+    deleteMemoryFact(factId, { deviceId } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/memory/facts/${encodePathSegment(factId)}${suffix}`, { method: 'DELETE', device: true });
+    },
   };
 }
 
