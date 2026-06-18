@@ -120,6 +120,10 @@ func (c *HTTPClient) GetDeviceStatus(ctx context.Context, deviceID string) (Devi
 }
 
 func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
+	prompt = strings.TrimSpace(prompt)
+	if containsCompanionContext(prompt) {
+		return ErrCompanionContextInStylePrompt
+	}
 	agentID, err := c.findAgentIDForDevice(ctx, deviceID)
 	if err != nil {
 		return err
@@ -133,8 +137,7 @@ func (c *HTTPClient) SetRolePrompt(ctx context.Context, deviceID, prompt string)
 	if err != nil {
 		return err
 	}
-	existingPrompt, _ := agent["custom_prompt"].(string)
-	agent["custom_prompt"] = mergeAnBanContextPrompt(existingPrompt, prompt)
+	agent["custom_prompt"] = prompt
 
 	updateBody, err := json.Marshal(agent)
 	if err != nil {
@@ -149,64 +152,23 @@ const (
 	anbanContextEndMarker   = "<!-- ANBAN_CONTEXT_END -->"
 )
 
-func mergeAnBanContextPrompt(existingPrompt, anbanContext string) string {
-	managedBlock := anbanManagedContextBlock(anbanContext)
-	existingPrompt = strings.TrimSpace(existingPrompt)
-	if existingPrompt == "" {
-		return managedBlock
-	}
-
-	begin := strings.Index(existingPrompt, anbanContextBeginMarker)
-	end := strings.Index(existingPrompt, anbanContextEndMarker)
-	if begin >= 0 && end >= begin {
-		end += len(anbanContextEndMarker)
-		parts := trimNonEmpty([]string{
-			existingPrompt[:begin],
-			managedBlock,
-			existingPrompt[end:],
-		})
-		return strings.Join(parts, "\n\n")
-	}
-
-	if looksLikeLegacyAnBanPrompt(existingPrompt) {
-		return managedBlock
-	}
-
-	return strings.Join([]string{existingPrompt, managedBlock}, "\n\n")
-}
-
-func anbanManagedContextBlock(anbanContext string) string {
-	anbanContext = strings.TrimSpace(anbanContext)
-	if anbanContext == "" {
-		return anbanContextBeginMarker + "\n" + anbanContextEndMarker
-	}
-	return anbanContextBeginMarker + "\n" + anbanContext + "\n" + anbanContextEndMarker
-}
-
-func looksLikeLegacyAnBanPrompt(prompt string) bool {
+func containsCompanionContext(prompt string) bool {
 	for _, marker := range []string{
-		"请优先使用下面的家庭画像",
+		anbanContextBeginMarker,
+		anbanContextEndMarker,
 		"老人本名：",
+		"陪伴对象姓名：",
 		"常用称呼：",
 		"近期记忆：",
+		"专属记忆：",
 		"心境：",
+		"心智上下文：",
 	} {
 		if strings.Contains(prompt, marker) {
 			return true
 		}
 	}
 	return false
-}
-
-func trimNonEmpty(values []string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			out = append(out, value)
-		}
-	}
-	return out
 }
 
 func (c *HTTPClient) findAgentIDForDevice(ctx context.Context, deviceID string) (string, error) {

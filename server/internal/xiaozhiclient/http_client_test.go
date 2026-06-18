@@ -313,7 +313,8 @@ func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.URL, "tok_abc")
-	err := c.SetRolePrompt(context.Background(), "dev-001", "老人本名：蓝\n喜好：养花")
+	stylePrompt := "你是安伴，语气温和、耐心，回答自然简短。"
+	err := c.SetRolePrompt(context.Background(), "dev-001", stylePrompt)
 	if err != nil {
 		t.Fatalf("SetRolePrompt: %v", err)
 	}
@@ -337,8 +338,8 @@ func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
 		}
 	}
 	gotPrompt, _ := gotBody["custom_prompt"].(string)
-	if !strings.Contains(gotPrompt, "老人本名：蓝") || !strings.Contains(gotPrompt, anbanContextBeginMarker) || !strings.Contains(gotPrompt, anbanContextEndMarker) {
-		t.Fatalf("body = %v, want updated custom_prompt", gotBody)
+	if gotPrompt != stylePrompt {
+		t.Fatalf("custom_prompt = %q, want style only %q", gotPrompt, stylePrompt)
 	}
 	if gotBody["name"] != "care-agent" || gotBody["voice"] != "voice-a" {
 		t.Fatalf("body = %v, want existing agent fields preserved", gotBody)
@@ -349,47 +350,40 @@ func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
 	}
 }
 
-func TestSetRolePromptPreservesStyleLayerAndReplacesManagedContext(t *testing.T) {
+func TestSetRolePromptReplacesLegacyManagedContextWithStyleOnly(t *testing.T) {
 	var gotBody map[string]any
 	srv := newRolePromptServer(t, "说话慢一点，语气亲近。\n\n"+anbanContextBeginMarker+"\n老人本名：王秀英\n近期记忆：王阿姨喜欢豫剧\n"+anbanContextEndMarker+"\n\n回答尽量简短。", &gotBody)
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.URL, "tok_abc")
-	if err := c.SetRolePrompt(context.Background(), "dev-001", "老人本名：蓝\n近期记忆：老人喜欢养花"); err != nil {
+	stylePrompt := "说话慢一点，语气亲近，回答尽量简短。"
+	if err := c.SetRolePrompt(context.Background(), "dev-001", stylePrompt); err != nil {
 		t.Fatalf("SetRolePrompt: %v", err)
 	}
 
 	gotPrompt, _ := gotBody["custom_prompt"].(string)
-	for _, want := range []string{"说话慢一点，语气亲近。", "回答尽量简短。", "老人本名：蓝", "近期记忆：老人喜欢养花"} {
-		if !strings.Contains(gotPrompt, want) {
-			t.Fatalf("custom_prompt = %q, want contains %q", gotPrompt, want)
-		}
+	if gotPrompt != stylePrompt {
+		t.Fatalf("custom_prompt = %q, want %q", gotPrompt, stylePrompt)
 	}
-	for _, stale := range []string{"王秀英", "王阿姨"} {
+	for _, stale := range []string{"ANBAN_CONTEXT", "王秀英", "王阿姨"} {
 		if strings.Contains(gotPrompt, stale) {
-			t.Fatalf("custom_prompt = %q, want stale managed context %q removed", gotPrompt, stale)
+			t.Fatalf("custom_prompt = %q, want companion context %q removed", gotPrompt, stale)
 		}
 	}
 }
 
-func TestSetRolePromptMigratesLegacyAnBanPromptWithoutKeepingStaleProfile(t *testing.T) {
+func TestSetRolePromptRejectsCompanionContext(t *testing.T) {
 	var gotBody map[string]any
-	srv := newRolePromptServer(t, "你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。\n老人本名：王秀英\n近期记忆：王阿姨喜欢豫剧", &gotBody)
+	srv := newRolePromptServer(t, "old style", &gotBody)
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.URL, "tok_abc")
-	if err := c.SetRolePrompt(context.Background(), "dev-001", "老人本名：蓝\n近期记忆：老人喜欢养花"); err != nil {
-		t.Fatalf("SetRolePrompt: %v", err)
+	err := c.SetRolePrompt(context.Background(), "dev-001", "陪伴对象姓名：蓝\n专属记忆：老人喜欢养花")
+	if !errors.Is(err, ErrCompanionContextInStylePrompt) {
+		t.Fatalf("err = %v, want ErrCompanionContextInStylePrompt", err)
 	}
-
-	gotPrompt, _ := gotBody["custom_prompt"].(string)
-	if !strings.Contains(gotPrompt, "老人本名：蓝") || !strings.Contains(gotPrompt, "近期记忆：老人喜欢养花") {
-		t.Fatalf("custom_prompt = %q, want current AnBan context", gotPrompt)
-	}
-	for _, stale := range []string{"王秀英", "王阿姨"} {
-		if strings.Contains(gotPrompt, stale) {
-			t.Fatalf("custom_prompt = %q, want legacy stale profile %q removed", gotPrompt, stale)
-		}
+	if gotBody != nil {
+		t.Fatalf("manager update body = %v, want no PUT", gotBody)
 	}
 }
 

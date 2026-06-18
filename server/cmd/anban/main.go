@@ -27,6 +27,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind/engine"
 	"github.com/bluegodg/anban/server/internal/mind/executors"
 	"github.com/bluegodg/anban/server/internal/mind/promptctx"
+	"github.com/bluegodg/anban/server/internal/openmemory"
 	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
@@ -120,7 +121,7 @@ func main() {
 	if err := profileStore.AutoMigrate(); err != nil {
 		log.Fatalf("profile 表迁移失败: %v", err)
 	}
-	profileService := profile.NewService(profileStore, xc)
+	profileService := profile.NewService(profileStore)
 	profileHandler := profile.NewHandler(profileService)
 	timelineService := timeline.NewService(messageService, xc, profileService)
 	timelineHandler := timeline.NewHandler(timelineService)
@@ -137,7 +138,7 @@ func main() {
 			Model:   cfg.LLM.Model,
 		})
 	} else {
-		log.Printf("memory distill disabled: ANBAN_LLM_BASE_URL/API_KEY/MODEL 未完整配置，保持只画像注入")
+		log.Printf("memory distill disabled: ANBAN_LLM_BASE_URL/API_KEY/MODEL 未完整配置，保留管理员手动记忆")
 	}
 	memoryService := memory.NewService(memoryStore, xc, factExtractor, profileService, memory.Options{})
 	memoryHandler := memory.NewHandler(memoryService)
@@ -216,6 +217,12 @@ func main() {
 		VisionRoutes:         visionHandler,
 		TimelineRoutes:       timelineHandler,
 	})
+	if cfg.MemoryProviderToken != "" {
+		openmemory.NewHandler(cfg.MemoryProviderToken, profileService).RegisterRoutes(r.Group("/api/openmem/v1"))
+		log.Printf("open memory provider enabled: /api/openmem/v1")
+	} else {
+		log.Printf("open memory provider disabled: ANBAN_MEMORY_PROVIDER_TOKEN 未配置")
+	}
 	visionHandler.RegisterDeviceRoutes(r.Group("/api"), cfg.DeviceVisionToken)
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)

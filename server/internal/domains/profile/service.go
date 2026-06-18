@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"strings"
-
-	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
 type Service struct {
 	store *Store
-	xc    xiaozhiclient.Client
 }
 
 const (
@@ -18,8 +15,8 @@ const (
 	maxProfilePromptLineRunes = 160
 )
 
-func NewService(store *Store, xc xiaozhiclient.Client) *Service {
-	return &Service{store: store, xc: xc}
+func NewService(store *Store) *Service {
+	return &Service{store: store}
 }
 
 func (s *Service) Update(ctx context.Context, req UpdateRequest) (Profile, error) {
@@ -42,9 +39,6 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (Profile, error
 	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
 	if err := s.store.Upsert(ctx, &current); err != nil {
 		return Profile{}, err
-	}
-	if err := s.xc.SetRolePrompt(ctx, deviceID, current.Prompt); err != nil {
-		return current, err
 	}
 	return current, nil
 }
@@ -77,20 +71,14 @@ func BuildPromptWithMemory(fields Fields, memoryFacts []string) string {
 }
 
 func BuildPromptWith(fields Fields, memoryFacts []string, mindContext string) string {
-	lines := []string{
-		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
-		"请优先使用下面的家庭画像理解老人，不要生硬复述画像内容，回答要自然、简短、关心当下。",
-		"老人问到子女或孙辈姓名、称呼、喜好、健康或忌口时，直接依据家庭画像回答名字或事实；不知道再说明。",
-		"当前会话中老人刚说过的事也要当作短期上下文，后续回答要自然承接，不要像第一次听到一样重复追问。",
-		"非老人明确要求，不要更改设备设置/音量/屏幕主题/字体；日常陪伴中不要主动调用设备设置工具。",
-	}
+	lines := []string{}
 	addLine := func(label, value string) {
 		if value != "" {
 			lines = appendPromptLine(lines, label+"："+value)
 		}
 	}
 
-	addLine("老人本名", fields.Name)
+	addLine("陪伴对象姓名", fields.Name)
 	addLine("常用称呼", fields.Nickname)
 	addLine("子女", strings.Join(fields.Children, "、"))
 	addLine("孙辈", strings.Join(fields.Grandchildren, "、"))
@@ -100,16 +88,28 @@ func BuildPromptWith(fields Fields, memoryFacts []string, mindContext string) st
 	addLine("忌口和禁忌", strings.Join(fields.Taboos, "、"))
 	if facts := trimStrings(memoryFacts); len(facts) > 0 {
 		appendMemoryFact := func(value string) {
-			lines = appendPromptLine(lines, "近期记忆："+value)
+			lines = appendPromptLine(lines, "专属记忆："+value)
 		}
 		for _, fact := range facts {
 			appendMemoryFact(fact)
 		}
 	}
 	if mindContext = strings.TrimSpace(mindContext); mindContext != "" {
-		lines = appendPromptLine(lines, "心境："+mindContext)
+		lines = appendPromptLine(lines, "心智上下文："+mindContext)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// BuildStylePrompt returns the manager-owned style layer. It deliberately
+// contains no companion profile, memory, or mind state.
+func BuildStylePrompt() string {
+	return strings.Join([]string{
+		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
+		"回答要自然、简短、关心当下，不要生硬复述背景资料。",
+		"问到家庭成员、喜好、健康或忌口时，依据系统提供的陪伴对象上下文回答；不知道再说明。",
+		"当前会话中老人刚说过的事要记住，后续回答要自然承接，不要像第一次听到一样重复追问。",
+		"非老人明确要求，不要更改设备设置、音量、屏幕主题或字体；日常陪伴中不要主动调用设备设置工具。",
+	}, "\n")
 }
 
 func (s *Service) SyncMemoryFacts(ctx context.Context, deviceID string, facts []string) error {
@@ -128,10 +128,7 @@ func (s *Service) SyncMemoryFacts(ctx context.Context, deviceID string, facts []
 	current.MemoryFacts = trimStrings(facts)
 	current.MindContext = strings.TrimSpace(current.MindContext)
 	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
-	if err := s.store.Upsert(ctx, &current); err != nil {
-		return err
-	}
-	return s.xc.SetRolePrompt(ctx, deviceID, current.Prompt)
+	return s.store.Upsert(ctx, &current)
 }
 
 func (s *Service) SyncMindContext(ctx context.Context, deviceID string, mindContext string) error {
@@ -150,10 +147,7 @@ func (s *Service) SyncMindContext(ctx context.Context, deviceID string, mindCont
 	current.MemoryFacts = trimStrings(current.MemoryFacts)
 	current.MindContext = strings.TrimSpace(mindContext)
 	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
-	if err := s.store.Upsert(ctx, &current); err != nil {
-		return err
-	}
-	return s.xc.SetRolePrompt(ctx, deviceID, current.Prompt)
+	return s.store.Upsert(ctx, &current)
 }
 
 func appendPromptLine(lines []string, line string) []string {

@@ -5,8 +5,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestFactExtractionPromptKeepsCorrectedIdentityOutOfOldAliases(t *testing.T) {
+	prompt := factExtractionSystemPrompt(20)
+	for _, want := range []string{"姓名或称呼被纠正", "只保留当前正确值", "被否定的旧姓名或旧称呼"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want identity correction rule %q", prompt, want)
+		}
+	}
+}
 
 func TestArkClientExtractFactsUsesChatCompletionsWithoutRealNetwork(t *testing.T) {
 	var gotAuth string

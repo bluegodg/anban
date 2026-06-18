@@ -136,6 +136,36 @@ func TestLoadParsesOptionalLLMConfig(t *testing.T) {
 	}
 }
 
+func TestLoadParsesOptionalMemoryProviderToken(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+	t.Setenv("ANBAN_MEMORY_PROVIDER_TOKEN", " 0123456789abcdef0123456789abcdef ")
+
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.MemoryProviderToken != "0123456789abcdef0123456789abcdef" {
+		t.Fatalf("MemoryProviderToken = %q, want trimmed token", c.MemoryProviderToken)
+	}
+}
+
+func TestLoadRejectsWeakMemoryProviderToken(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+
+	for _, token := range []string{"short-token", "<请填随机令牌>"} {
+		t.Run(token, func(t *testing.T) {
+			t.Setenv("ANBAN_MEMORY_PROVIDER_TOKEN", token)
+			if _, err := Load(); err == nil {
+				t.Fatalf("expected weak provider token %q to be rejected", token)
+			}
+		})
+	}
+}
+
 func TestLoadParsesAllowedOrigins(t *testing.T) {
 	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
 	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")

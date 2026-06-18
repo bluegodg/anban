@@ -104,7 +104,7 @@ func factExtractionSystemPrompt(limit int) string {
 	if limit <= 0 {
 		limit = 8
 	}
-	return fmt.Sprintf("你是安伴的记忆沉淀器。只输出 JSON 字符串数组，最多 %d 条。每条是可长期使用的老人事实，20-60 字，避免医疗诊断、避免重复。", limit)
+	return fmt.Sprintf("你是安伴的记忆沉淀器。只输出 JSON 字符串数组，最多 %d 条。每条是可长期使用的老人事实，20-60 字，避免医疗诊断、避免重复。若姓名或称呼被纠正，只保留当前正确值；不要记录被否定的旧姓名或旧称呼，也不要记录曾经叫错这件事。", limit)
 }
 
 func factExtractionUserPrompt(req FactExtractionRequest) string {

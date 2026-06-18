@@ -2,22 +2,20 @@ package profile
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 
 	"github.com/bluegodg/anban/server/internal/store"
-	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
 )
 
-func newTestService(t *testing.T, xc xiaozhiclient.Client) *Service {
+func newTestService(t *testing.T) *Service {
 	t.Helper()
-	svc, _ := newTestServiceWithStore(t, xc)
+	svc, _ := newTestServiceWithStore(t)
 	return svc
 }
 
-func newTestServiceWithStore(t *testing.T, xc xiaozhiclient.Client) (*Service, *Store) {
+func newTestServiceWithStore(t *testing.T) (*Service, *Store) {
 	t.Helper()
 
 	st, err := store.Open(":memory:")
@@ -28,12 +26,11 @@ func newTestServiceWithStore(t *testing.T, xc xiaozhiclient.Client) (*Service, *
 	if err := profileStore.AutoMigrate(); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
-	return NewService(profileStore, xc), profileStore
+	return NewService(profileStore), profileStore
 }
 
-func TestServiceUpdatePersistsProfileAndSyncsPrompt(t *testing.T) {
-	xc := &profileClient{}
-	svc := newTestService(t, xc)
+func TestServiceUpdatePersistsProfileContext(t *testing.T) {
+	svc := newTestService(t)
 	ctx := context.Background()
 
 	got, err := svc.Update(ctx, UpdateRequest{
@@ -55,12 +52,9 @@ func TestServiceUpdatePersistsProfileAndSyncsPrompt(t *testing.T) {
 	if got.DeviceID != "dev-001" || got.Fields.Name != "王秀英" {
 		t.Fatalf("profile = %+v, want trimmed device and stored fields", got)
 	}
-	if xc.gotDeviceID != "dev-001" {
-		t.Fatalf("SetRolePrompt deviceID = %q, want dev-001", xc.gotDeviceID)
-	}
 	for _, want := range []string{"王秀英", "小宝", "豫剧", "高血压"} {
-		if !strings.Contains(xc.gotPrompt, want) {
-			t.Fatalf("prompt = %q, want contains %q", xc.gotPrompt, want)
+		if !strings.Contains(got.Prompt, want) {
+			t.Fatalf("context = %q, want contains %q", got.Prompt, want)
 		}
 	}
 
@@ -73,8 +67,28 @@ func TestServiceUpdatePersistsProfileAndSyncsPrompt(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateBuildsCompanionContextWithoutStyleInstructions(t *testing.T) {
+	svc := newTestService(t)
+
+	got, err := svc.Update(context.Background(), UpdateRequest{
+		DeviceID: "dev-001",
+		Fields:   Fields{Name: "蓝", Hobbies: []string{"养花"}},
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.Prompt == "" || !strings.Contains(got.Prompt, "陪伴对象姓名：蓝") {
+		t.Fatalf("profile context = %q, want persisted companion context", got.Prompt)
+	}
+	for _, styleText := range []string{"你是安伴", "设备设置工具"} {
+		if strings.Contains(got.Prompt, styleText) {
+			t.Fatalf("profile context = %q, want no style text %q", got.Prompt, styleText)
+		}
+	}
+}
+
 func TestServiceUpdateRejectsMissingDeviceID(t *testing.T) {
-	svc := newTestService(t, &profileClient{})
+	svc := newTestService(t)
 
 	_, err := svc.Update(context.Background(), UpdateRequest{DeviceID: " "})
 	if !errors.Is(err, ErrInvalidInput) {
@@ -83,7 +97,7 @@ func TestServiceUpdateRejectsMissingDeviceID(t *testing.T) {
 }
 
 func TestServiceGetRejectsMissingDeviceID(t *testing.T) {
-	svc := newTestService(t, &profileClient{})
+	svc := newTestService(t)
 
 	_, err := svc.Get(context.Background(), " ")
 	if !errors.Is(err, ErrInvalidInput) {
@@ -91,9 +105,8 @@ func TestServiceGetRejectsMissingDeviceID(t *testing.T) {
 	}
 }
 
-func TestServiceUpdateReturnsSyncErrorAfterPersisting(t *testing.T) {
-	xc := &profileClient{err: errors.New("manager unavailable")}
-	svc := newTestService(t, xc)
+func TestServiceUpdateDoesNotDependOnManagerAvailability(t *testing.T) {
+	svc := newTestService(t)
 	ctx := context.Background()
 
 	got, err := svc.Update(ctx, UpdateRequest{
@@ -104,8 +117,8 @@ func TestServiceUpdateReturnsSyncErrorAfterPersisting(t *testing.T) {
 			Hobbies:  []string{"豫剧"},
 		},
 	})
-	if err == nil {
-		t.Fatal("expected sync error, got nil")
+	if err != nil {
+		t.Fatalf("Update: %v", err)
 	}
 	if got.DeviceID != "dev-001" || got.ID == 0 {
 		t.Fatalf("profile = %+v, want persisted profile returned with error", got)
@@ -113,7 +126,7 @@ func TestServiceUpdateReturnsSyncErrorAfterPersisting(t *testing.T) {
 
 	saved, getErr := svc.Get(ctx, "dev-001")
 	if getErr != nil {
-		t.Fatalf("Get after sync error: %v", getErr)
+		t.Fatalf("Get after update: %v", getErr)
 	}
 	if saved.Prompt == "" {
 		t.Fatal("saved prompt is empty")
@@ -137,14 +150,14 @@ func TestBuildPromptKeepsPromptWithinPRDBudget(t *testing.T) {
 	if got := len([]rune(prompt)); got > 1500 {
 		t.Fatalf("prompt length = %d runes, want <= 1500", got)
 	}
-	for _, want := range []string{"王秀英", "常用称呼：妈", "小明", "小宝", "豫剧"} {
+	for _, want := range []string{"陪伴对象姓名：王秀英", "常用称呼：妈", "小明", "小宝", "豫剧"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt = %q, want preserve high-value field %q", prompt, want)
 		}
 	}
 }
 
-func TestBuildPromptWithFieldsOnlyMatchesLegacyPromptExactly(t *testing.T) {
+func TestBuildPromptWithFieldsOnlyContainsCompanionDataOnly(t *testing.T) {
 	fields := Fields{
 		Name:          "王秀英",
 		Nickname:      "妈",
@@ -156,12 +169,7 @@ func TestBuildPromptWithFieldsOnlyMatchesLegacyPromptExactly(t *testing.T) {
 		Taboos:        []string{"甜食"},
 	}
 	want := strings.Join([]string{
-		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
-		"请优先使用下面的家庭画像理解老人，不要生硬复述画像内容，回答要自然、简短、关心当下。",
-		"老人问到子女或孙辈姓名、称呼、喜好、健康或忌口时，直接依据家庭画像回答名字或事实；不知道再说明。",
-		"当前会话中老人刚说过的事也要当作短期上下文，后续回答要自然承接，不要像第一次听到一样重复追问。",
-		"非老人明确要求，不要更改设备设置/音量/屏幕主题/字体；日常陪伴中不要主动调用设备设置工具。",
-		"老人本名：王秀英",
+		"陪伴对象姓名：王秀英",
 		"常用称呼：妈",
 		"子女：小明、小红",
 		"孙辈：小宝（7岁）",
@@ -172,10 +180,10 @@ func TestBuildPromptWithFieldsOnlyMatchesLegacyPromptExactly(t *testing.T) {
 	}, "\n")
 
 	if got := BuildPromptWith(fields, nil, ""); got != want {
-		t.Fatalf("BuildPromptWith fields-only changed legacy prompt:\n got %q\nwant %q", got, want)
+		t.Fatalf("BuildPromptWith fields-only context:\n got %q\nwant %q", got, want)
 	}
 	if got := BuildPrompt(fields); got != want {
-		t.Fatalf("BuildPrompt changed legacy prompt:\n got %q\nwant %q", got, want)
+		t.Fatalf("BuildPrompt context:\n got %q\nwant %q", got, want)
 	}
 }
 
@@ -195,7 +203,7 @@ func TestBuildPromptWithMemoryFactsKeepsPromptWithinPRDBudget(t *testing.T) {
 	if got := len([]rune(prompt)); got > 1500 {
 		t.Fatalf("prompt length = %d runes, want <= 1500", got)
 	}
-	for _, want := range []string{"近期记忆", "早餐喝豆浆", "腰酸时想先坐一会儿", "王秀英"} {
+	for _, want := range []string{"专属记忆", "早餐喝豆浆", "腰酸时想先坐一会儿", "王秀英"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt = %q, want contains memory/profile fact %q", prompt, want)
 		}
@@ -216,7 +224,7 @@ func TestBuildPromptWithAllBlocksKeepsPromptWithinBudgetAndTruncatesMindContextF
 	if got := len([]rune(prompt)); got > 1500 {
 		t.Fatalf("prompt length = %d runes, want <= 1500", got)
 	}
-	for _, want := range []string{"王秀英", "小宝", "近期记忆：老人最近喜欢早餐喝豆浆", "心境："} {
+	for _, want := range []string{"王秀英", "小宝", "专属记忆：老人最近喜欢早餐喝豆浆", "心智上下文："} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt = %q, want contains %q", prompt, want)
 		}
@@ -227,8 +235,7 @@ func TestBuildPromptWithAllBlocksKeepsPromptWithinBudgetAndTruncatesMindContextF
 }
 
 func TestServiceUpdatePreservesMemoryFactsAndMindContext(t *testing.T) {
-	xc := &profileClient{}
-	svc, profileStore := newTestServiceWithStore(t, xc)
+	svc, profileStore := newTestServiceWithStore(t)
 	ctx := context.Background()
 	if err := profileStore.Upsert(ctx, &Profile{
 		DeviceID:    "dev-001",
@@ -253,16 +260,15 @@ func TestServiceUpdatePreservesMemoryFactsAndMindContext(t *testing.T) {
 	if len(got.MemoryFacts) != 1 || got.MindContext == "" {
 		t.Fatalf("profile = %+v, want preserved memory facts and mind context", got)
 	}
-	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心境：最近你较挂念老人"} {
-		if !strings.Contains(xc.gotPrompt, want) {
-			t.Fatalf("prompt = %q, want contains %q", xc.gotPrompt, want)
+	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心智上下文：最近你较挂念老人"} {
+		if !strings.Contains(got.Prompt, want) {
+			t.Fatalf("context = %q, want contains %q", got.Prompt, want)
 		}
 	}
 }
 
 func TestServiceSyncMemoryFactsPreservesFieldsAndMindContext(t *testing.T) {
-	xc := &profileClient{}
-	svc, profileStore := newTestServiceWithStore(t, xc)
+	svc, profileStore := newTestServiceWithStore(t)
 	ctx := context.Background()
 	if err := profileStore.Upsert(ctx, &Profile{
 		DeviceID:    "dev-001",
@@ -283,16 +289,15 @@ func TestServiceSyncMemoryFactsPreservesFieldsAndMindContext(t *testing.T) {
 	if len(saved.MemoryFacts) != 1 || saved.MindContext == "" {
 		t.Fatalf("saved profile = %+v, want memory facts and preserved mind context", saved)
 	}
-	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心境：最近你较挂念老人"} {
-		if !strings.Contains(xc.gotPrompt, want) {
-			t.Fatalf("prompt = %q, want contains %q", xc.gotPrompt, want)
+	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心智上下文：最近你较挂念老人"} {
+		if !strings.Contains(saved.Prompt, want) {
+			t.Fatalf("context = %q, want contains %q", saved.Prompt, want)
 		}
 	}
 }
 
 func TestServiceSyncMindContextPreservesFieldsAndMemoryFacts(t *testing.T) {
-	xc := &profileClient{}
-	svc, profileStore := newTestServiceWithStore(t, xc)
+	svc, profileStore := newTestServiceWithStore(t)
 	ctx := context.Background()
 	if err := profileStore.Upsert(ctx, &Profile{
 		DeviceID:    "dev-001",
@@ -313,26 +318,19 @@ func TestServiceSyncMindContextPreservesFieldsAndMemoryFacts(t *testing.T) {
 	if saved.MindContext == "" || len(saved.MemoryFacts) != 1 {
 		t.Fatalf("saved profile = %+v, want mind context and preserved memory facts", saved)
 	}
-	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心境：最近你较挂念老人"} {
-		if !strings.Contains(xc.gotPrompt, want) {
-			t.Fatalf("prompt = %q, want contains %q", xc.gotPrompt, want)
+	for _, want := range []string{"王秀英", "小宝", "早餐喝豆浆", "心智上下文：最近你较挂念老人"} {
+		if !strings.Contains(saved.Prompt, want) {
+			t.Fatalf("context = %q, want contains %q", saved.Prompt, want)
 		}
 	}
 }
 
-func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
-	prompt := BuildPrompt(Fields{
-		Name:          "王秀英",
-		Nickname:      "妈",
-		Children:      []string{"小明"},
-		Grandchildren: []string{"小宝（7岁）"},
-		Hobbies:       []string{"豫剧"},
-		Health:        "高血压",
-	})
+func TestBuildStylePromptGuidesFamilyProfileRecall(t *testing.T) {
+	prompt := BuildStylePrompt()
 
 	for _, want := range []string{
-		"问到子女或孙辈姓名",
-		"直接依据家庭画像回答名字",
+		"问到家庭成员",
+		"依据系统提供的陪伴对象上下文回答",
 		"不知道再说明",
 	} {
 		if !strings.Contains(prompt, want) {
@@ -341,8 +339,8 @@ func TestBuildPromptGuidesFamilyProfileRecall(t *testing.T) {
 	}
 }
 
-func TestBuildPromptGuidesCurrentConversationContinuity(t *testing.T) {
-	prompt := BuildPrompt(Fields{Nickname: "妈"})
+func TestBuildStylePromptGuidesCurrentConversationContinuity(t *testing.T) {
+	prompt := BuildStylePrompt()
 
 	for _, want := range []string{
 		"当前会话",
@@ -355,28 +353,11 @@ func TestBuildPromptGuidesCurrentConversationContinuity(t *testing.T) {
 	}
 }
 
-func TestBuildPromptGuardsDeviceSettingsUnlessElderAsks(t *testing.T) {
-	prompt := BuildPrompt(Fields{Nickname: "妈"})
+func TestBuildStylePromptGuardsDeviceSettingsUnlessElderAsks(t *testing.T) {
+	prompt := BuildStylePrompt()
 
-	want := "非老人明确要求，不要更改设备设置/音量/屏幕主题/字体"
+	want := "非老人明确要求，不要更改设备设置、音量、屏幕主题或字体"
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("prompt = %q, want device settings guard %q", prompt, want)
 	}
-}
-
-type profileClient struct {
-	xiaozhiclient.FakeClient
-	gotDeviceID string
-	gotPrompt   string
-	err         error
-}
-
-func (c *profileClient) SetRolePrompt(ctx context.Context, deviceID, prompt string) error {
-	c.gotDeviceID = deviceID
-	c.gotPrompt = prompt
-	return c.err
-}
-
-func (c *profileClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
-	return json.RawMessage(`{}`), nil
 }

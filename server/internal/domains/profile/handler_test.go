@@ -2,7 +2,6 @@ package profile
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +12,7 @@ import (
 
 func TestHandlerUpdateAndGetProfile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	svc := newTestService(t, &profileClient{})
+	svc := newTestService(t)
 	r := gin.New()
 	NewHandler(svc).RegisterRoutes(r.Group("/api"))
 
@@ -43,7 +42,7 @@ func TestHandlerUpdateAndGetProfile(t *testing.T) {
 
 func TestHandlerUpdateRejectsBadRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	svc := newTestService(t, &profileClient{})
+	svc := newTestService(t)
 	r := gin.New()
 	NewHandler(svc).RegisterRoutes(r.Group("/api"))
 
@@ -58,7 +57,7 @@ func TestHandlerUpdateRejectsBadRequests(t *testing.T) {
 
 func TestHandlerGetReturnsNotFoundWhenProfileMissing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	svc := newTestService(t, &profileClient{})
+	svc := newTestService(t)
 	r := gin.New()
 	NewHandler(svc).RegisterRoutes(r.Group("/api"))
 
@@ -70,9 +69,9 @@ func TestHandlerGetReturnsNotFoundWhenProfileMissing(t *testing.T) {
 	}
 }
 
-func TestHandlerUpdateReturnsBadGatewayWhenPromptSyncFails(t *testing.T) {
+func TestHandlerUpdateNoLongerDependsOnManagerPromptSync(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	svc := newTestService(t, &profileClient{err: errors.New("manager unavailable")})
+	svc := newTestService(t)
 	r := gin.New()
 	NewHandler(svc).RegisterRoutes(r.Group("/api"))
 
@@ -80,8 +79,8 @@ func TestHandlerUpdateReturnsBadGatewayWhenPromptSyncFails(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusBadGateway {
-		t.Fatalf("PUT /api/profile status = %d, want 502; body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("PUT /api/profile status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
 	if !strings.Contains(w.Body.String(), `"deviceId":"dev-001"`) {
 		t.Fatalf("body = %s, want persisted profile payload", w.Body.String())

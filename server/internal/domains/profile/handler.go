@@ -56,7 +56,7 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "画像同步失败", "profile": profile})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "画像保存失败", "profile": profile})
 		return
 	}
 

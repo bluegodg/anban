@@ -4,6 +4,14 @@
 
 ## 2026-06-19
 
+### 家人上下文迁出 manager 风格提示词
+
+- 文件：`server/internal/{openmemory,config,xiaozhiclient}/`、`server/internal/domains/profile/`、`server/cmd/anban/main.go`、`.env.example`、`docs/capabilities/family-profile-memory-mind.md`
+- 内容：新增带独立 Bearer token 的 MemOS 兼容读取口 `/api/openmem/v1/*`，把陪伴对象资料、专属记忆和 Mind 上下文从 manager `custom_prompt` 迁到 xiaozhi 长期记忆的每轮 `Search` 注入通道；profile 更新、记忆同步和心智同步只持久化 AnBan 数据，不再调用 `SetRolePrompt`。`SetRolePrompt` 改为纯风格整段更新，检测到陪伴对象标签或旧 `ANBAN_CONTEXT` 标记时拒绝写入；自动记忆提取新增身份纠正规则，只保留当前正确姓名/称呼，不再沉淀被否定的旧称呼或“曾叫错”事件。
+- 目的：真正落实“manager prompt=风格层、AnBan profile/memory/mind=个人上下文层”，避免“蓝”更新后仍被旧“王阿姨/王秀英”提示词污染，同时保持两进程可拔插部署。
+- 边界：不改 xiaozhi 源码/固件、不新增第三个记忆进程；MemOS 写协议仅兼容应答，不接收会话数据，自动沉淀继续由 AnBan 主动轮询 manager history。provider token 可选，但配置后必须至少 32 字节且不能是示例占位值。旧“标记块写 custom_prompt”方案被本条取代。
+- 验证：TDD 红灯覆盖 provider 未实现、令牌配置缺失、profile 仍写 manager，以及身份纠正规则缺失；实现后 `go test -count=1 ./...` 全绿并完成 Linux 构建。已部署到 `101.34.214.149`：AnBan `/health` 正常，容器内 `/dev/tcp` 探针可鉴权读取“蓝”的资料/专属记忆/心智上下文且无“王秀英/王阿姨”，无令牌返回 401，空 query 返回空列表；manager agent 已为 `memory_mode=long` 且 `custom_prompt` 仅含风格文本，xiaozhi core 重启后 MQTT 已恢复。目标设备当时 `online=false`，真实设备问答仍待设备开机后验证，未标记完成。
+
 ### 家人页专属记忆库管理
 
 - 文件：`server/internal/memory/`、`server/internal/childapi/`、`server/cmd/anban/`、`childweb/`、`web/api/client.js`

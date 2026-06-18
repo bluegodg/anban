@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	ErrDeviceOffline      = errors.New("xiaozhi: device offline")
-	ErrMCPToolUnavailable = errors.New("xiaozhi: mcp tool unavailable")
-	ErrUpstreamTimeout    = errors.New("xiaozhi: upstream timeout")
+	ErrDeviceOffline                 = errors.New("xiaozhi: device offline")
+	ErrMCPToolUnavailable            = errors.New("xiaozhi: mcp tool unavailable")
+	ErrUpstreamTimeout               = errors.New("xiaozhi: upstream timeout")
+	ErrCompanionContextInStylePrompt = errors.New("xiaozhi: companion context must not be written to style prompt")
 )
 
 // Client 是各业务域唯一可见的南向接口（域只依赖它，不碰 HTTP 细节）。
@@ -23,7 +24,7 @@ type Client interface {
 	GetDeviceStatus(ctx context.Context, deviceID string) (DeviceStatus, error)
 	// GetHistory 读近 N 条对话历史（只读）。status / 子女端深度用。
 	GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error)
-	// SetRolePrompt 把家庭画像写成 xiaozhi 人设 prompt。profile 域用。
+	// SetRolePrompt 只更新 xiaozhi manager 的风格层 prompt，不接收陪伴对象资料、记忆或心智上下文。
 	SetRolePrompt(ctx context.Context, deviceID, prompt string) error
 	// CallDeviceMCPTool 远程调设备已注册的 MCP 工具（如拍照）。vision 域用。
 	CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error)

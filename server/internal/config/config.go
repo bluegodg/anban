@@ -24,6 +24,7 @@ type Config struct {
 	AllowedOrigins             []string // 子女端 Web 允许跨域访问的来源
 	LLM                        LLMConfig
 	MemoryDistillCron          string
+	MemoryProviderToken        string
 	VisionPresenceInterval     time.Duration
 	VisionMediaRoot            string
 	DeviceVisionToken          string
@@ -103,6 +104,7 @@ func Load() (Config, error) {
 		ListenAddr:                 envOr("ANBAN_LISTEN_ADDR", ":8090"),
 		AllowedOrigins:             splitCSV(envOr("ANBAN_ALLOWED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")),
 		MemoryDistillCron:          envOr("ANBAN_MEMORY_DISTILL_CRON", "*/30 * * * *"),
+		MemoryProviderToken:        trimEnv("ANBAN_MEMORY_PROVIDER_TOKEN"),
 		VisionPresenceInterval:     visionPresenceInterval,
 		VisionMediaRoot:            envOr("ANBAN_VISION_MEDIA_ROOT", "/home/ubuntu/anban/media"),
 		DeviceVisionToken:          trimEnv("ANBAN_DEVICE_VISION_TOKEN"),
@@ -133,6 +135,9 @@ func Load() (Config, error) {
 	}
 	if c.AccessCode == "" {
 		return Config{}, fmt.Errorf("config: ANBAN_ACCESS_CODE 必填")
+	}
+	if c.MemoryProviderToken != "" && (IsPlaceholderValue(c.MemoryProviderToken) || len([]byte(c.MemoryProviderToken)) < 32) {
+		return Config{}, fmt.Errorf("config: ANBAN_MEMORY_PROVIDER_TOKEN 必须至少 32 字节且不能使用示例占位值")
 	}
 	return c, nil
 }
