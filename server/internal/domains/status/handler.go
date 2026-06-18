@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,7 +25,7 @@ func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 }
 
 func (h *Handler) get(c *gin.Context) {
-	snapshot, err := h.service.Get(c.Request.Context(), GetRequest{DeviceID: c.Query("deviceId")})
+	snapshot, err := h.service.Get(c.Request.Context(), GetRequest{DeviceID: deviceIDFromContext(c, c.Query("deviceId"))})
 	if errors.Is(err, ErrInvalidInput) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 必填"})
 		return
@@ -45,7 +46,7 @@ func (h *Handler) history(c *gin.Context) {
 	}
 
 	history, err := h.service.GetHistory(c.Request.Context(), HistoryRequest{
-		DeviceID: c.Query("deviceId"),
+		DeviceID: deviceIDFromContext(c, c.Query("deviceId")),
 		Limit:    limit,
 	})
 	if errors.Is(err, ErrInvalidInput) {
@@ -70,4 +71,11 @@ func parseHistoryLimit(raw string) (int, error) {
 		return 0, ErrInvalidInput
 	}
 	return limit, nil
+}
+
+func deviceIDFromContext(c *gin.Context, fallback string) string {
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		return c.GetString(sharedtypes.GinContextDeviceID)
+	}
+	return fallback
 }

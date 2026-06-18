@@ -20,22 +20,30 @@ const (
 )
 
 type Message struct {
-	ID           uint       `gorm:"primaryKey" json:"messageId"`
-	DeviceID     string     `gorm:"index;not null" json:"deviceId"`
-	Text         string     `gorm:"size:100;not null" json:"text"`
-	FromName     string     `json:"fromName,omitempty"`
-	Status       Status     `gorm:"size:20;index;not null" json:"status"`
-	QueuedAt     time.Time  `gorm:"index;not null" json:"queuedAt"`
-	PlayedAt     *time.Time `json:"playedAt,omitempty"`
-	ErrorMessage string     `json:"errorMessage,omitempty"`
-	CreatedAt    time.Time  `json:"-"`
-	UpdatedAt    time.Time  `json:"-"`
+	ID                uint       `gorm:"primaryKey" json:"messageId"`
+	DeviceID          string     `gorm:"index;not null" json:"deviceId"`
+	Text              string     `gorm:"size:100;not null" json:"text"`
+	FromName          string     `json:"fromName,omitempty"`
+	SenderAccountID   *uint      `gorm:"index" json:"senderAccountId,omitempty"`
+	SenderDisplayName string     `gorm:"size:80" json:"senderDisplayName,omitempty"`
+	SenderRole        string     `gorm:"size:20" json:"senderRole,omitempty"`
+	SenderAvatarColor string     `gorm:"size:32" json:"senderAvatarColor,omitempty"`
+	Status            Status     `gorm:"size:20;index;not null" json:"status"`
+	QueuedAt          time.Time  `gorm:"index;not null" json:"queuedAt"`
+	PlayedAt          *time.Time `json:"playedAt,omitempty"`
+	ErrorMessage      string     `json:"errorMessage,omitempty"`
+	CreatedAt         time.Time  `json:"-"`
+	UpdatedAt         time.Time  `json:"-"`
 }
 
 type SendRequest struct {
-	DeviceID string `json:"deviceId"`
-	Text     string `json:"text"`
-	FromName string `json:"fromName"`
+	DeviceID          string `json:"deviceId"`
+	Text              string `json:"text"`
+	FromName          string `json:"fromName"`
+	SenderAccountID   *uint  `json:"-"`
+	SenderDisplayName string `json:"-"`
+	SenderRole        string `json:"-"`
+	SenderAvatarColor string `json:"-"`
 }
 
 type ListFilter struct {

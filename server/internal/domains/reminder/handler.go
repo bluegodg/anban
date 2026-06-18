@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +30,9 @@ func (h *Handler) create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 
 	rem, err := h.service.Create(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -48,6 +52,9 @@ func (h *Handler) list(c *gin.Context) {
 		DeviceID: c.Query("deviceId"),
 		Status:   Status(c.Query("status")),
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		filter.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 	reminders, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "提醒列表读取失败"})
@@ -64,7 +71,12 @@ func (h *Handler) cancel(c *gin.Context) {
 		return
 	}
 
-	rem, err := h.service.Cancel(c.Request.Context(), uint(id))
+	var rem Reminder
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		rem, err = h.service.CancelForDevice(c.Request.Context(), c.GetString(sharedtypes.GinContextDeviceID), uint(id))
+	} else {
+		rem, err = h.service.Cancel(c.Request.Context(), uint(id))
+	}
 	if errors.Is(err, ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "提醒不存在"})
 		return
@@ -94,7 +106,12 @@ func (h *Handler) ack(c *gin.Context) {
 		return
 	}
 
-	rem, err := h.service.Acknowledge(c.Request.Context(), uint(id), req)
+	var rem Reminder
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		rem, err = h.service.AcknowledgeForDevice(c.Request.Context(), c.GetString(sharedtypes.GinContextDeviceID), uint(id), req)
+	} else {
+		rem, err = h.service.Acknowledge(c.Request.Context(), uint(id), req)
+	}
 	if errors.Is(err, ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "提醒不存在"})
 		return

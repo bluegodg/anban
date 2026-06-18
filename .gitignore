@@ -17,3 +17,5 @@ server/.gotmp-go/
 .vscode/
 # codegraph 等本地工具
 .codegraph/
+# brainstorm 可视化 companion 临时文件
+.superpowers/

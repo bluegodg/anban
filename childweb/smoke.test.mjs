@@ -74,12 +74,15 @@ test('P2 formats login failures without hiding an invalid access code', async ()
   assert.equal(formatLoginError({ message: '服务繁忙', status: 503 }), '服务繁忙（503）');
 });
 
-test('P2 validates login through device status before persisting the session', async () => {
+test('P2 supports account login, session restore, and legacy demo login', async () => {
   const { DEFAULT_CONFIG } = await import('./config.js');
 
   assert.equal(DEFAULT_CONFIG.baseURL, 'http://127.0.0.1:8090');
+  assert.match(appJS, /candidateClient\.login\(\{ phone: phone, password: password \}\)/);
+  assert.match(appJS, /candidateClient\.getStatus\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /localStorage\.setItem\('anban_account_token', anbanSession\.token\)/);
+  assert.match(appJS, /await anbanClient\.getMe\(\)/);
   assert.match(appJS, /await candidateClient\.getStatus\(\{ deviceId: anbanConfig\.deviceId \}\)/);
-  assert.match(appJS, /updateAnbanConfig\(\{ accessCode \}\)/);
   assert.match(appJS, /localStorage\.setItem\('anban_session', '1'\)/);
 });
 
@@ -139,10 +142,11 @@ test('P4 merges backend conversation history and child messages into bubbles', a
   ]);
 });
 
-test('P4 loads and sends messages through the shared client', () => {
-  assert.match(appJS, /anbanClient\.listMessages\(\{ deviceId: anbanConfig\.deviceId \}\)/);
-  assert.match(appJS, /anbanClient\.getHistory\(\{ deviceId: anbanConfig\.deviceId, limit: 100 \}\)/);
-  assert.match(appJS, /anbanClient\.sendMessage\(\{[\s\S]*deviceId: anbanConfig\.deviceId,[\s\S]*fromName: '家人',[\s\S]*text:/);
+test('P4 loads a unified timeline and does not trust account-mode fromName', () => {
+  assert.match(appJS, /anbanClient\.getTimeline\(\{/);
+  assert.match(appJS, /if \(isAccountMode\(\)\) return anbanClient\.sendMessage\(\{ text: text \}\)/);
+  assert.match(appJS, /sourceLabel/);
+  assert.match(appJS, /statusLabels = \{ played: '已播报', pending: '待播报', failed: '发送失败' \}/);
 });
 
 test('P4 unsupported message attachments use the unified notice', () => {
@@ -294,10 +298,43 @@ test('P8 removes message and reminder mock storage paths', () => {
 });
 
 test('P8 routes every visible unsupported entry through notImplemented', () => {
-  for (const feature of ['忘记访问码', '新设备激活', '使用帮助', '联系客服', '环境状态']) {
+  for (const feature of ['使用帮助', '联系客服', '环境状态']) {
     assert.match(indexHTML, new RegExp(`notImplemented\\('${feature}'\\)`));
   }
   assert.match(appJS, /window\.editDetailTime = function\(\) \{\s*return notImplemented\('编辑提醒'\);/);
+});
+
+test('account role hides every profile edit entry from members', () => {
+  assert.match(appJS, /document\.querySelectorAll\('a\[href="#family-edit"\]'\)\.forEach/);
+  assert.match(appJS, /anbanSession\.binding\.role === 'admin'/);
+  assert.match(appJS, /只有家庭管理员可以编辑家人画像/);
+});
+
+test('account API client sends bearer auth and blocks unbound device fetches', async () => {
+  const { createAnbanClient, ApiError } = await import('./api/client.js');
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    return new Response(JSON.stringify({ account: { accountId: 1 }, binding: null }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+  const client = createAnbanClient({
+    baseURL: 'http://127.0.0.1:8090',
+    token: 'session-token',
+    isBound: false,
+    fetchImpl,
+  });
+
+  await client.getMe();
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer session-token');
+  await assert.rejects(client.getStatus(), (error) => {
+    assert.ok(error instanceof ApiError);
+    assert.equal(error.payload.error, 'device_not_bound');
+    return true;
+  });
+  assert.equal(calls.length, 1);
 });
 
 test('P8 documents startup, deployment, and supported scope', async () => {

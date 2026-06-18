@@ -1,4 +1,4 @@
-const CACHE_NAME = 'anban-childweb-v1';
+const CACHE_NAME = 'anban-childweb-v2';
 const APP_SHELL = [
   './',
   './index.html',

@@ -57,11 +57,18 @@ func (s *Service) Queue(ctx context.Context, req SendRequest) (Message, error) {
 
 	now := s.now().UTC()
 	msg := Message{
-		DeviceID: deviceID,
-		Text:     text,
-		FromName: strings.TrimSpace(req.FromName),
-		Status:   StatusPending,
-		QueuedAt: now,
+		DeviceID:          deviceID,
+		Text:              text,
+		FromName:          strings.TrimSpace(req.FromName),
+		SenderAccountID:   req.SenderAccountID,
+		SenderDisplayName: strings.TrimSpace(req.SenderDisplayName),
+		SenderRole:        strings.TrimSpace(req.SenderRole),
+		SenderAvatarColor: strings.TrimSpace(req.SenderAvatarColor),
+		Status:            StatusPending,
+		QueuedAt:          now,
+	}
+	if msg.SenderDisplayName != "" && msg.FromName == "" {
+		msg.FromName = msg.SenderDisplayName
 	}
 	if err := s.store.Create(ctx, &msg); err != nil {
 		return Message{}, err
@@ -97,8 +104,12 @@ func (s *Service) PlayQueued(ctx context.Context, id uint) (Message, error) {
 
 func (s *Service) play(ctx context.Context, msg *Message) error {
 	speakText := msg.Text
-	if msg.FromName != "" {
-		speakText = "刚才" + msg.FromName + "发来留言：" + msg.Text
+	sender := strings.TrimSpace(msg.SenderDisplayName)
+	if sender == "" {
+		sender = strings.TrimSpace(msg.FromName)
+	}
+	if sender != "" {
+		speakText = "刚才" + sender + "发来留言：" + msg.Text
 	}
 
 	injectCtx, cancel := withMessageInjectTimeout(ctx)
@@ -163,6 +174,41 @@ func (s *Service) ListMessageStatusSummaries(ctx context.Context, deviceID strin
 		})
 	}
 	return summaries, nil
+}
+
+func (s *Service) ListTimelineMessages(ctx context.Context, deviceID string, limit int) ([]sharedtypes.TimelineMessage, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return nil, ErrInvalidInput
+	}
+	messages, err := s.store.List(ctx, ListFilter{DeviceID: deviceID})
+	if err != nil {
+		return nil, err
+	}
+	if limit > 0 && len(messages) > limit {
+		messages = messages[:limit]
+	}
+	out := make([]sharedtypes.TimelineMessage, 0, len(messages))
+	for _, msg := range messages {
+		sender := strings.TrimSpace(msg.SenderDisplayName)
+		if sender == "" {
+			sender = strings.TrimSpace(msg.FromName)
+		}
+		if sender == "" {
+			sender = "家人"
+		}
+		out = append(out, sharedtypes.TimelineMessage{
+			MessageID:         msg.ID,
+			Text:              msg.Text,
+			SenderDisplayName: sender,
+			SenderRole:        msg.SenderRole,
+			AvatarColor:       msg.SenderAvatarColor,
+			Status:            string(msg.Status),
+			QueuedAt:          msg.QueuedAt,
+			PlayedAt:          msg.PlayedAt,
+		})
+	}
+	return out, nil
 }
 
 func trimAndLimit(text string, maxRunes int) string {

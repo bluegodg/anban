@@ -52,4 +52,10 @@ grep -oE "getElementById\(['\"][^'\"]+['\"]|querySelector(All)?\(['\"][^'\"]+['\
 5. 改了本文件或文件归属，知会对方。
 
 ## 4. 后端契约（接线方对接 anban 后端）
-`api/client.js` 的方法对应 anban 后端 `/api/*`（需 `X-Access-Code` 头）。后端接口变更属 anban 后端仓的事，不在本契约；本契约只管 childweb 内部 UI ⇄ 接线 的边界。
+`api/client.js` 的方法对应 anban 后端 `/api/*`：
+
+- 新账号路径使用 `Authorization: Bearer <token>`。
+- 未绑定账号的设备方法必须在 fetch 前短路。
+- 旧演示路径继续使用 `X-Access-Code` 和显式 `deviceId`。
+- 账号留言只发送 `text`，不可由前端提交可信 `fromName`。
+- 消息页读取 `/api/timeline`。

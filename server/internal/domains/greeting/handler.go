@@ -28,6 +28,9 @@ func (h *Handler) trigger(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 
 	greeting, err := h.service.Trigger(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -51,7 +54,7 @@ func (h *Handler) trigger(c *gin.Context) {
 }
 
 func (h *Handler) getSchedule(c *gin.Context) {
-	schedule, err := h.service.GetSchedule(c.Request.Context(), c.Query("deviceId"))
+	schedule, err := h.service.GetSchedule(c.Request.Context(), deviceIDFromContext(c, c.Query("deviceId")))
 	if errors.Is(err, ErrInvalidInput) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 必填"})
 		return
@@ -70,6 +73,9 @@ func (h *Handler) updateSchedule(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 
 	schedule, err := h.service.UpdateSchedule(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -82,4 +88,11 @@ func (h *Handler) updateSchedule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, schedule)
+}
+
+func deviceIDFromContext(c *gin.Context, fallback string) string {
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		return c.GetString(sharedtypes.GinContextDeviceID)
+	}
+	return fallback
 }

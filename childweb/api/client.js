@@ -1,11 +1,15 @@
-export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = fetch } = {}) {
+export function createAnbanClient({ baseURL = '', accessCode = '', token = '', isBound = true, fetchImpl = fetch } = {}) {
   const root = baseURL.trim().replace(/\/+$/, '');
   const childAccessCode = String(accessCode || '').trim();
+  const bearerToken = String(token || '').trim();
 
-  async function request(path, { method = 'GET', body } = {}) {
-    const headers = {
-      'X-Access-Code': childAccessCode,
-    };
+  async function request(path, { method = 'GET', body, device = false } = {}) {
+    if (device && bearerToken && !isBound) {
+      throw new ApiError('请先绑定安伴设备', 409, { error: 'device_not_bound' });
+    }
+    const headers = {};
+    if (bearerToken) headers.Authorization = `Bearer ${bearerToken}`;
+    else if (childAccessCode) headers['X-Access-Code'] = childAccessCode;
     const init = { method, headers };
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
@@ -23,71 +27,116 @@ export function createAnbanClient({ baseURL = '', accessCode = '', fetchImpl = f
   }
 
   return {
+    register(payload) {
+      return request('/api/auth/register', { method: 'POST', body: payload });
+    },
+    login(payload) {
+      return request('/api/auth/login', { method: 'POST', body: payload });
+    },
+    requestVerificationCode(payload) {
+      return request('/api/auth/verification-code', { method: 'POST', body: payload });
+    },
+    codeLogin(payload) {
+      return request('/api/auth/code-login', { method: 'POST', body: payload });
+    },
+    logout() {
+      return request('/api/auth/logout', { method: 'POST' });
+    },
+    getMe() {
+      return request('/api/me');
+    },
+    updateMe(payload) {
+      return request('/api/me', { method: 'PUT', body: payload });
+    },
+    bindDevice(payload) {
+      return request('/api/device-binding', { method: 'POST', body: payload });
+    },
+    unbindDevice() {
+      return request('/api/device-binding', { method: 'DELETE' });
+    },
+    resetBindingCode() {
+      return request('/api/device-binding/reset-code', { method: 'POST' });
+    },
+    listMembers() {
+      return request('/api/device-binding/members');
+    },
+    removeMember(accountId) {
+      return request(`/api/device-binding/members/${encodePathSegment(accountId)}`, { method: 'DELETE' });
+    },
+    getTimeline({ deviceId, limit, before, elderDisplayName } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'limit', limit);
+      setQueryParam(params, 'before', before);
+      setQueryParam(params, 'elderDisplayName', elderDisplayName);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/timeline${suffix}`, { device: true });
+    },
     sendMessage(payload) {
-      return request('/api/messages', { method: 'POST', body: payload });
+      return request('/api/messages', { method: 'POST', body: payload, device: true });
     },
     listMessages({ deviceId, status } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
       setQueryParam(params, 'status', status);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/messages${suffix}`);
+      return request(`/api/messages${suffix}`, { device: true });
     },
     triggerGreeting(payload) {
-      return request('/api/greetings/trigger', { method: 'POST', body: payload });
+      return request('/api/greetings/trigger', { method: 'POST', body: payload, device: true });
     },
     captureVision(payload) {
-      return request('/api/vision/capture', { method: 'POST', body: payload });
+      return request('/api/vision/capture', { method: 'POST', body: payload, device: true });
     },
     checkVisionPresence(payload) {
-      return request('/api/vision/check-presence', { method: 'POST', body: payload });
+      return request('/api/vision/check-presence', { method: 'POST', body: payload, device: true });
     },
     getGreetingSchedule({ deviceId } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/greetings/schedule${suffix}`);
+      return request(`/api/greetings/schedule${suffix}`, { device: true });
     },
     updateGreetingSchedule(payload) {
-      return request('/api/greetings/schedule', { method: 'PUT', body: payload });
+      return request('/api/greetings/schedule', { method: 'PUT', body: payload, device: true });
     },
     createReminder(payload) {
-      return request('/api/reminders', { method: 'POST', body: payload });
+      return request('/api/reminders', { method: 'POST', body: payload, device: true });
     },
     listReminders({ deviceId, status } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
       setQueryParam(params, 'status', status);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/reminders${suffix}`);
+      return request(`/api/reminders${suffix}`, { device: true });
     },
     deleteReminder(reminderId) {
-      return request(`/api/reminders/${encodePathSegment(reminderId)}`, { method: 'DELETE' });
+      return request(`/api/reminders/${encodePathSegment(reminderId)}`, { method: 'DELETE', device: true });
     },
     ackReminder(reminderId, payload) {
-      return request(`/api/reminders/${encodePathSegment(reminderId)}/ack`, { method: 'POST', body: payload });
+      return request(`/api/reminders/${encodePathSegment(reminderId)}/ack`, { method: 'POST', body: payload, device: true });
     },
     getStatus({ deviceId } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/device/status${suffix}`);
+      return request(`/api/device/status${suffix}`, { device: true });
     },
     getHistory({ deviceId, limit } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
       setQueryParam(params, 'limit', limit);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/device/history${suffix}`);
+      return request(`/api/device/history${suffix}`, { device: true });
     },
     getProfile({ deviceId } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
       const suffix = params.toString() ? `?${params}` : '';
-      return request(`/api/profile${suffix}`);
+      return request(`/api/profile${suffix}`, { device: true });
     },
     updateProfile(payload) {
-      return request('/api/profile', { method: 'PUT', body: payload });
+      return request('/api/profile', { method: 'PUT', body: payload, device: true });
     },
   };
 }

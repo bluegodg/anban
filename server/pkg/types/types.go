@@ -53,3 +53,32 @@ type MessageStatusSummary struct {
 type MessageStatusReader interface {
 	ListMessageStatusSummaries(ctx context.Context, deviceID string, limit int) ([]MessageStatusSummary, error)
 }
+
+type TimelineMessage struct {
+	MessageID         uint
+	Text              string
+	SenderDisplayName string
+	SenderRole        string
+	AvatarColor       string
+	Status            string
+	QueuedAt          time.Time
+	PlayedAt          *time.Time
+}
+
+type TimelineMessageReader interface {
+	ListTimelineMessages(ctx context.Context, deviceID string, limit int) ([]TimelineMessage, error)
+}
+
+type ElderDisplayNameReader interface {
+	GetElderDisplayName(ctx context.Context, deviceID string) (string, error)
+}
+
+const (
+	GinContextAuthMode          = "anban.authMode"
+	GinContextAccountID         = "anban.accountID"
+	GinContextDeviceID          = "anban.deviceID"
+	GinContextDeviceRole        = "anban.deviceRole"
+	GinContextSenderDisplayName = "anban.senderDisplayName"
+	GinContextSenderAvatarColor = "anban.senderAvatarColor"
+	GinContextElderDisplayName  = "anban.elderDisplayName"
+)

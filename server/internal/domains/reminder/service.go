@@ -131,11 +131,40 @@ func (s *Service) Cancel(ctx context.Context, id uint) (Reminder, error) {
 	return rem, nil
 }
 
+func (s *Service) CancelForDevice(ctx context.Context, deviceID string, id uint) (Reminder, error) {
+	if err := s.requireReminderDevice(ctx, deviceID, id); err != nil {
+		return Reminder{}, err
+	}
+	return s.Cancel(ctx, id)
+}
+
 func (s *Service) Acknowledge(ctx context.Context, id uint, req AckRequest) (Reminder, error) {
 	if id == 0 {
 		return Reminder{}, ErrInvalidInput
 	}
 	return s.acknowledge(ctx, id, normalizeAckKind(req.AckKind), true)
+}
+
+func (s *Service) AcknowledgeForDevice(ctx context.Context, deviceID string, id uint, req AckRequest) (Reminder, error) {
+	if err := s.requireReminderDevice(ctx, deviceID, id); err != nil {
+		return Reminder{}, err
+	}
+	return s.Acknowledge(ctx, id, req)
+}
+
+func (s *Service) requireReminderDevice(ctx context.Context, deviceID string, id uint) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" || id == 0 {
+		return ErrInvalidInput
+	}
+	rem, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rem.DeviceID != deviceID {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Service) PlayScheduled(ctx context.Context, id uint) (Reminder, error) {

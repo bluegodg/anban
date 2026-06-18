@@ -12,11 +12,14 @@ import (
 
 	"github.com/bluegodg/anban/server/internal/childapi"
 	"github.com/bluegodg/anban/server/internal/config"
+	"github.com/bluegodg/anban/server/internal/domains/account"
+	"github.com/bluegodg/anban/server/internal/domains/devicebinding"
 	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/message"
 	"github.com/bluegodg/anban/server/internal/domains/profile"
 	"github.com/bluegodg/anban/server/internal/domains/reminder"
 	"github.com/bluegodg/anban/server/internal/domains/status"
+	"github.com/bluegodg/anban/server/internal/domains/timeline"
 	"github.com/bluegodg/anban/server/internal/domains/vision"
 	"github.com/bluegodg/anban/server/internal/llm"
 	"github.com/bluegodg/anban/server/internal/memory"
@@ -47,6 +50,28 @@ func main() {
 	defer sch.Stop()
 
 	voiceGate := proactive.NewVoiceGate(10 * time.Minute)
+
+	accountStore := account.NewStore(st.DB)
+	if err := accountStore.AutoMigrate(); err != nil {
+		log.Fatalf("account 表迁移失败: %v", err)
+	}
+	accountService := account.NewService(accountStore, account.Options{
+		DevVerificationCode: cfg.DevVerificationCode,
+	})
+
+	deviceBindingStore := devicebinding.NewStore(st.DB)
+	if err := deviceBindingStore.AutoMigrate(); err != nil {
+		log.Fatalf("devicebinding 表迁移失败: %v", err)
+	}
+	deviceBindingService := devicebinding.NewService(deviceBindingStore, devicebinding.Options{})
+	if _, err := deviceBindingService.EnsureDevice(context.Background(), devicebinding.DeviceSeed{
+		DeviceID:         cfg.DemoDeviceID,
+		BindingCode:      cfg.DemoBindingCode,
+		DisplayName:      cfg.DemoDeviceDisplayName,
+		ElderDisplayName: cfg.DemoElderDisplayName,
+	}); err != nil {
+		log.Fatalf("demo 设备初始化失败: %v", err)
+	}
 
 	messageStore := message.NewStore(st.DB)
 	if err := messageStore.AutoMigrate(); err != nil {
@@ -96,6 +121,8 @@ func main() {
 	}
 	profileService := profile.NewService(profileStore, xc)
 	profileHandler := profile.NewHandler(profileService)
+	timelineService := timeline.NewService(messageService, xc, profileService)
+	timelineHandler := timeline.NewHandler(timelineService)
 
 	memoryStore := memory.NewStore(st.DB)
 	if err := memoryStore.AutoMigrate(); err != nil {
@@ -158,14 +185,17 @@ func main() {
 	startMindHistoryPoller(sch, cfg.MindHistoryInterval, profileStore, xc, mindEngine)
 
 	r := childapi.NewRouter(childapi.Deps{
-		AccessCode:     cfg.AccessCode,
-		AllowedOrigins: cfg.AllowedOrigins,
-		MessageRoutes:  messageHandler,
-		GreetingRoutes: greetingHandler,
-		ReminderRoutes: reminderHandler,
-		StatusRoutes:   statusHandler,
-		ProfileRoutes:  profileHandler,
-		VisionRoutes:   visionHandler,
+		AccessCode:           cfg.AccessCode,
+		AllowedOrigins:       cfg.AllowedOrigins,
+		AccountService:       accountService,
+		DeviceBindingService: deviceBindingService,
+		MessageRoutes:        messageHandler,
+		GreetingRoutes:       greetingHandler,
+		ReminderRoutes:       reminderHandler,
+		StatusRoutes:         statusHandler,
+		ProfileRoutes:        profileHandler,
+		VisionRoutes:         visionHandler,
+		TimelineRoutes:       timelineHandler,
 	})
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)

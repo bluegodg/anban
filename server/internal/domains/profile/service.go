@@ -57,6 +57,17 @@ func (s *Service) Get(ctx context.Context, deviceID string) (Profile, error) {
 	return s.store.Get(ctx, deviceID)
 }
 
+func (s *Service) GetElderDisplayName(ctx context.Context, deviceID string) (string, error) {
+	current, err := s.Get(ctx, deviceID)
+	if err != nil {
+		return "", err
+	}
+	if nickname := strings.TrimSpace(current.Fields.Nickname); nickname != "" {
+		return nickname, nil
+	}
+	return strings.TrimSpace(current.Fields.Name), nil
+}
+
 func BuildPrompt(fields Fields) string {
 	return BuildPromptWith(fields, nil, "")
 }

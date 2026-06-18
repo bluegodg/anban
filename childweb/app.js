@@ -19,7 +19,13 @@ import { notImplemented as notifyNotImplemented } from './not-implemented.js';
 const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
 
 var anbanConfig = loadConfig();
-var anbanClient = createAnbanClient(anbanConfig);
+var anbanSession = {
+  token: localStorage.getItem('anban_account_token') || '',
+  account: null,
+  binding: null,
+  authMode: localStorage.getItem('anban_auth_mode') || '',
+};
+var anbanClient = createRuntimeClient();
 
 window.anbanRuntime = {
   ApiError,
@@ -35,10 +41,68 @@ if ('serviceWorker' in navigator) {
 
 function updateAnbanConfig(patch) {
   anbanConfig = saveConfig({ ...anbanConfig, ...patch });
-  anbanClient = createAnbanClient(anbanConfig);
+  anbanClient = createRuntimeClient();
   window.anbanRuntime.config = anbanConfig;
   window.anbanRuntime.client = anbanClient;
   return anbanConfig;
+}
+
+function createRuntimeClient() {
+  return createAnbanClient({
+    ...anbanConfig,
+    token: anbanSession.token,
+    isBound: !anbanSession.token || Boolean(anbanSession.binding),
+  });
+}
+
+function setAccountSession(payload) {
+  anbanSession.token = payload && payload.token ? payload.token : '';
+  anbanSession.account = payload && payload.account ? payload.account : null;
+  anbanSession.binding = payload && payload.binding ? payload.binding : null;
+  anbanSession.authMode = anbanSession.token ? 'account' : '';
+  if (anbanSession.token) {
+    localStorage.setItem('anban_account_token', anbanSession.token);
+    localStorage.setItem('anban_auth_mode', 'account');
+    localStorage.setItem('anban_session', '1');
+  } else {
+    localStorage.removeItem('anban_account_token');
+  }
+  anbanClient = createRuntimeClient();
+  window.anbanRuntime.client = anbanClient;
+  applyBindingState();
+}
+
+async function restoreAccountSession() {
+  if (!anbanSession.token) return false;
+  anbanClient = createRuntimeClient();
+  try {
+    var me = await anbanClient.getMe();
+    anbanSession.account = me.account || null;
+    anbanSession.binding = me.binding || null;
+    anbanSession.authMode = 'account';
+    anbanClient = createRuntimeClient();
+    window.anbanRuntime.client = anbanClient;
+    return true;
+  } catch (error) {
+    setAccountSession(null);
+    localStorage.removeItem('anban_session');
+    return false;
+  }
+}
+
+function isAccountMode() {
+  return anbanSession.authMode === 'account' && Boolean(anbanSession.token);
+}
+
+function isDeviceBound() {
+  return !isAccountMode() || Boolean(anbanSession.binding);
+}
+
+function ensureDeviceBound() {
+  if (isDeviceBound()) return true;
+  openBindDevice();
+  showToast('请先绑定安伴设备');
+  return false;
 }
 
 function notImplemented(featureName) {
@@ -46,11 +110,9 @@ function notImplemented(featureName) {
 }
 
 function sendChildMessage(text) {
-  return anbanClient.sendMessage({
-    deviceId: anbanConfig.deviceId,
-    fromName: '家人',
-    text: text,
-  });
+  if (!ensureDeviceBound()) return Promise.reject(new ApiError('请先绑定安伴设备', 409, { error: 'device_not_bound' }));
+  if (isAccountMode()) return anbanClient.sendMessage({ text: text });
+  return anbanClient.sendMessage({ deviceId: anbanConfig.deviceId, fromName: '家人', text: text });
 }
 
 // ============================
@@ -85,7 +147,7 @@ function resetLoginUI() {
   var btn = document.getElementById('loginBtn');
   var btnText = document.getElementById('loginBtnText');
   var btnIcon = document.getElementById('loginBtnIcon');
-  var input = document.getElementById('accessCode');
+  var input = document.getElementById('loginPhone');
 
   if (btn) {
     btn.style.pointerEvents = '';
@@ -203,6 +265,12 @@ Object.assign(window, {
   navigateTo,
   notImplemented,
   showToast,
+  openBindDevice,
+  closeBindDevice,
+  submitDeviceBinding,
+  saveAccountProfile,
+  resetDeviceBindingCode,
+  unbindCurrentDevice,
   initLogin,
   initHome,
   initMessage,
@@ -218,6 +286,7 @@ window.addEventListener('hashchange', function() {
 });
 
 // Initial load
+await restoreAccountSession();
 var initialRoute = getRouteFromHash();
 if (initialRoute === 'login') {
   // If already logged in, skip to home
@@ -227,6 +296,7 @@ if (initialRoute === 'login') {
   }
 }
 showSection(initialRoute);
+applyBindingState();
 
 // Update status bar time to real time
 function updateStatusBarTime() {
@@ -267,15 +337,36 @@ document.addEventListener('touchend', function(e) {
 // initLogin
 // ============================
 function initLogin() {
+  var loginMode = 'password';
+  function setLoginMode(mode) {
+    loginMode = mode;
+    ['password', 'code', 'demo'].forEach(function(name) {
+      var panel = document.getElementById(name + 'LoginPanel');
+      var button = document.getElementById(name + 'LoginMode');
+      if (panel) panel.style.display = name === mode ? '' : 'none';
+      if (button) button.classList.toggle('active', name === mode);
+    });
+  }
+
+  async function finishAccountLogin(response) {
+    setAccountSession(response);
+    var me = await anbanClient.getMe();
+    anbanSession.account = me.account || response.account || null;
+    anbanSession.binding = me.binding || null;
+    anbanClient = createRuntimeClient();
+    window.anbanRuntime.client = anbanClient;
+    SPA.initialized = {};
+    navigateTo('home');
+    setTimeout(applyBindingState, 0);
+  }
+
   async function handleLogin() {
-    var input = document.getElementById('accessCode');
-    var accessCode = input.value.trim();
-    if (!accessCode) {
-      input.classList.add('border-danger');
-      input.style.animation = 'none';
-      input.offsetHeight;
-      input.style.animation = 'shake 0.3s ease';
-      setTimeout(function() { input.classList.remove('border-danger'); }, 500);
+    var phoneInput = document.getElementById('loginPhone');
+    var passwordInput = document.getElementById('loginPassword');
+    var phone = phoneInput.value.trim();
+    var password = passwordInput.value;
+    if (!phone || !password) {
+      showToast('请输入手机号和密码');
       return;
     }
     var btn = document.getElementById('loginBtn');
@@ -288,18 +379,10 @@ function initLogin() {
     btn.style.opacity = '0.85';
 
     try {
-      var candidateClient = createAnbanClient({
-        baseURL: anbanConfig.baseURL,
-        accessCode: accessCode,
-      });
-      await candidateClient.getStatus({ deviceId: anbanConfig.deviceId });
-      updateAnbanConfig({ accessCode });
-      localStorage.setItem('anban_session', '1');
-      navigateTo('home');
+      var candidateClient = createAnbanClient({ baseURL: anbanConfig.baseURL });
+      await finishAccountLogin(await candidateClient.login({ phone: phone, password: password }));
     } catch (error) {
-      input.classList.add('border-danger');
-      showToast(formatLoginError(error));
-      setTimeout(function() { input.classList.remove('border-danger'); }, 1200);
+      showToast(error.message || '登录失败');
     } finally {
       btnText.textContent = '登录';
       btnIcon.textContent = 'arrow_forward';
@@ -309,13 +392,225 @@ function initLogin() {
     }
   }
 
+  async function handleRegister() {
+    var phone = document.getElementById('loginPhone').value.trim();
+    var password = document.getElementById('loginPassword').value;
+    var nickname = document.getElementById('registerNickname').value.trim();
+    if (!phone || !password) {
+      showToast('请输入手机号和至少 6 位密码');
+      return;
+    }
+    try {
+      var client = createAnbanClient({ baseURL: anbanConfig.baseURL });
+      await finishAccountLogin(await client.register({ phone: phone, password: password, nickname: nickname }));
+    } catch (error) {
+      showToast(error.message || '注册失败');
+    }
+  }
+
+  async function requestCode() {
+    var phone = document.getElementById('codeLoginPhone').value.trim();
+    if (!phone) {
+      showToast('请输入手机号');
+      return;
+    }
+    try {
+      var client = createAnbanClient({ baseURL: anbanConfig.baseURL });
+      var result = await client.requestVerificationCode({ phone: phone, purpose: 'login' });
+      showToast(result.debugCode ? '开发验证码：' + result.debugCode : '验证码已发送');
+    } catch (error) {
+      showToast(error.message || '验证码发送失败');
+    }
+  }
+
+  async function handleCodeLogin() {
+    var phone = document.getElementById('codeLoginPhone').value.trim();
+    var code = document.getElementById('loginCode').value.trim();
+    if (!phone || !code) {
+      showToast('请输入手机号和验证码');
+      return;
+    }
+    try {
+      var client = createAnbanClient({ baseURL: anbanConfig.baseURL });
+      await finishAccountLogin(await client.codeLogin({ phone: phone, code: code }));
+    } catch (error) {
+      showToast(error.message || '验证码登录失败');
+    }
+  }
+
+  async function handleDemoLogin() {
+    var input = document.getElementById('accessCode');
+    var accessCode = input.value.trim();
+    if (!accessCode) {
+      showToast('请输入演示访问码');
+      return;
+    }
+    try {
+      var candidateClient = createAnbanClient({ baseURL: anbanConfig.baseURL, accessCode: accessCode });
+      await candidateClient.getStatus({ deviceId: anbanConfig.deviceId });
+      setAccountSession(null);
+      anbanSession.authMode = 'demo';
+      localStorage.setItem('anban_auth_mode', 'demo');
+      updateAnbanConfig({ accessCode: accessCode });
+      localStorage.setItem('anban_session', '1');
+      SPA.initialized = {};
+      navigateTo('home');
+    } catch (error) {
+      showToast(formatLoginError(error));
+    }
+  }
+
   document.getElementById('loginBtn').addEventListener('click', handleLogin);
-  document.getElementById('accessCode').addEventListener('keydown', function(e) {
+  document.getElementById('registerBtn').addEventListener('click', handleRegister);
+  document.getElementById('requestCodeBtn').addEventListener('click', requestCode);
+  document.getElementById('codeLoginBtn').addEventListener('click', handleCodeLogin);
+  document.getElementById('demoLoginBtn').addEventListener('click', handleDemoLogin);
+  document.getElementById('passwordLoginMode').addEventListener('click', function() { setLoginMode('password'); });
+  document.getElementById('codeLoginMode').addEventListener('click', function() { setLoginMode('code'); });
+  document.getElementById('demoLoginMode').addEventListener('click', function() { setLoginMode('demo'); });
+  document.getElementById('loginPassword').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') handleLogin();
   });
-  document.getElementById('accessCode').addEventListener('focus', function() {
-    this.classList.remove('border-danger');
+  setLoginMode(loginMode);
+}
+
+function applyBindingState() {
+  var locked = isAccountMode() && !anbanSession.binding;
+  ['s-home', 's-message', 's-warn', 's-family'].forEach(function(sectionId) {
+    var section = document.getElementById(sectionId);
+    if (!section) return;
+    section.classList.toggle('anban-unbound-section', locked);
+    var main = section.querySelector('main');
+    if (main) main.classList.toggle('anban-device-locked', locked);
   });
+  var notice = document.getElementById('unboundNotice');
+  if (notice) notice.style.display = locked ? 'flex' : 'none';
+  var admin = !isAccountMode() || (anbanSession.binding && anbanSession.binding.role === 'admin');
+  document.querySelectorAll('a[href="#family-edit"]').forEach(function(profileEdit) {
+    profileEdit.style.display = admin ? '' : 'none';
+  });
+  renderAccountSettings();
+}
+
+function openBindDevice() {
+  if (!isAccountMode()) {
+    showToast('请先使用子女账号登录');
+    return;
+  }
+  var overlay = document.getElementById('bindDeviceOverlay');
+  var card = document.getElementById('bindDeviceCard');
+  if (overlay) overlay.classList.add('open');
+  if (card) card.classList.add('open');
+}
+
+function closeBindDevice() {
+  var overlay = document.getElementById('bindDeviceOverlay');
+  var card = document.getElementById('bindDeviceCard');
+  if (overlay) overlay.classList.remove('open');
+  if (card) card.classList.remove('open');
+}
+
+async function submitDeviceBinding() {
+  var input = document.getElementById('bindingCodeInput');
+  var selected = document.querySelector('input[name="bindingRole"]:checked');
+  var bindingCode = input ? input.value.trim() : '';
+  var role = selected ? selected.value : 'member';
+  if (!bindingCode) {
+    showToast('请输入设备码');
+    return;
+  }
+  try {
+    await anbanClient.bindDevice({ role: role, bindingCode: bindingCode });
+    var me = await anbanClient.getMe();
+    anbanSession.account = me.account;
+    anbanSession.binding = me.binding;
+    anbanClient = createRuntimeClient();
+    window.anbanRuntime.client = anbanClient;
+    closeBindDevice();
+    applyBindingState();
+    SPA.initialized = {};
+    showToast('安伴设备绑定成功');
+    if (typeof window.refreshHome === 'function') window.refreshHome();
+  } catch (error) {
+    var messages = {
+      device_code_not_found: '设备码不存在',
+      account_already_bound: '当前账号已绑定设备',
+      admin_already_bound: '该设备已有家庭管理员',
+    };
+    showToast(messages[error.payload && error.payload.error] || error.message || '设备绑定失败');
+  }
+}
+
+function renderAccountSettings() {
+  var account = anbanSession.account || {};
+  var binding = anbanSession.binding;
+  var fields = {
+    accountNickname: account.nickname || '',
+    accountRealName: account.realName || '',
+    accountRelationship: account.relationshipToElder || '',
+    accountAvatarColor: account.avatarColor || '#E89A6A',
+  };
+  Object.keys(fields).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = fields[id];
+  });
+  var title = document.getElementById('accountDisplayName');
+  if (title) title.textContent = account.displayName || account.nickname || '子女账号';
+  var phone = document.getElementById('accountMaskedPhone');
+  if (phone) phone.textContent = account.phone || '';
+  var deviceSummary = document.getElementById('bindingSummary');
+  if (deviceSummary) {
+    deviceSummary.textContent = binding
+      ? (binding.deviceDisplayName || '安伴设备') + ' · ' + (binding.role === 'admin' ? '家庭管理员' : '家庭成员')
+      : '尚未绑定安伴设备';
+  }
+  var adminPanel = document.getElementById('adminDevicePanel');
+  if (adminPanel) adminPanel.style.display = binding && binding.role === 'admin' ? '' : 'none';
+  var bindButton = document.getElementById('settingsBindDeviceBtn');
+  if (bindButton) bindButton.style.display = isAccountMode() && !binding ? '' : 'none';
+}
+
+async function saveAccountProfile() {
+  if (!isAccountMode()) {
+    showToast('演示模式不保存账号资料');
+    return;
+  }
+  try {
+    var account = await anbanClient.updateMe({
+      nickname: document.getElementById('accountNickname').value.trim(),
+      realName: document.getElementById('accountRealName').value.trim(),
+      relationshipToElder: document.getElementById('accountRelationship').value.trim(),
+      avatarColor: document.getElementById('accountAvatarColor').value,
+    });
+    anbanSession.account = account;
+    renderAccountSettings();
+    showToast('个人资料已保存');
+  } catch (error) {
+    showToast(error.message || '个人资料保存失败');
+  }
+}
+
+async function resetDeviceBindingCode() {
+  try {
+    var result = await anbanClient.resetBindingCode();
+    showToast('新设备码：' + result.bindingCode);
+  } catch (error) {
+    showToast(error.message || '设备码重置失败');
+  }
+}
+
+async function unbindCurrentDevice() {
+  if (!confirm('确认解绑当前安伴设备？已有家庭成员仍会保留绑定。')) return;
+  try {
+    await anbanClient.unbindDevice();
+    anbanSession.binding = null;
+    anbanClient = createRuntimeClient();
+    window.anbanRuntime.client = anbanClient;
+    applyBindingState();
+    showToast('设备已解绑');
+  } catch (error) {
+    showToast(error.message || '设备解绑失败');
+  }
 }
 
 // ============================
@@ -331,8 +626,8 @@ function initHome() {
     var desc = document.getElementById('statusDesc');
     var updated = document.getElementById('statusTime');
 
-    if (badge) badge.className = 'inline-flex items-center px-3 py-1 rounded-full font-label-sm text-label-sm ' + (view.online ? 'bg-success/10 text-success' : 'bg-on-surface-variant/10 text-on-surface-variant');
-    if (dot) dot.className = 'w-2 h-2 rounded-full mr-2 ' + (view.online ? 'bg-success animate-pulse' : 'bg-on-surface-variant/50');
+    if (badge) badge.className = 'ab-tag ' + (view.online ? 'ab-tag-ok' : 'ab-tag-off');
+    if (dot) dot.className = 'ab-dot' + (view.online ? ' ab-dot-pulse' : '');
     if (label) label.textContent = view.label;
     if (title) title.textContent = view.title;
     if (desc) desc.textContent = view.description;
@@ -347,30 +642,33 @@ function initHome() {
     var messages = normalizeHistoryMessages(payload, 2);
     if (!messages.length) {
       var empty = document.createElement('div');
-      empty.className = 'bg-surface-white p-5 rounded-2xl soft-shadow text-center font-body-md text-body-md text-text-secondary';
+      empty.className = 'ab-card';
+      empty.style.cssText = 'padding:18px;text-align:center;color:var(--ab-ink3);font-size:13px';
       empty.textContent = '暂无最近对话';
       list.appendChild(empty);
     }
 
     messages.forEach(function(item) {
       var card = document.createElement('div');
-      card.className = 'bg-surface-white p-5 rounded-2xl soft-shadow flex gap-4 items-center';
-      card.innerHTML = '<div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-secondary-container"></span></div><div class="flex-grow min-w-0"><div class="flex justify-between items-start gap-3 mb-1"><span class="font-label-md text-label-md text-on-surface truncate"></span><span class="px-2 py-0.5 bg-primary-container/10 text-primary rounded-md font-label-sm text-label-sm flex-shrink-0"></span></div><p class="font-body-md text-body-md text-text-secondary line-clamp-2"></p></div>';
+      card.className = 'ab-card';
+      card.style.cssText = 'padding:13px;display:flex;gap:12px;align-items:center';
+      card.innerHTML = '<div class="ab-iconbox material-symbols-outlined" style="width:36px;height:36px;background:#f7ece4;color:var(--ab-primary);font-size:18px"></div><div style="flex:1;min-width:0"><div class="flex justify-between items-center" style="gap:8px"><span class="font-label-md" style="font-size:13.5px;font-weight:600;color:var(--ab-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><span class="font-label-sm ab-tag ab-tag-cat" style="flex-shrink:0"></span></div><p style="font-size:11.5px;color:var(--ab-ink3);margin-top:3px"></p></div>';
       card.querySelector('.material-symbols-outlined').textContent = item.role === 'user' ? 'person' : 'spatial_audio';
       card.querySelector('.font-label-md').textContent = item.text;
       card.querySelector('.font-label-sm').textContent = item.role === 'user' ? '家人' : '安伴';
       card.querySelector('p').textContent = formatRelativeTime(item.at);
       list.appendChild(card);
     });
-
-    var add = document.createElement('div');
-    add.className = 'bg-surface-white/60 p-5 rounded-2xl border border-dashed border-divider-warm flex gap-4 items-center justify-center cursor-pointer active:bg-surface-white/80 transition-all';
-    add.innerHTML = '<span class="material-symbols-outlined text-outline">add_circle</span><span class="font-label-md text-label-md text-text-secondary">添加新留言</span>';
-    add.addEventListener('click', window.openQuickMsg);
-    list.appendChild(add);
   }
 
   window.refreshHome = async function() {
+    if (!isDeviceBound()) {
+      renderHomeStatus({ online: false });
+      document.getElementById('statusTitle').textContent = '请先绑定安伴设备';
+      document.getElementById('statusDesc').textContent = '绑定后即可查看老人状态与最近对话';
+      renderRecentHistory({ messages: [] });
+      return;
+    }
     var results = await Promise.allSettled([
       anbanClient.getStatus({ deviceId: anbanConfig.deviceId }),
       anbanClient.getHistory({ deviceId: anbanConfig.deviceId, limit: 10 }),
@@ -394,6 +692,7 @@ function initHome() {
   var greetingButton = document.getElementById('greetingTriggerBtn');
   if (greetingButton) {
     greetingButton.addEventListener('click', async function() {
+      if (!ensureDeviceBound()) return;
       var statusText = document.getElementById('greetingStatusText');
       greetingButton.disabled = true;
       greetingButton.classList.add('opacity-70');
@@ -416,6 +715,7 @@ function initHome() {
   var visionButton = document.getElementById('visionLookButton');
   if (visionButton) {
     visionButton.addEventListener('click', async function() {
+      if (!ensureDeviceBound()) return;
       var statusText = document.getElementById('visionStatusText');
       visionButton.disabled = true;
       visionButton.classList.add('opacity-70');
@@ -799,35 +1099,38 @@ window.toggleImportant = function(el) {
 // initMessage
 // ============================
 function initMessage() {
-  function renderMessages(history, messages) {
+  function renderTimeline(payload) {
     var chatArea = document.getElementById('chatArea');
     if (!chatArea) return;
     chatArea.innerHTML = '';
-    var bubbles = buildConversationBubbles({ history: history, messages: messages });
+    var items = payload && Array.isArray(payload.items) ? payload.items : [];
 
-    if (!bubbles.length) {
+    if (!items.length) {
       var empty = document.createElement('div');
       empty.className = 'text-center py-12 font-body-md text-body-md text-text-secondary';
       empty.textContent = '暂无对话记录';
       chatArea.appendChild(empty);
     }
 
-    bubbles.forEach(function(bubble) {
+    items.forEach(function(item) {
       var row = document.createElement('div');
-      var isRight = bubble.side === 'right';
+      var isRight = item.type === 'child_message';
       row.className = 'flex flex-col max-w-[85%] ' + (isRight ? 'items-end self-end' : 'items-start self-start');
-      row.innerHTML = '<div class="p-4 rounded-2xl"><p class="font-body-md text-body-md"></p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50"></span><span class="text-[11px] font-medium"></span></div>';
-      var bubbleEl = row.firstElementChild;
+      row.innerHTML = '<div class="text-[11px] text-on-surface-variant/60 mb-1 px-1"></div><div class="p-4 rounded-2xl"><p class="font-body-md text-body-md"></p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50"></span><span class="text-[11px] font-medium"></span></div>';
+      row.firstElementChild.textContent = item.sourceLabel || (isRight ? '家人' : '安伴');
+      if (isRight && item.avatarColor) row.firstElementChild.style.color = item.avatarColor;
+      var bubbleEl = row.children[1];
       bubbleEl.className += isRight
         ? ' bg-secondary-container text-on-secondary-container bubble-right'
         : ' bg-surface-white text-on-surface bubble-left soft-shadow';
-      bubbleEl.querySelector('p').textContent = bubble.text;
+      bubbleEl.querySelector('p').textContent = item.text;
       var meta = row.lastElementChild;
-      meta.firstElementChild.textContent = formatRelativeTime(bubble.at);
+      meta.firstElementChild.textContent = formatRelativeTime(item.at);
       var status = meta.lastElementChild;
-      status.textContent = bubble.status;
-      status.className += bubble.status === '已播报' ? ' text-success' : bubble.status === '发送失败' ? ' text-danger' : ' text-on-surface-variant/60';
-      if (!bubble.status) status.remove();
+      var statusLabels = { played: '已播报', pending: '待播报', failed: '发送失败' };
+      status.textContent = statusLabels[item.status] || '';
+      status.className += item.status === 'played' ? ' text-success' : item.status === 'failed' ? ' text-danger' : ' text-on-surface-variant/60';
+      if (!item.status) status.remove();
       chatArea.appendChild(row);
     });
 
@@ -838,14 +1141,21 @@ function initMessage() {
   }
 
   async function loadMessages() {
-    var results = await Promise.allSettled([
-      anbanClient.getHistory({ deviceId: anbanConfig.deviceId, limit: 100 }),
-      anbanClient.listMessages({ deviceId: anbanConfig.deviceId }),
-    ]);
-    var history = results[0].status === 'fulfilled' ? results[0].value : { messages: [] };
-    var messages = results[1].status === 'fulfilled' ? results[1].value : { messages: [] };
-    renderMessages(history, messages);
-    if (results[0].status === 'rejected' && results[1].status === 'rejected') showToast('消息加载失败');
+    if (!isDeviceBound()) {
+      renderTimeline({ items: [] });
+      return;
+    }
+    try {
+      var payload = await anbanClient.getTimeline({
+        deviceId: anbanConfig.deviceId,
+        elderDisplayName: anbanSession.binding && anbanSession.binding.elderDisplayName,
+        limit: 100,
+      });
+      renderTimeline(payload);
+    } catch (error) {
+      renderTimeline({ items: [] });
+      showToast(error.message || '消息加载失败');
+    }
   }
 
   window.refreshMessages = loadMessages;
@@ -1376,6 +1686,39 @@ function initMine() {
   var greetingScheduleForm = document.getElementById('greetingScheduleForm');
   if (baseURLInput) baseURLInput.value = anbanConfig.baseURL;
   if (deviceIdInput) deviceIdInput.value = anbanConfig.deviceId;
+  renderAccountSettings();
+
+  async function loadMembers() {
+    var list = document.getElementById('memberList');
+    if (!list || !isAccountMode() || !anbanSession.binding || anbanSession.binding.role !== 'admin') return;
+    try {
+      var payload = await anbanClient.listMembers();
+      list.innerHTML = '';
+      if (!payload.members.length) {
+        list.innerHTML = '<p class="font-body-sm text-body-sm text-text-secondary">暂无其他家庭成员</p>';
+        return;
+      }
+      payload.members.forEach(function(member) {
+        var row = document.createElement('div');
+        row.className = 'flex items-center justify-between py-3 border-b border-divider-warm last:border-b-0';
+        row.innerHTML = '<div><p class="font-label-md text-label-md text-on-surface"></p><p class="font-label-sm text-label-sm text-text-secondary"></p></div><button class="text-danger font-label-sm text-label-sm" type="button">移除</button>';
+        row.querySelector('p').textContent = member.displayName;
+        row.querySelectorAll('p')[1].textContent = [member.relationshipToElder, member.phone].filter(Boolean).join(' · ');
+        row.querySelector('button').addEventListener('click', async function() {
+          try {
+            await anbanClient.removeMember(member.accountId);
+            showToast('成员已移除');
+            loadMembers();
+          } catch (error) {
+            showToast(error.message || '成员移除失败');
+          }
+        });
+        list.appendChild(row);
+      });
+    } catch (error) {
+      list.innerHTML = '<p class="font-body-sm text-body-sm text-danger">成员列表加载失败</p>';
+    }
+  }
 
   function greetingSlotElements(label) {
     return {
@@ -1408,6 +1751,7 @@ function initMine() {
 
   async function loadGreetingSchedule() {
     if (!greetingScheduleForm) return;
+    if (!isDeviceBound()) return;
     try {
       var schedule = await anbanClient.getGreetingSchedule({ deviceId: anbanConfig.deviceId });
       writeGreetingSchedule(schedule);
@@ -1443,6 +1787,7 @@ function initMine() {
     });
     loadGreetingSchedule();
   }
+  loadMembers();
 
   if (saveConnectionBtn) {
     saveConnectionBtn.addEventListener('click', async function() {
@@ -1482,7 +1827,13 @@ function initMine() {
     showToast('安伴 v2.4.0 — 孝心安伴');
   });
 
-  document.getElementById('logoutBtn').addEventListener('click', function() {
+  document.getElementById('logoutBtn').addEventListener('click', async function() {
+    if (isAccountMode()) {
+      try { await anbanClient.logout(); } catch (error) {}
+    }
+    setAccountSession(null);
+    anbanSession.authMode = '';
+    localStorage.removeItem('anban_auth_mode');
     localStorage.removeItem('anban_session');
     showToast('已退出登录');
     setTimeout(function() { navigateTo('login'); }, 800);
@@ -1493,6 +1844,11 @@ function initMine() {
 // initFamilyEdit
 // ============================
 async function initFamilyEdit() {
+  if (isAccountMode() && (!anbanSession.binding || anbanSession.binding.role !== 'admin')) {
+    showToast('只有家庭管理员可以编辑家人画像');
+    navigateTo('family');
+    return;
+  }
   var habitIcons = ['wb_twilight','local_cafe','music_note','directions_walk','self_improvement','menu_book','potted_plant','tv','pets','shopping_bag','exercise','park'];
 
   var defaultData = {

@@ -173,6 +173,42 @@
   /* Toast */
   .spa-toast {position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b1c1c;color:#fff;padding:12px 24px;border-radius:999px;font-size:14px;z-index:200;opacity:0;pointer-events:none;transition:all 0.3s ease}
   .spa-toast.show {opacity:1;pointer-events:auto}
+
+  /* ===== AnBan · 暖色玻璃设计系统 (B，去模板化) ===== */
+  :root{
+    --ab-bg:#FAF6F0;--ab-ink:#2a1410;--ab-ink2:#8a6f63;--ab-ink3:#a89488;
+    --ab-primary:#9a4429;--ab-line:#ece2d9;--ab-line2:#e8ddd4;
+    --ab-ok:#1a8c5a;--ab-okbg:#eafaf0;
+    --ab-rlg:16px;--ab-rmd:10px;--ab-rsm:8px;--ab-rtag:5px;
+    --ab-shadow:0 12px 30px rgba(247,140,107,.16);
+  }
+  .ab-wash{position:absolute;top:0;left:0;right:0;height:170px;background:linear-gradient(180deg,rgba(255,196,160,.32),rgba(250,246,240,0) 92%);pointer-events:none;z-index:0}
+  .ab-glass{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.9);border-radius:var(--ab-rlg);box-shadow:var(--ab-shadow)}
+  .ab-card{background:#fff;border:1px solid var(--ab-line);border-radius:var(--ab-rmd)}
+  .ab-btn-primary{background:var(--ab-primary);color:#fff;border:none;border-radius:var(--ab-rmd);font-weight:700;cursor:pointer}
+  .ab-btn-ghost{background:#fff;border:1px solid var(--ab-line2);color:#5a3526;border-radius:var(--ab-rmd);font-weight:700;cursor:pointer}
+  .ab-tag{display:inline-flex;align-items:center;gap:4px;border-radius:var(--ab-rtag);font-weight:700;padding:2px 7px;font-size:10px;line-height:1.5}
+  .ab-tag-ok{color:var(--ab-ok);background:var(--ab-okbg)}
+  .ab-tag-cat{color:var(--ab-primary);background:#f5e3da}
+  .ab-tag-imp{color:#9a6a13;background:#fbe7c4}
+  .ab-tag-off{color:#9c8378;background:#f0e9e2}
+  .ab-dot-pulse{animation:ab-pulse 1.6s ease-in-out infinite}
+  @keyframes ab-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .ab-label{font-size:12px;font-weight:800;color:var(--ab-primary);letter-spacing:.14em}
+  .ab-iconbox{border-radius:var(--ab-rsm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .ab-navbar{background:var(--ab-bg);border-top:1px solid var(--ab-line);display:flex;justify-content:space-around;padding:11px 0 16px}
+  .ab-navbar .nav-link{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ab-ink3);font-size:10px;text-decoration:none}
+  .ab-dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+  .ab-dash{border:1px dashed #d8c8bc;border-radius:var(--ab-rmd);cursor:pointer}
+  .auth-mode{flex:1;height:36px;border-radius:8px;color:var(--ab-ink2);font-size:12px;font-weight:700}
+  .auth-mode.active{background:#fff;color:var(--ab-primary);box-shadow:0 1px 5px rgba(60,30,20,.08)}
+  .anban-device-locked{opacity:.48;filter:saturate(.45);pointer-events:none;user-select:none}
+  .unbound-notice{position:absolute;top:116px;left:16px;right:16px;z-index:78;display:none;align-items:center;justify-content:space-between;gap:12px;background:#fff8ed;border:1px solid #e8c99d;border-radius:10px;padding:11px 13px;box-shadow:0 8px 24px rgba(72,42,20,.12)}
+  .anban-unbound-section > header{margin-bottom:76px}
+  .bind-device-overlay{position:absolute;inset:0;background:rgba(40,25,20,.35);z-index:120;opacity:0;pointer-events:none;transition:opacity .2s}
+  .bind-device-overlay.open{opacity:1;pointer-events:auto}
+  .bind-device-card{position:absolute;left:16px;right:16px;top:50%;z-index:121;background:#fff;border-radius:16px;padding:22px;transform:translateY(-45%) scale(.96);opacity:0;pointer-events:none;transition:all .22s;box-shadow:0 24px 60px rgba(45,25,18,.22)}
+  .bind-device-card.open{transform:translateY(-50%) scale(1);opacity:1;pointer-events:auto}
 </style>
 </head>
 <body>
@@ -180,6 +216,10 @@
 <div class="phone-frame">
   <div class="phone-screen">
     <div class="status-bar dark" id="globalStatusBar" style="position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none"><span class="status-bar-time">9:41</span><div class="status-bar-icons"><svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="4" width="3" height="8" rx="1" fill="currentColor"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="3" height="11" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg><svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 3C5.5 3 3.2 3.8 1.4 5.2L0 3.8C2.2 2 5 1 8 1s5.8 1 8 2.8L14.6 5.2C12.8 3.8 10.5 3 8 3z" fill="currentColor"/><path d="M8 6.5c-1.7 0-3.2.6-4.4 1.6L2.2 6.7C3.8 5.3 5.8 4.5 8 4.5s4.2.8 5.8 2.2L12.4 8.1C11.2 7.1 9.7 6.5 8 6.5z" fill="currentColor"/><circle cx="8" cy="10.5" r="1.5" fill="currentColor"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0" y="0.5" width="23" height="12" rx="3.5" stroke="currentColor" stroke-width="1" fill="none"/><rect x="24" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/><rect x="2" y="2.5" width="18" height="8" rx="1.5" fill="currentColor"/></svg></div></div>
+    <button class="unbound-notice" id="unboundNotice" type="button" onclick="openBindDevice()">
+      <span style="display:flex;align-items:center;gap:9px;text-align:left"><span class="material-symbols-outlined" style="color:#a45b28">link_off</span><span><strong style="display:block;color:#5f3524;font-size:13px">请先绑定安伴设备</strong><span style="font-size:11px;color:#9a735f">绑定后解锁状态、留言和提醒</span></span></span>
+      <span class="material-symbols-outlined" style="color:#a45b28">chevron_right</span>
+    </button>
 <div class="time-picker-overlay" id="timePickerOverlay" onclick="closeTimePickerModal()"></div>
     <div class="time-picker-modal" id="timePickerModal">
       <div class="time-picker-display"><span id="tpHourDisplay">08</span><span class="tp-colon">:</span><span id="tpMinDisplay">30</span></div>
@@ -255,24 +295,37 @@
             <div class="inline-flex items-center justify-center bg-white/50 p-3 rounded-full mb-4 soft-shadow">
               <span class="material-symbols-outlined text-primary text-[32px]">nest_eco_leaf</span>
             </div>
-            <h1 class="font-display-lg-mobile text-display-lg-mobile text-on-surface mb-2">设备登录</h1>
-            <p class="font-body-md text-body-md text-text-secondary">连接您的安伴设备，守护家人的每一刻</p>
+            <h1 class="font-display-lg-mobile text-display-lg-mobile text-on-surface mb-2">登录安伴</h1>
+            <p class="font-body-md text-body-md text-text-secondary">和家人一起陪伴老人</p>
           </div>
           <div class="bg-surface-white rounded-2xl p-6 soft-shadow flex flex-col gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="font-label-md text-label-md text-on-surface-variant px-1" for="accessCode">设备访问码</label>
-              <div class="relative">
-                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">key</span>
-                <input class="w-full h-[52px] pl-12 pr-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all font-body-md" id="accessCode" placeholder="请输入 8 位访问码" type="text" autocomplete="off"/>
+            <div class="flex p-1 bg-background-cream rounded-xl gap-1">
+              <button class="auth-mode active" id="passwordLoginMode" type="button">密码</button>
+              <button class="auth-mode" id="codeLoginMode" type="button">验证码</button>
+              <button class="auth-mode" id="demoLoginMode" type="button">演示</button>
+            </div>
+            <div class="flex flex-col gap-3" id="passwordLoginPanel">
+              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20" id="loginPhone" placeholder="手机号" type="tel" autocomplete="tel"/>
+              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20" id="loginPassword" placeholder="密码（至少 6 位）" type="password" autocomplete="current-password"/>
+              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20" id="registerNickname" placeholder="昵称（注册时选填）" type="text"/>
+              <div class="flex gap-2">
+                <button class="primary-gradient flex-1 h-[50px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2" id="loginBtn" type="button">
+                  <span id="loginBtnText">登录</span><span class="material-symbols-outlined" id="loginBtnIcon">arrow_forward</span>
+                </button>
+                <button class="ab-btn-ghost px-5" id="registerBtn" type="button">注册</button>
               </div>
             </div>
-            <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" id="loginBtn" type="button">
-              <span id="loginBtnText">登录</span>
-              <span class="material-symbols-outlined" id="loginBtnIcon">arrow_forward</span>
-            </button>
-            <div class="flex justify-between items-center pt-1 px-1">
-              <button class="text-on-secondary-fixed-variant/70 font-label-md text-label-md active:opacity-60" onclick="notImplemented('忘记访问码')">忘记访问码？</button>
-              <button class="text-primary font-label-md text-label-md active:opacity-60" onclick="notImplemented('新设备激活')">新设备激活</button>
+            <div class="flex flex-col gap-3" id="codeLoginPanel" style="display:none">
+              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl" id="codeLoginPhone" placeholder="手机号" type="tel"/>
+              <div class="flex gap-2">
+                <input class="flex-1 min-w-0 h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl" id="loginCode" placeholder="验证码" type="text" inputmode="numeric"/>
+                <button class="ab-btn-ghost px-4" id="requestCodeBtn" type="button">获取验证码</button>
+              </div>
+              <button class="ab-btn-primary h-[50px]" id="codeLoginBtn" type="button">验证码登录 / 注册</button>
+            </div>
+            <div class="flex flex-col gap-3" id="demoLoginPanel" style="display:none">
+              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl" id="accessCode" placeholder="演示访问码" type="text" autocomplete="off"/>
+              <button class="ab-btn-primary h-[50px]" id="demoLoginBtn" type="button">进入演示模式</button>
             </div>
           </div>
           <div class="mt-auto pb-8 pt-section-gap text-center">
@@ -295,144 +348,78 @@
 
       <!-- ============ HOME ============ -->
       <section class="spa-section" id="s-home" data-statusbar="dark">
-        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
-          <div class="w-10"></div>
-          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">首页</h1>
-          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
-            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+        <header class="sticky z-40 w-full flex justify-between items-center flex-shrink-0" style="background:var(--ab-bg);padding:16px 20px 12px">
+          <div class="flex items-center" style="gap:9px">
+            <div class="ab-iconbox" style="width:28px;height:28px;background:var(--ab-primary)"><span class="material-symbols-outlined" style="color:#fff;font-size:18px;font-variation-settings:'FILL' 1,'wght' 400">spa</span></div>
+            <span style="font-size:18px;font-weight:800;color:var(--ab-ink);letter-spacing:.01em">安伴</span>
+          </div>
+          <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')">
+            <span class="material-symbols-outlined" style="color:#9c8378;font-variation-settings:'wght' 300">settings</span>
           </button>
         </header>
-        <main class="flex-1 px-page-margin pt-3 pb-4">
-          <section class="mb-section-gap">
-            <div class="bg-secondary-container rounded-3xl p-6 soft-shadow relative overflow-hidden">
-              <div class="absolute -top-12 -right-12 w-32 h-32 bg-primary-container/20 rounded-full blur-3xl"></div>
-              <div class="relative z-10">
-                <div class="flex justify-between items-start mb-4">
-                  <span class="inline-flex items-center px-3 py-1 bg-success/10 text-success rounded-full font-label-sm text-label-sm" id="deviceStatusBadge">
-                    <span class="w-2 h-2 rounded-full bg-success mr-2 animate-pulse" id="deviceStatusDot"></span><span id="deviceStatusLabel">在线</span>
-                  </span>
-                  <span class="font-label-md text-label-md text-on-secondary-container/60" id="statusTime">3分钟前</span>
-                </div>
-                <h2 class="font-headline-md text-headline-md text-on-secondary-container mb-2" id="statusTitle">家人今天状态很好</h2>
-                <p class="font-body-md text-body-md text-on-secondary-container/80" id="statusDesc">正在加载中...</p>
-              </div>
+        <main class="flex-1" style="position:relative;padding:6px 18px 8px">
+          <div class="ab-wash"></div>
+          <section class="ab-glass" style="position:relative;padding:20px;margin-bottom:16px">
+            <div class="flex justify-between items-center" style="margin-bottom:14px">
+              <span class="ab-tag ab-tag-ok" id="deviceStatusBadge"><span class="ab-dot" id="deviceStatusDot"></span><span id="deviceStatusLabel">在线</span></span>
+              <span style="font-size:11px;color:var(--ab-ink3)" id="statusTime">刚刚活跃</span>
             </div>
+            <h2 id="statusTitle" style="font-size:24px;font-weight:800;color:var(--ab-ink);line-height:1.26;letter-spacing:-0.015em">家人今天状态很好</h2>
+            <p id="statusDesc" style="font-size:13px;color:var(--ab-ink2);margin-top:10px;line-height:1.55">正在加载中...</p>
           </section>
-          <section class="mb-section-gap">
-            <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between gap-4">
-              <div class="flex items-center gap-4 min-w-0">
-                <div class="w-11 h-11 rounded-2xl bg-primary-container/20 flex items-center justify-center flex-shrink-0">
-                  <span class="material-symbols-outlined text-primary">waving_hand</span>
-                </div>
-                <div class="min-w-0">
-                  <h3 class="font-title-md text-title-md text-on-surface">主动问候</h3>
-                  <p class="font-body-sm text-body-sm text-text-secondary truncate" id="greetingStatusText">可随时让安伴主动问候老人</p>
-                </div>
-              </div>
-              <button class="primary-gradient h-11 px-4 rounded-xl text-white font-label-md text-label-md flex items-center justify-center gap-1.5 active:scale-95 transition-all flex-shrink-0" id="greetingTriggerBtn" type="button">
-                <span>问候老人</span>
-                <span class="material-symbols-outlined text-[18px]">record_voice_over</span>
-              </button>
-            </div>
-          </section>
-          <section class="mb-section-gap">
-            <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between gap-4">
-              <div class="flex items-center gap-4 min-w-0">
-                <div class="w-11 h-11 rounded-2xl bg-secondary-container/30 flex items-center justify-center flex-shrink-0">
-                  <span class="material-symbols-outlined text-on-secondary-container">visibility</span>
-                </div>
-                <div class="min-w-0">
-                  <h3 class="font-title-md text-title-md text-on-surface">看一眼</h3>
-                  <p class="font-body-sm text-body-sm text-text-secondary truncate" id="visionStatusText">可查看老人是否回到设备前</p>
-                </div>
-              </div>
-              <button class="h-11 px-4 rounded-xl bg-secondary-container text-on-secondary-container font-label-md text-label-md flex items-center justify-center gap-1.5 active:scale-95 transition-all flex-shrink-0" id="visionLookButton" type="button">
-                <span>看一眼</span>
-                <span class="material-symbols-outlined text-[18px]">photo_camera</span>
-              </button>
-            </div>
-          </section>
+          <div style="position:relative;display:flex;gap:10px;margin-bottom:22px">
+            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="flex:1.3;padding:15px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left">
+              <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:700">问候妈妈</span><span id="greetingStatusText" style="display:block;font-size:11px;color:rgba(255,255,255,.82);margin-top:2px">让安伴主动开口</span></span>
+              <span class="material-symbols-outlined" style="font-size:20px;flex-shrink:0">record_voice_over</span>
+            </button>
+            <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="flex:1;padding:14px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left">
+              <span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">visibility</span>
+              <span style="font-size:14px;font-weight:700;color:#5a3526">看一眼</span>
+              <span id="visionStatusText" style="font-size:11px;color:var(--ab-ink2);font-weight:400">看看老人在不在</span>
+            </button>
+          </div>
           
-          <section class="mb-section-gap">
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="font-title-lg text-title-lg text-on-surface">最近留言</h3>
-              <a class="text-primary font-label-md text-label-md" href="#message" style="text-decoration:none">查看全部</a>
+          <section style="position:relative;margin-bottom:22px">
+            <div class="flex justify-between items-baseline" style="margin-bottom:11px">
+              <span class="ab-label">最近留言</span>
+              <a href="#message" style="font-size:12px;color:#b08a78;text-decoration:none">查看全部</a>
             </div>
-            <div class="space-y-card-gap" id="recentMsgList">
-              <div class="bg-surface-white p-5 rounded-2xl soft-shadow flex gap-4 items-center">
-                <div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0">
-                  <span class="material-symbols-outlined text-on-secondary-container">mic</span>
-                </div>
-                <div class="flex-grow">
-                  <div class="flex justify-between items-start mb-1">
-                    <span class="font-label-md text-label-md text-on-surface">记得吃降压药</span>
-                    <span class="px-2 py-0.5 bg-success/10 text-success rounded-md font-label-sm text-label-sm">已播报</span>
-                  </div>
-                  <p class="font-body-md text-body-md text-text-secondary">今天 09:15 · 语音留言</p>
-                </div>
-              </div>
-              <div class="bg-surface-white p-5 rounded-2xl soft-shadow flex gap-4 items-center">
-                <div class="w-12 h-12 rounded-full bg-primary-container/10 flex items-center justify-center flex-shrink-0">
-                  <span class="material-symbols-outlined text-primary">campaign</span>
-                </div>
-                <div class="flex-grow">
-                  <div class="flex justify-between items-start mb-1">
-                    <span class="font-label-md text-label-md text-on-surface">下午我有空过去</span>
-                    <span class="px-2 py-0.5 bg-warning/20 text-on-secondary-container rounded-md font-label-sm text-label-sm">待播报</span>
-                  </div>
-                  <p class="font-body-md text-body-md text-text-secondary">刚才 · 文本转语音</p>
-                </div>
-              </div>
-              <div class="bg-surface-white/60 p-5 rounded-2xl border border-dashed border-divider-warm flex gap-4 items-center justify-center cursor-pointer active:bg-surface-white/80 transition-all" onclick="openQuickMsg()">
-                <span class="material-symbols-outlined text-outline">add_circle</span>
-                <span class="font-label-md text-label-md text-text-secondary">添加新留言</span>
-              </div>
+            <div id="recentMsgList" style="display:flex;flex-direction:column;gap:9px">
+              <div class="ab-card" style="padding:13px;color:var(--ab-ink3);font-size:13px">正在获取最近留言…</div>
             </div>
+            <div class="ab-dash active:opacity-70" style="padding:12px;text-align:center;color:#b08a78;font-size:13px;font-weight:600;margin-top:9px" onclick="openQuickMsg()">＋ 给妈妈写条留言</div>
           </section>
-          <section class="mb-4">
-            <h3 class="font-title-lg text-title-lg text-on-surface mb-4">环境状态</h3>
-            <div class="grid grid-cols-2 gap-card-gap">
-              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3 cursor-pointer" onclick="notImplemented('环境状态')">
-                <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                  <span class="material-symbols-outlined text-blue-500">thermostat</span>
-                </div>
-                <div>
-                  <p class="font-label-sm text-label-sm text-text-secondary">温度</p>
-                  <p class="font-title-lg text-title-lg text-on-surface" id="envTemp">未实现</p>
-                </div>
+          <section style="position:relative;margin-bottom:8px">
+            <div class="ab-label" style="margin-bottom:11px">环境状态</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="ab-card" style="padding:14px;display:flex;align-items:center;gap:11px;cursor:pointer" onclick="notImplemented('环境状态')">
+                <div class="ab-iconbox" style="width:38px;height:38px;background:#e8f1f7"><span class="material-symbols-outlined" style="color:#4a90c2;font-size:20px">thermostat</span></div>
+                <div><p style="font-size:11px;color:var(--ab-ink3)">温度</p><p id="envTemp" style="font-size:16px;font-weight:800;color:var(--ab-ink)">未实现</p></div>
               </div>
-              <div class="bg-surface-white p-4 rounded-2xl soft-shadow flex items-center gap-3 cursor-pointer" onclick="notImplemented('环境状态')">
-                <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-                  <span class="material-symbols-outlined text-orange-400">humidity_mid</span>
-                </div>
-                <div>
-                  <p class="font-label-sm text-label-sm text-text-secondary">湿度</p>
-                  <p class="font-title-lg text-title-lg text-on-surface" id="envHumidity">未实现</p>
-                </div>
+              <div class="ab-card" style="padding:14px;display:flex;align-items:center;gap:11px;cursor:pointer" onclick="notImplemented('环境状态')">
+                <div class="ab-iconbox" style="width:38px;height:38px;background:#fbeede"><span class="material-symbols-outlined" style="color:#d99a3a;font-size:20px">humidity_mid</span></div>
+                <div><p style="font-size:11px;color:var(--ab-ink3)">湿度</p><p id="envHumidity" style="font-size:16px;font-weight:800;color:var(--ab-ink)">未实现</p></div>
               </div>
             </div>
           </section>
         </main>
         <!-- Home Bottom Nav -->
-        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
-          <div class="relative flex flex-col items-center justify-center w-16 h-16">
-            <div class="absolute inset-0 bg-primary-container/10 rounded-full scale-90"></div>
-            <a class="relative z-10 flex flex-col items-center justify-center text-primary transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
-              <span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">home</span>
-              <span class="font-label-sm text-label-sm font-medium">首页</span>
-            </a>
-          </div>
-          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
-            <span class="material-symbols-outlined mb-1">chat_bubble</span>
-            <span class="font-label-sm text-label-sm">消息</span>
+        <nav class="ab-navbar sticky bottom-0 z-40 w-full flex-shrink-0">
+          <a class="nav-link" href="#home" data-nav="home">
+            <span class="material-symbols-outlined" style="font-size:19px;font-variation-settings:'FILL' 1">home</span>
+            <span class="font-label-sm">首页</span>
           </a>
-          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
-            <span class="material-symbols-outlined mb-1">notifications</span>
-            <span class="font-label-sm text-label-sm">提醒</span>
+          <a class="nav-link" href="#message" data-nav="message">
+            <span class="material-symbols-outlined" style="font-size:19px">chat_bubble</span>
+            <span class="font-label-sm">消息</span>
           </a>
-          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
-            <span class="material-symbols-outlined mb-1">group</span>
-            <span class="font-label-sm text-label-sm">家人</span>
+          <a class="nav-link" href="#warn" data-nav="warn">
+            <span class="material-symbols-outlined" style="font-size:19px">notifications</span>
+            <span class="font-label-sm">提醒</span>
+          </a>
+          <a class="nav-link" href="#family" data-nav="family">
+            <span class="material-symbols-outlined" style="font-size:19px">group</span>
+            <span class="font-label-sm">家人</span>
           </a>
         </nav>
       </section>
@@ -960,6 +947,36 @@
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
           <section class="mb-section-gap">
+            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">我的账号</h3>
+            <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-3">
+              <div class="flex items-center justify-between pb-2">
+                <div><h3 class="font-title-lg text-title-lg text-on-surface" id="accountDisplayName">子女账号</h3><p class="font-label-sm text-label-sm text-text-secondary" id="accountMaskedPhone"></p></div>
+                <input aria-label="头像颜色" class="w-10 h-10 rounded-lg border border-divider-warm p-1" id="accountAvatarColor" type="color" value="#E89A6A"/>
+              </div>
+              <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3" id="accountNickname" placeholder="昵称（用于留言播报）" type="text"/>
+              <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3" id="accountRealName" placeholder="真实姓名" type="text"/>
+              <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3" id="accountRelationship" placeholder="与老人的关系，如女儿" type="text"/>
+              <button class="ab-btn-primary w-full h-[46px]" onclick="saveAccountProfile()" type="button">保存个人资料</button>
+            </div>
+          </section>
+          <section class="mb-section-gap">
+            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">设备与家庭</h3>
+            <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-3">
+              <p class="font-body-md text-body-md text-on-surface" id="bindingSummary">尚未绑定安伴设备</p>
+              <button class="ab-btn-primary w-full h-[46px]" id="settingsBindDeviceBtn" onclick="openBindDevice()" type="button">绑定安伴设备</button>
+              <div class="space-y-3" id="adminDevicePanel" style="display:none">
+                <div class="border-t border-divider-warm pt-3">
+                  <p class="font-label-md text-label-md text-on-surface mb-2">家庭成员</p>
+                  <div id="memberList"><p class="font-body-sm text-body-sm text-text-secondary">正在加载成员…</p></div>
+                </div>
+                <div class="flex gap-2">
+                  <button class="ab-btn-ghost flex-1 h-[44px]" onclick="resetDeviceBindingCode()" type="button">重置设备码</button>
+                  <button class="flex-1 h-[44px] border border-danger text-danger rounded-xl font-bold" onclick="unbindCurrentDevice()" type="button">解绑设备</button>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="mb-section-gap">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">连接设置</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4">
               <label class="block"><span class="font-label-md text-label-md text-on-surface-variant">后端地址</span><input class="mt-2 w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="settingsBaseURL" type="url"/></label>
@@ -1001,17 +1018,6 @@
               </div>
               <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveGreetingScheduleBtn" type="submit">保存问候时段</button>
             </form>
-          </section>
-          <section class="mb-section-gap">
-            <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center gap-4 active:scale-[0.98] transition-all cursor-pointer">
-              <div class="w-14 h-14 rounded-full overflow-hidden border-2 border-primary-container/30 flex-shrink-0">
-                <div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white font-display-lg-mobile text-[14px]">安</div>
-              </div>
-              <div class="flex-1">
-                <h3 class="font-title-lg text-title-lg text-on-surface">陈先森</h3>
-                <p class="font-label-md text-label-md text-text-secondary">ID: 88294021</p>
-              </div>
-            </div>
           </section>
           <section class="mb-section-gap">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">通用设置</h3>
@@ -1196,6 +1202,20 @@
     </div><!-- /phone-screen-inner -->
 
     <!-- ===== Shared Modals (at phone-screen level) ===== -->
+
+    <div class="bind-device-overlay" id="bindDeviceOverlay" onclick="closeBindDevice()"></div>
+    <div class="bind-device-card" id="bindDeviceCard">
+      <div class="flex items-center justify-between mb-5">
+        <div><h3 style="font-size:19px;font-weight:800;color:var(--ab-ink)">绑定安伴设备</h3><p style="font-size:12px;color:var(--ab-ink2);margin-top:3px">输入设备上的绑定码</p></div>
+        <button class="w-9 h-9 flex items-center justify-center rounded-full bg-background-cream" onclick="closeBindDevice()" type="button"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl mb-4" id="bindingCodeInput" placeholder="例如 ANBAN-482913" type="text" autocomplete="off"/>
+      <div class="grid grid-cols-2 gap-2 mb-5">
+        <label class="ab-card p-3 flex items-center gap-2 cursor-pointer"><input checked name="bindingRole" type="radio" value="admin"/><span><strong class="block text-sm">家庭管理员</strong><span class="text-[11px] text-text-secondary">管理画像和成员</span></span></label>
+        <label class="ab-card p-3 flex items-center gap-2 cursor-pointer"><input name="bindingRole" type="radio" value="member"/><span><strong class="block text-sm">家庭成员</strong><span class="text-[11px] text-text-secondary">留言与照看</span></span></label>
+      </div>
+      <button class="ab-btn-primary w-full h-[50px]" id="bindDeviceBtn" onclick="submitDeviceBinding()" type="button">确认绑定</button>
+    </div>
 
     <!-- Quick Message Modal (Home) -->
     <div class="quick-msg-overlay" id="quickMsgOverlay" onclick="closeQuickMsg()"></div>

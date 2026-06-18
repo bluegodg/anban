@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,6 +27,7 @@ func (h *Handler) create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	applyAccountContext(c, &req)
 
 	msg, err := h.service.Send(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -49,6 +51,9 @@ func (h *Handler) list(c *gin.Context) {
 		DeviceID: c.Query("deviceId"),
 		Status:   Status(c.Query("status")),
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		filter.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 	msgs, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "留言列表读取失败"})
@@ -56,4 +61,20 @@ func (h *Handler) list(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"messages": msgs})
+}
+
+func applyAccountContext(c *gin.Context, req *SendRequest) {
+	if c.GetString(sharedtypes.GinContextAuthMode) != "account" {
+		return
+	}
+	req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	req.FromName = ""
+	req.SenderDisplayName = c.GetString(sharedtypes.GinContextSenderDisplayName)
+	req.SenderRole = c.GetString(sharedtypes.GinContextDeviceRole)
+	req.SenderAvatarColor = c.GetString(sharedtypes.GinContextSenderAvatarColor)
+	if value, ok := c.Get(sharedtypes.GinContextAccountID); ok {
+		if accountID, ok := value.(uint); ok {
+			req.SenderAccountID = &accountID
+		}
+	}
 }

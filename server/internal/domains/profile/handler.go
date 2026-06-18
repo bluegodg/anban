@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,7 +23,7 @@ func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 }
 
 func (h *Handler) get(c *gin.Context) {
-	profile, err := h.service.Get(c.Request.Context(), c.Query("deviceId"))
+	profile, err := h.service.Get(c.Request.Context(), deviceIDFromContext(c, c.Query("deviceId")))
 	if errors.Is(err, ErrInvalidInput) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 必填"})
 		return
@@ -45,6 +46,9 @@ func (h *Handler) update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 
 	profile, err := h.service.Update(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -57,4 +61,11 @@ func (h *Handler) update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, profile)
+}
+
+func deviceIDFromContext(c *gin.Context, fallback string) string {
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		return c.GetString(sharedtypes.GinContextDeviceID)
+	}
+	return fallback
 }

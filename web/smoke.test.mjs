@@ -968,9 +968,11 @@ test('child web refreshes backend status before listing messages', async () => {
 test('child web renders backend interaction time through the relative formatter', async () => {
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const startIndex = app.indexOf('function renderBackendStatus');
-  const endIndex = app.indexOf('\n}\n', startIndex);
+  const endMatch = app.slice(startIndex).match(/\r?\n}\r?\n/);
+  const endIndex = endMatch ? startIndex + endMatch.index : -1;
   const renderBackendStatus = app.slice(startIndex, endIndex);
 
+  assert.notEqual(endIndex, -1);
   assert.match(renderBackendStatus, /formatStatusDetail\(snapshot\)/);
   assert.doesNotMatch(renderBackendStatus, /formatDateTime/);
 });
@@ -1071,7 +1073,8 @@ test('child web clears stale device data when connection settings become invalid
   const validationIndex = app.indexOf('后端地址、访问码和设备 ID 必填', submitIndex);
   const invalidBranch = app.slice(submitIndex, validationIndex);
   const clearStart = app.indexOf('function clearConnectionData()');
-  const clearEnd = app.indexOf('\n}\n\nasync function refreshReminders', clearStart);
+  const clearEndMatch = app.slice(clearStart).match(/\r?\n}\r?\n\r?\nasync function refreshReminders/);
+  const clearEnd = clearEndMatch ? clearStart + clearEndMatch.index : -1;
   const clearBlock = app.slice(clearStart, clearEnd);
 
   assert.notEqual(submitIndex, -1);
@@ -1092,7 +1095,8 @@ test('child web starts polling only after a successful backend refresh', async (
   const restartIndex = app.indexOf('restartStatusPolling()', submitIndex);
   const submitBlock = app.slice(submitIndex, restartIndex);
   const refreshIndex = app.indexOf('async function refreshMessages()');
-  const refreshEnd = app.indexOf('\n}\n\nasync function refreshBackendStatus', refreshIndex);
+  const refreshEndMatch = app.slice(refreshIndex).match(/\r?\n}\r?\n\r?\nasync function refreshBackendStatus/);
+  const refreshEnd = refreshEndMatch ? refreshIndex + refreshEndMatch.index : -1;
   const refreshBlock = app.slice(refreshIndex, refreshEnd);
 
   assert.notEqual(submitIndex, -1);
@@ -1339,7 +1343,8 @@ test('child web clears sample profile when backend has no saved profile', async 
   const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
   const refreshIndex = app.indexOf('async function refreshProfile()');
   const catchIndex = app.indexOf('} catch (error) {', refreshIndex);
-  const endIndex = app.indexOf('\n}\n\nfunction renderBackendStatus', catchIndex);
+  const endMatch = app.slice(catchIndex).match(/\r?\n}\r?\n\r?\nfunction renderBackendStatus/);
+  const endIndex = endMatch ? catchIndex + endMatch.index : -1;
   const refreshBlock = app.slice(refreshIndex, endIndex);
   const notFoundIndex = refreshBlock.indexOf('error.status === 404');
   const clearIndex = refreshBlock.indexOf('clearProfile()', notFoundIndex);

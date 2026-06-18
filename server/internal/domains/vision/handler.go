@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	sharedtypes "github.com/bluegodg/anban/server/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,6 +28,7 @@ func (h *Handler) capture(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	applyDeviceContext(c, &req)
 
 	result, err := h.service.Capture(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -46,6 +48,7 @@ func (h *Handler) checkPresence(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	applyDeviceContext(c, &req)
 
 	result, err := h.service.CaptureAndObservePresence(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -69,6 +72,9 @@ func (h *Handler) observePresence(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
 		return
 	}
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 
 	result, err := h.service.ObservePresence(c.Request.Context(), req)
 	if errors.Is(err, ErrInvalidInput) {
@@ -80,4 +86,10 @@ func (h *Handler) observePresence(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func applyDeviceContext(c *gin.Context, req *CaptureRequest) {
+	if c.GetString(sharedtypes.GinContextAuthMode) == "account" {
+		req.DeviceID = c.GetString(sharedtypes.GinContextDeviceID)
+	}
 }
