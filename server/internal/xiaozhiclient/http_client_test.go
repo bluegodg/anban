@@ -313,7 +313,7 @@ func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.URL, "tok_abc")
-	err := c.SetRolePrompt(context.Background(), "dev-001", "请记住王阿姨喜欢豫剧")
+	err := c.SetRolePrompt(context.Background(), "dev-001", "老人本名：蓝\n喜好：养花")
 	if err != nil {
 		t.Fatalf("SetRolePrompt: %v", err)
 	}
@@ -336,7 +336,8 @@ func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
 			t.Fatalf("X-API-Token sequence = %v, want tok_abc on every request", tokens)
 		}
 	}
-	if gotBody["custom_prompt"] != "请记住王阿姨喜欢豫剧" {
+	gotPrompt, _ := gotBody["custom_prompt"].(string)
+	if !strings.Contains(gotPrompt, "老人本名：蓝") || !strings.Contains(gotPrompt, anbanContextBeginMarker) || !strings.Contains(gotPrompt, anbanContextEndMarker) {
 		t.Fatalf("body = %v, want updated custom_prompt", gotBody)
 	}
 	if gotBody["name"] != "care-agent" || gotBody["voice"] != "voice-a" {
@@ -346,6 +347,82 @@ func TestSetRolePromptSendsManagerAgentRequest(t *testing.T) {
 	if !ok || len(mcpServices) != 1 || mcpServices[0] != "camera" {
 		t.Fatalf("mcp_service_names = %v, want preserved camera", gotBody["mcp_service_names"])
 	}
+}
+
+func TestSetRolePromptPreservesStyleLayerAndReplacesManagedContext(t *testing.T) {
+	var gotBody map[string]any
+	srv := newRolePromptServer(t, "说话慢一点，语气亲近。\n\n"+anbanContextBeginMarker+"\n老人本名：王秀英\n近期记忆：王阿姨喜欢豫剧\n"+anbanContextEndMarker+"\n\n回答尽量简短。", &gotBody)
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if err := c.SetRolePrompt(context.Background(), "dev-001", "老人本名：蓝\n近期记忆：老人喜欢养花"); err != nil {
+		t.Fatalf("SetRolePrompt: %v", err)
+	}
+
+	gotPrompt, _ := gotBody["custom_prompt"].(string)
+	for _, want := range []string{"说话慢一点，语气亲近。", "回答尽量简短。", "老人本名：蓝", "近期记忆：老人喜欢养花"} {
+		if !strings.Contains(gotPrompt, want) {
+			t.Fatalf("custom_prompt = %q, want contains %q", gotPrompt, want)
+		}
+	}
+	for _, stale := range []string{"王秀英", "王阿姨"} {
+		if strings.Contains(gotPrompt, stale) {
+			t.Fatalf("custom_prompt = %q, want stale managed context %q removed", gotPrompt, stale)
+		}
+	}
+}
+
+func TestSetRolePromptMigratesLegacyAnBanPromptWithoutKeepingStaleProfile(t *testing.T) {
+	var gotBody map[string]any
+	srv := newRolePromptServer(t, "你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。\n老人本名：王秀英\n近期记忆：王阿姨喜欢豫剧", &gotBody)
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if err := c.SetRolePrompt(context.Background(), "dev-001", "老人本名：蓝\n近期记忆：老人喜欢养花"); err != nil {
+		t.Fatalf("SetRolePrompt: %v", err)
+	}
+
+	gotPrompt, _ := gotBody["custom_prompt"].(string)
+	if !strings.Contains(gotPrompt, "老人本名：蓝") || !strings.Contains(gotPrompt, "近期记忆：老人喜欢养花") {
+		t.Fatalf("custom_prompt = %q, want current AnBan context", gotPrompt)
+	}
+	for _, stale := range []string{"王秀英", "王阿姨"} {
+		if strings.Contains(gotPrompt, stale) {
+			t.Fatalf("custom_prompt = %q, want legacy stale profile %q removed", gotPrompt, stale)
+		}
+	}
+}
+
+func newRolePromptServer(t *testing.T, existingPrompt string, gotBody *map[string]any) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"success":true,"data":[{"id":2,"device_name":"dev-001","agent_id":9}]}`))
+		case "/api/open/v1/agents/9":
+			switch r.Method {
+			case http.MethodGet:
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": true,
+					"data": map[string]any{
+						"id":            9,
+						"name":          "care-agent",
+						"custom_prompt": existingPrompt,
+						"voice":         "voice-a",
+					},
+				})
+			case http.MethodPut:
+				b, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(b, gotBody)
+				_, _ = w.Write([]byte(`{"success":true}`))
+			default:
+				t.Fatalf("agent method = %q, want GET or PUT", r.Method)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
 }
 
 func TestSetRolePromptErrorsOnNon2xx(t *testing.T) {

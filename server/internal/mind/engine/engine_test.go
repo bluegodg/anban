@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
+	"github.com/bluegodg/anban/server/internal/mind/promptctx"
 	"github.com/bluegodg/anban/server/internal/store"
 )
 
@@ -738,6 +739,38 @@ func TestBuildMindContextUsesSelfStateAndRecentEvents(t *testing.T) {
 	}
 }
 
+func TestBuildMindContextUsesCompanionContextReader(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	svc.UseCompanionContextReader(fakeCompanionContextReader{
+		context: promptctx.CompanionContext{
+			DisplayName:      "蓝",
+			ProfileSummaries: []string{"喜好：养花"},
+			MemoryFacts:      []string{"老人喜欢饭后晒太阳"},
+		},
+	})
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 15, 0, 0, 0, time.UTC)
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{
+		DeviceID: deviceID,
+		At:       at,
+		Concern:  0.78,
+	}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+
+	got, err := svc.BuildMindContext(ctx, deviceID, at)
+	if err != nil {
+		t.Fatalf("BuildMindContext: %v", err)
+	}
+	for _, want := range []string{"陪伴对象：蓝", "画像重点：喜好：养花", "记忆重点：老人喜欢饭后晒太阳"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("context = %q, want contains %q", got, want)
+		}
+	}
+}
+
 func TestBuildMindContextReturnsEmptyWhenStateMissing(t *testing.T) {
 	svc, _ := newEngineForTest(t)
 	got, err := svc.BuildMindContext(context.Background(), "dev-001", time.Date(2026, 6, 16, 15, 0, 0, 0, time.UTC))
@@ -747,6 +780,15 @@ func TestBuildMindContextReturnsEmptyWhenStateMissing(t *testing.T) {
 	if got != "" {
 		t.Fatalf("context = %q, want empty degraded context", got)
 	}
+}
+
+type fakeCompanionContextReader struct {
+	context promptctx.CompanionContext
+	err     error
+}
+
+func (f fakeCompanionContextReader) CompanionContext(ctx context.Context, deviceID string) (promptctx.CompanionContext, error) {
+	return f.context, f.err
 }
 
 func TestEngineRejectsBlankDeviceIDs(t *testing.T) {

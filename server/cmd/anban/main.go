@@ -26,6 +26,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind"
 	"github.com/bluegodg/anban/server/internal/mind/engine"
 	"github.com/bluegodg/anban/server/internal/mind/executors"
+	"github.com/bluegodg/anban/server/internal/mind/promptctx"
 	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
@@ -169,6 +170,7 @@ func main() {
 		log.Fatalf("mind 表迁移失败: %v", err)
 	}
 	mindEngine := engine.New(mindStore)
+	mindEngine.UseCompanionContextReader(profileCompanionContextReader{profiles: profileService})
 	configureMindEngine(mindEngine, cfg)
 	messageService.UseMindSink(messageMindSink{engine: mindEngine})
 	reminderService.UseMindSink(reminderMindSink{engine: mindEngine})
@@ -377,6 +379,52 @@ func runVisionCaptureMaintenance(maintainer visionCaptureMaintainer, now time.Ti
 
 type mindContextSyncer interface {
 	SyncMindContext(ctx context.Context, deviceID string, mindContext string) error
+}
+
+type profileCompanionContextReader struct {
+	profiles *profile.Service
+}
+
+func (r profileCompanionContextReader) CompanionContext(ctx context.Context, deviceID string) (promptctx.CompanionContext, error) {
+	if r.profiles == nil {
+		return promptctx.CompanionContext{}, nil
+	}
+	current, err := r.profiles.Get(ctx, deviceID)
+	if errors.Is(err, profile.ErrNotFound) {
+		return promptctx.CompanionContext{}, nil
+	}
+	if err != nil {
+		return promptctx.CompanionContext{}, err
+	}
+
+	displayName := strings.TrimSpace(current.Fields.Nickname)
+	if displayName == "" {
+		displayName = strings.TrimSpace(current.Fields.Name)
+	}
+	return promptctx.CompanionContext{
+		DisplayName:      displayName,
+		ProfileSummaries: profileSummaries(current.Fields),
+		MemoryFacts:      current.MemoryFacts,
+	}, nil
+}
+
+func profileSummaries(fields profile.Fields) []string {
+	summaries := []string{}
+	add := func(label, value string) {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			summaries = append(summaries, label+"："+value)
+		}
+	}
+	add("老人本名", fields.Name)
+	add("常用称呼", fields.Nickname)
+	add("子女", strings.Join(fields.Children, "、"))
+	add("孙辈", strings.Join(fields.Grandchildren, "、"))
+	add("喜好", strings.Join(fields.Hobbies, "、"))
+	add("作息", fields.Schedule)
+	add("健康背景", fields.Health)
+	add("忌口和禁忌", strings.Join(fields.Taboos, "、"))
+	return summaries
 }
 
 func startMindLoops(

@@ -29,6 +29,7 @@ type Service struct {
 	location             *time.Location
 	proactiveCooldown    time.Duration
 	proactiveDaytimeOnly bool
+	companionContext     CompanionContextReader
 }
 
 const defaultProactiveCooldown = 30 * time.Minute
@@ -41,6 +42,10 @@ type ExecutionResult struct {
 
 type ActionExecutor interface {
 	Execute(ctx context.Context, action mind.Action) (ExecutionResult, error)
+}
+
+type CompanionContextReader interface {
+	CompanionContext(ctx context.Context, deviceID string) (promptctx.CompanionContext, error)
 }
 
 func New(store *mind.Store) *Service {
@@ -61,6 +66,10 @@ func (s *Service) UseProactiveCooldown(cooldown time.Duration) {
 
 func (s *Service) UseProactiveDaytimeOnly(enabled bool) {
 	s.proactiveDaytimeOnly = enabled
+}
+
+func (s *Service) UseCompanionContextReader(reader CompanionContextReader) {
+	s.companionContext = reader
 }
 
 func (s *Service) Ingest(ctx context.Context, event mind.Event) ([]mind.Action, error) {
@@ -226,7 +235,14 @@ func (s *Service) BuildMindContext(ctx context.Context, deviceID string, at time
 	if err != nil {
 		return "", err
 	}
-	return promptctx.Build(state, recent), nil
+	var companion promptctx.CompanionContext
+	if s.companionContext != nil {
+		companion, err = s.companionContext.CompanionContext(ctx, deviceID)
+		if err != nil {
+			return "", err
+		}
+	}
+	return promptctx.BuildWithCompanion(state, recent, companion), nil
 }
 
 func (s *Service) runPipeline(ctx context.Context, store *mind.Store, deviceID string, at time.Time, currentEvent mind.Event, recent []mind.Event, lateEvent bool) ([]mind.Action, error) {

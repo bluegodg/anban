@@ -12,6 +12,14 @@
 - 边界：不改 xiaozhi 源码、不改固件、不绕过 `xiaozhiclient`；自动沉淀仍沿用 `memory.DistillDevice -> profile.SyncMemoryFacts`，本切片只补手动管理入口和空记忆同步防线。
 - 验证：`go test -count=1 ./internal/memory ./internal/childapi ./cmd/anban`；`node --test childweb/smoke.test.mjs`
 
+### 风格层与安伴托管上下文分离
+
+- 文件：`server/internal/xiaozhiclient/`、`server/internal/mind/{promptctx,engine}/`、`server/cmd/anban/`、`docs/capabilities/family-profile-memory-mind.md`
+- 内容：`SetRolePrompt` 不再把 manager `custom_prompt` 整段覆盖为 profile prompt，而是在 `ANBAN_CONTEXT` 标记块内替换安伴托管上下文，保留小智管理端人工维护的风格层；旧版整段安伴画像 prompt 会被迁移为托管块以清除历史演示对象事实。Mind engine 新增只读陪伴上下文入口，由 `cmd/anban` 从 profile/memory 提供姓名、画像重点和记忆事实，生成 `mindContext` 时显式参考这些内容。
+- 目的：落实“xiaozhi 系统提示词是风格层，陪伴对象资料/记忆/心智是安伴层”的架构边界，防止 profile 更新覆盖风格设定，也防止旧画像事实继续污染设备回答。
+- 边界：不改 xiaozhi 源码、不直连 manager 以外的接口、不让 mind 包 import profile；装配层负责跨域读取，仍保持 `xiaozhiclient` 为唯一南向边界。
+- 验证：`go test -count=1 ./internal/xiaozhiclient ./internal/mind/promptctx ./internal/mind/engine ./cmd/anban`
+
 ## 2026-06-17
 
 ### AnBan Mind 统一心智层
