@@ -200,6 +200,10 @@
   .ab-navbar .nav-link{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ab-ink3);font-size:10px;text-decoration:none}
   .ab-dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
   .ab-dash{border:1px dashed #d8c8bc;border-radius:var(--ab-rmd);cursor:pointer}
+  .ab-input{width:100%;height:50px;padding:0 14px;background:#fff;border:1px solid var(--ab-line2);border-radius:var(--ab-rmd);font-size:14px;color:var(--ab-ink);outline:none;box-sizing:border-box}
+  .ab-input:focus{border-color:var(--ab-primary);box-shadow:0 0 0 3px rgba(154,68,41,.12)}
+  .auth-mode{flex:1;height:38px;border:none;background:transparent;border-radius:var(--ab-rsm);font-size:13px;font-weight:600;color:var(--ab-ink2);cursor:pointer}
+  .auth-mode.active{background:#fff;color:var(--ab-primary);box-shadow:0 1px 4px rgba(0,0,0,.06)}
   .auth-mode{flex:1;height:36px;border-radius:8px;color:var(--ab-ink2);font-size:12px;font-weight:700}
   .auth-mode.active{background:#fff;color:var(--ab-primary);box-shadow:0 1px 5px rgba(60,30,20,.08)}
   .anban-device-locked{opacity:.48;filter:saturate(.45);pointer-events:none;user-select:none}
@@ -286,61 +290,52 @@
 
       <!-- ============ LOGIN ============ -->
       <section class="spa-section" id="s-login" data-statusbar="light">
-        <div class="relative w-full overflow-hidden flex-shrink-0" style="height:394px;margin-top:-54px">
-          <div class="w-full h-full primary-gradient"></div>
-          <div class="absolute inset-0 bg-gradient-to-b from-transparent to-background-cream/90"></div>
-        </div>
-        <div class="px-page-margin -mt-10 relative z-10 flex flex-col" style="min-height:calc(100% - 340px)">
-          <div class="text-center mb-section-gap">
-            <div class="inline-flex items-center justify-center bg-white/50 p-3 rounded-full mb-4 soft-shadow">
-              <span class="material-symbols-outlined text-primary text-[32px]">nest_eco_leaf</span>
-            </div>
-            <h1 class="font-display-lg-mobile text-display-lg-mobile text-on-surface mb-2">登录安伴</h1>
-            <p class="font-body-md text-body-md text-text-secondary">和家人一起陪伴老人</p>
+        <div style="position:relative;height:230px;flex-shrink:0;margin-top:-54px;overflow:hidden;background:linear-gradient(160deg,#EE9670,#F4B48F)">
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,#FAF6F0)"></div>
+          <div style="position:relative;text-align:center;padding-top:88px;color:#fff">
+            <div class="ab-iconbox" style="display:inline-flex;width:54px;height:54px;border-radius:15px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4)"><span class="material-symbols-outlined" style="font-size:26px">nest_eco_leaf</span></div>
+            <div style="font-size:25px;font-weight:800;margin-top:12px;letter-spacing:.01em">安伴</div>
+            <div style="font-size:12.5px;opacity:.92;margin-top:5px">和家人一起，陪伴老人</div>
           </div>
-          <div class="bg-surface-white rounded-2xl p-6 soft-shadow flex flex-col gap-4">
-            <div class="flex p-1 bg-background-cream rounded-xl gap-1">
+        </div>
+        <div style="position:relative;z-index:10;padding:0 20px;margin-top:-30px;display:flex;flex-direction:column;flex:1">
+          <div class="ab-glass" style="padding:18px">
+            <div style="display:flex;gap:4px;padding:4px;background:#f3ebe4;border-radius:12px;margin-bottom:16px">
               <button class="auth-mode active" id="passwordLoginMode" type="button">密码</button>
               <button class="auth-mode" id="codeLoginMode" type="button">验证码</button>
               <button class="auth-mode" id="demoLoginMode" type="button">演示</button>
             </div>
-            <div class="flex flex-col gap-3" id="passwordLoginPanel">
-              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20" id="loginPhone" placeholder="手机号" type="tel" autocomplete="tel"/>
-              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20" id="loginPassword" placeholder="密码（至少 6 位）" type="password" autocomplete="current-password"/>
-              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20" id="registerNickname" placeholder="昵称（注册时选填）" type="text"/>
-              <div class="flex gap-2">
-                <button class="primary-gradient flex-1 h-[50px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center gap-2" id="loginBtn" type="button">
-                  <span id="loginBtnText">登录</span><span class="material-symbols-outlined" id="loginBtnIcon">arrow_forward</span>
+            <div class="flex flex-col" style="gap:11px" id="passwordLoginPanel">
+              <input class="ab-input" id="loginPhone" placeholder="手机号" type="tel" autocomplete="tel"/>
+              <input class="ab-input" id="loginPassword" placeholder="密码（至少 6 位）" type="password" autocomplete="current-password"/>
+              <input class="ab-input" id="registerNickname" placeholder="昵称（注册时选填）" type="text"/>
+              <div style="display:flex;gap:10px">
+                <button class="ab-btn-primary" id="loginBtn" type="button" style="flex:1;height:50px;display:flex;align-items:center;justify-content:center;gap:6px">
+                  <span id="loginBtnText">登录</span><span class="material-symbols-outlined" id="loginBtnIcon" style="font-size:18px">arrow_forward</span>
                 </button>
-                <button class="ab-btn-ghost px-5" id="registerBtn" type="button">注册</button>
+                <button class="ab-btn-ghost" id="registerBtn" type="button" style="padding:0 20px;height:50px">注册</button>
               </div>
             </div>
-            <div class="flex flex-col gap-3" id="codeLoginPanel" style="display:none">
-              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl" id="codeLoginPhone" placeholder="手机号" type="tel"/>
-              <div class="flex gap-2">
-                <input class="flex-1 min-w-0 h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl" id="loginCode" placeholder="验证码" type="text" inputmode="numeric"/>
-                <button class="ab-btn-ghost px-4" id="requestCodeBtn" type="button">获取验证码</button>
+            <div class="flex flex-col" style="gap:11px;display:none" id="codeLoginPanel">
+              <input class="ab-input" id="codeLoginPhone" placeholder="手机号" type="tel"/>
+              <div style="display:flex;gap:10px">
+                <input class="ab-input" id="loginCode" placeholder="验证码" type="text" inputmode="numeric" style="flex:1;min-width:0"/>
+                <button class="ab-btn-ghost" id="requestCodeBtn" type="button" style="padding:0 16px;height:50px;white-space:nowrap">获取验证码</button>
               </div>
-              <button class="ab-btn-primary h-[50px]" id="codeLoginBtn" type="button">验证码登录 / 注册</button>
+              <button class="ab-btn-primary" id="codeLoginBtn" type="button" style="height:50px">验证码登录 / 注册</button>
             </div>
-            <div class="flex flex-col gap-3" id="demoLoginPanel" style="display:none">
-              <input class="w-full h-[50px] px-4 bg-background-cream border border-divider-warm rounded-xl" id="accessCode" placeholder="演示访问码" type="text" autocomplete="off"/>
-              <button class="ab-btn-primary h-[50px]" id="demoLoginBtn" type="button">进入演示模式</button>
+            <div class="flex flex-col" style="gap:11px;display:none" id="demoLoginPanel">
+              <input class="ab-input" id="accessCode" placeholder="演示访问码" type="text" autocomplete="off"/>
+              <button class="ab-btn-primary" id="demoLoginBtn" type="button" style="height:50px">进入演示模式</button>
             </div>
           </div>
-          <div class="mt-auto pb-8 pt-section-gap text-center">
-            <div class="inline-flex items-center gap-2 text-text-secondary/40 font-label-sm text-label-sm uppercase tracking-wider">
-              <span class="w-8 h-[1px] bg-divider-warm"></span>
-              <span>AnBan 智能守护</span>
-              <span class="w-8 h-[1px] bg-divider-warm"></span>
+          <div style="margin-top:auto;padding:28px 0 24px;text-align:center">
+            <div style="display:inline-flex;align-items:center;gap:8px;color:var(--ab-ink3);font-size:11px;letter-spacing:.08em">
+              <span style="width:24px;height:1px;background:var(--ab-line)"></span><span>AnBan 智能守护</span><span style="width:24px;height:1px;background:var(--ab-line)"></span>
             </div>
-            <div class="mt-4 flex justify-center gap-6">
-              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#" onclick="event.preventDefault();notImplemented('使用帮助')">
-                <span class="material-symbols-outlined text-[20px]">help</span>
-              </a>
-              <a class="w-10 h-10 rounded-full bg-surface-white flex items-center justify-center soft-shadow text-on-surface-variant active:text-primary transition-colors" href="#" onclick="event.preventDefault();notImplemented('联系客服')">
-                <span class="material-symbols-outlined text-[20px]">chat_bubble</span>
-              </a>
+            <div style="margin-top:14px;display:flex;justify-content:center;gap:20px">
+              <a href="#" onclick="event.preventDefault();notImplemented('使用帮助')" style="color:var(--ab-ink3)"><span class="material-symbols-outlined" style="font-size:20px">help</span></a>
+              <a href="#" onclick="event.preventDefault();notImplemented('联系客服')" style="color:var(--ab-ink3)"><span class="material-symbols-outlined" style="font-size:20px">chat_bubble</span></a>
             </div>
           </div>
         </div>
