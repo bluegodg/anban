@@ -172,9 +172,24 @@ func main() {
 	messageService.UseMindSink(messageMindSink{engine: mindEngine})
 	reminderService.UseMindSink(reminderMindSink{engine: mindEngine})
 
+	visionStore := vision.NewStore(st.DB)
+	if err := visionStore.AutoMigrate(); err != nil {
+		log.Fatalf("vision 表迁移失败: %v", err)
+	}
 	visionService := vision.NewService(xc, greetingService)
+	visionService.UseStore(visionStore)
+	visionService.UseMediaRoot(cfg.VisionMediaRoot)
+	visionService.UseCaptureTimeout(cfg.VisionCaptureTimeout)
+	visionService.UseRetentionDays(cfg.VisionRetentionDays)
+	visionService.UseMaxCapturesPerDevice(cfg.VisionMaxCapturesPerDevice)
+	if cfg.XiaozhiVisionURL != "" {
+		visionService.UseVisionForwarder(xiaozhiclient.NewVisionForwarder(cfg.XiaozhiVisionURL))
+	} else {
+		log.Printf("vision device proxy disabled: ANBAN_XIAOZHI_VISION_URL 未配置")
+	}
 	visionService.UseMindSink(visionMindSink{engine: mindEngine})
 	startVisionPresencePoller(sch, cfg.VisionPresenceInterval, profileStore, visionService)
+	startVisionCaptureMaintenance(sch, time.Minute, visionService)
 	visionHandler := vision.NewHandler(visionService)
 
 	mindDispatcher := executors.NewDispatcher(map[string]executors.SpeakExecutor{
@@ -197,6 +212,7 @@ func main() {
 		VisionRoutes:         visionHandler,
 		TimelineRoutes:       timelineHandler,
 	})
+	visionHandler.RegisterDeviceRoutes(r.Group("/api"), cfg.DeviceVisionToken)
 
 	log.Printf("anban 启动，监听 %s（manager=%s）", cfg.ListenAddr, cfg.ManagerBaseURL)
 	if err := r.Run(cfg.ListenAddr); err != nil {
@@ -311,6 +327,49 @@ func runVisionPresencePoll(profileStore *profile.Store, visionService *vision.Se
 		if result.Check.Observation.TriggeredGreeting {
 			log.Printf("vision presence 触发问候 device=%s", result.DeviceID)
 		}
+	}
+}
+
+type visionCaptureMaintainer interface {
+	FinalizeTimedOutCaptures(ctx context.Context, now time.Time) (int, error)
+	ExpireCaptures(ctx context.Context, now time.Time) (int, error)
+	PruneExcessCaptures(ctx context.Context) (int, error)
+}
+
+func startVisionCaptureMaintenance(sch *scheduler.Scheduler, interval time.Duration, maintainer visionCaptureMaintainer) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	var scheduleNext func()
+	scheduleNext = func() {
+		if _, err := sch.ScheduleAt(time.Now().Add(interval), func() {
+			runVisionCaptureMaintenance(maintainer, time.Now().UTC())
+			scheduleNext()
+		}); err != nil {
+			log.Printf("vision capture maintenance 调度失败: %v", err)
+		}
+	}
+	scheduleNext()
+	log.Printf("vision capture maintenance enabled: interval=%s", interval)
+}
+
+func runVisionCaptureMaintenance(maintainer visionCaptureMaintainer, now time.Time) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if count, err := maintainer.FinalizeTimedOutCaptures(ctx, now); err != nil {
+		log.Printf("vision capture 超时终结失败: %v", err)
+	} else if count > 0 {
+		log.Printf("vision capture 超时终结 %d 条", count)
+	}
+	if count, err := maintainer.ExpireCaptures(ctx, now); err != nil {
+		log.Printf("vision capture 过期清理失败: %v", err)
+	} else if count > 0 {
+		log.Printf("vision capture 过期清理 %d 条", count)
+	}
+	if count, err := maintainer.PruneExcessCaptures(ctx); err != nil {
+		log.Printf("vision capture 数量清理失败: %v", err)
+	} else if count > 0 {
+		log.Printf("vision capture 数量清理 %d 条", count)
 	}
 }
 

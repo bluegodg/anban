@@ -86,6 +86,63 @@ export function formatVisionPresenceResult(result = {}) {
   };
 }
 
+export function buildVisionCaptureView(capture = {}) {
+  const analysis = capture.analysis || {};
+  const status = String(capture.status || 'pending').trim();
+  const statusMap = {
+    succeeded: { label: '已完成', tone: 'success' },
+    partial: { label: '部分成功', tone: 'warning' },
+    failed: { label: '拍摄失败', tone: 'danger' },
+    expired: { label: '已过期', tone: 'muted' },
+    pending: { label: '进行中', tone: 'pending' },
+  };
+  const statusView = statusMap[status] || statusMap.pending;
+  const isPartial = status === 'partial';
+  const isFailed = status === 'failed';
+  const isExpired = status === 'expired';
+  return {
+    statusLabel: statusView.label,
+    statusTone: statusView.tone,
+    summary: isExpired ? '图片已按保留策略清理' : String(analysis.summary || capture.failureMessage || '暂无观察结果').trim(),
+    presenceLabel: visionPresenceLabel(analysis.presence),
+    concerns: Array.isArray(analysis.concerns) ? analysis.concerns : [],
+    capturedAtLabel: formatVisionCapturedAt(capture.capturedAt),
+    showImage: (status === 'succeeded' || isPartial) && Boolean(capture.imageUrl),
+    action: isPartial ? { kind: 'reanalyze', label: '重新分析' } : (isFailed ? { kind: 'retry', label: '重试' } : null),
+  };
+}
+
+export function buildVisionLookProgress(stage = 'idle') {
+  const stages = {
+    connecting: { statusText: '正在连接设备', buttonText: '连接中', disabled: true },
+    capturing: { statusText: '设备正在拍摄', buttonText: '拍摄中', disabled: true },
+    analyzing: { statusText: '正在分析画面', buttonText: '分析中', disabled: true },
+    idle: { statusText: '看看老人在不在', buttonText: '看一眼', disabled: false },
+  };
+  return stages[stage] || stages.idle;
+}
+
+function visionPresenceLabel(presence) {
+  if (presence === 'someone') return '看到老人';
+  if (presence === 'no_one') return '未看到老人';
+  return '暂未确认';
+}
+
+function formatVisionCapturedAt(value) {
+  const at = new Date(value || '');
+  if (Number.isNaN(at.getTime())) return '拍摄时间未知';
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(at);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${pick('year')}/${pick('month')}/${pick('day')} ${pick('hour')}:${pick('minute')}`;
+}
+
 const DEFAULT_GREETING_SLOTS = Object.freeze([
   Object.freeze({ label: 'morning', time: '08:00', enabled: true, tonePreset: 'warm' }),
   Object.freeze({ label: 'noon', time: '12:30', enabled: true, tonePreset: 'warm' }),

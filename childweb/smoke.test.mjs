@@ -14,7 +14,7 @@ test('P1 reuses the verified web API client without rewriting it', async () => {
   const childClient = await readFile(new URL('./api/client.js', import.meta.url), 'utf8');
   const verifiedClient = await readFile(new URL('../web/api/client.js', import.meta.url), 'utf8');
 
-  assert.equal(childClient, verifiedClient);
+  assert.equal(childClient.replace(/\r\n/g, '\n'), verifiedClient.replace(/\r\n/g, '\n'));
 });
 
 test('P1 config trims and persists backend connection settings', async () => {
@@ -418,11 +418,224 @@ test('W1.4 formats vision presence results for childweb', async () => {
   });
 });
 
-test('W1.4 childweb exposes look action through the real ESP32 camera MCP tool', () => {
+test('W1.4 childweb exposes the manual look action through the original-image flow', () => {
   assert.match(indexHTML, /id="visionLookButton"/);
   assert.match(indexHTML, /看一眼/);
   assert.match(indexHTML, /id="visionStatusText"/);
-  assert.match(appJS, /const VISION_CAPTURE_TOOL = 'self\.camera\.take_photo';/);
-  assert.match(appJS, /anbanClient\.checkVisionPresence\(\{ deviceId: anbanConfig\.deviceId, tool: VISION_CAPTURE_TOOL \}\)/);
-  assert.match(appJS, /formatVisionPresenceResult\(/);
+  assert.match(indexHTML, /id="visionRecentList"/);
+  for (const id of [
+    'visionResultOverlay',
+    'visionResultImage',
+    'visionResultClose',
+    'visionResultStatus',
+    'visionResultSummary',
+    'visionResultMeta',
+    'visionResultPresence',
+    'visionResultConcerns',
+    'visionResultAction',
+  ]) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
+  assert.match(appJS, /anbanClient\.lookVision\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanClient\.getVisionCaptureImage\(capture\.captureId, \{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanClient\.listVisionCaptures\(\{ deviceId: anbanConfig\.deviceId, limit: 3 \}\)/);
+  assert.match(appJS, /URL\.createObjectURL\(blob\)/);
+  assert.match(appJS, /URL\.revokeObjectURL\(visionImageObjectURL\)/);
+  assert.doesNotMatch(appJS, /anbanClient\.checkVisionPresence\(\{ deviceId: anbanConfig\.deviceId, tool: VISION_CAPTURE_TOOL \}\)/);
+});
+
+test('vision API starts a manual look through the authenticated device endpoint', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    token: 'session-token',
+    isBound: true,
+    fetchImpl: async (url, init) => {
+      request = { url, init };
+      return new Response(JSON.stringify({
+        captureId: 'cap_123',
+        status: 'succeeded',
+        imageUrl: '/api/vision/captures/cap_123/image',
+        analysis: { summary: '老人正在沙发上休息', presence: 'someone', concerns: [] },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+});
+
+  const result = await client.lookVision({ deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/vision/look');
+  assert.equal(request.init.method, 'POST');
+  assert.equal(request.init.headers.Authorization, 'Bearer session-token');
+  assert.deepEqual(JSON.parse(request.init.body), { deviceId: 'dev-001' });
+  assert.equal(result.captureId, 'cap_123');
+});
+
+test('vision API reads the original capture as an authenticated blob', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    token: 'session-token',
+    isBound: true,
+    fetchImpl: async (url, init) => {
+      request = { url, init };
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    },
+  });
+
+  const image = await client.getVisionCaptureImage('cap/123', { deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/vision/captures/cap%2F123/image?deviceId=dev-001');
+  assert.equal(request.init.headers.Authorization, 'Bearer session-token');
+  assert.equal(image.type, 'image/jpeg');
+  assert.equal(image.size, 4);
+});
+
+test('vision API restores recent captures for the bound device', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    token: 'session-token',
+    isBound: true,
+    fetchImpl: async (url, init) => {
+      request = { url, init };
+      return new Response(JSON.stringify([{ captureId: 'cap_recent', status: 'succeeded' }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const captures = await client.listVisionCaptures({ deviceId: 'dev-001', limit: 5 });
+
+  assert.equal(request.url, 'http://anban.local/api/vision/captures?deviceId=dev-001&limit=5');
+  assert.equal(request.init.headers.Authorization, 'Bearer session-token');
+  assert.equal(captures[0].captureId, 'cap_recent');
+});
+
+test('vision API reanalyzes a saved partial capture', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    token: 'session-token',
+    isBound: true,
+    fetchImpl: async (url, init) => {
+      request = { url, init };
+      return new Response(JSON.stringify({
+        captureId: 'cap_partial',
+        status: 'succeeded',
+        analysis: { summary: '重新分析完成', presence: 'someone', concerns: [] },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+
+  const capture = await client.reanalyzeVisionCapture('cap_partial', { deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/vision/captures/cap_partial/reanalyze?deviceId=dev-001');
+  assert.equal(request.init.method, 'POST');
+  assert.equal(request.init.headers.Authorization, 'Bearer session-token');
+  assert.equal(capture.status, 'succeeded');
+});
+
+test('vision capture view presents a successful observation with image and presence', async () => {
+  const { buildVisionCaptureView } = await import('./integration-core.js');
+
+  assert.deepEqual(buildVisionCaptureView({
+    status: 'succeeded',
+    imageUrl: '/api/vision/captures/cap_1/image',
+    capturedAt: '2026-06-18T15:30:00+08:00',
+    analysis: {
+      summary: '老人正在沙发上休息，神态平静。',
+      presence: 'someone',
+      concerns: ['地面有水杯'],
+    },
+  }), {
+    statusLabel: '已完成',
+    statusTone: 'success',
+    summary: '老人正在沙发上休息，神态平静。',
+    presenceLabel: '看到老人',
+    concerns: ['地面有水杯'],
+    capturedAtLabel: '2026/06/18 15:30',
+    showImage: true,
+    action: null,
+  });
+});
+
+test('vision look progress describes stable loading stages', async () => {
+  const { buildVisionLookProgress } = await import('./integration-core.js');
+
+  assert.deepEqual(buildVisionLookProgress('connecting'), {
+    statusText: '正在连接设备',
+    buttonText: '连接中',
+    disabled: true,
+  });
+  assert.deepEqual(buildVisionLookProgress('capturing'), {
+    statusText: '设备正在拍摄',
+    buttonText: '拍摄中',
+    disabled: true,
+  });
+  assert.deepEqual(buildVisionLookProgress('analyzing'), {
+    statusText: '正在分析画面',
+    buttonText: '分析中',
+    disabled: true,
+  });
+  assert.deepEqual(buildVisionLookProgress('idle'), {
+    statusText: '看看老人在不在',
+    buttonText: '看一眼',
+    disabled: false,
+  });
+});
+
+test('vision capture view keeps a partial image visible and offers reanalysis', async () => {
+  const { buildVisionCaptureView } = await import('./integration-core.js');
+
+  const view = buildVisionCaptureView({
+    status: 'partial',
+    imageUrl: '/api/vision/captures/cap_partial/image',
+    failureMessage: '图片已保存，但画面分析暂时失败',
+    analysis: { presence: 'unknown', concerns: [] },
+  });
+
+  assert.equal(view.statusLabel, '部分成功');
+  assert.equal(view.statusTone, 'warning');
+  assert.equal(view.summary, '图片已保存，但画面分析暂时失败');
+  assert.equal(view.showImage, true);
+  assert.deepEqual(view.action, { kind: 'reanalyze', label: '重新分析' });
+});
+
+test('vision capture view turns a failed capture into an actionable retry', async () => {
+  const { buildVisionCaptureView } = await import('./integration-core.js');
+
+  const view = buildVisionCaptureView({
+    status: 'failed',
+    failureMessage: '设备当前离线，请确认设备已联网',
+    analysis: { presence: 'unknown', concerns: [] },
+  });
+
+  assert.equal(view.statusLabel, '拍摄失败');
+  assert.equal(view.statusTone, 'danger');
+  assert.equal(view.summary, '设备当前离线，请确认设备已联网');
+  assert.equal(view.showImage, false);
+  assert.deepEqual(view.action, { kind: 'retry', label: '重试' });
+});
+
+test('vision capture view explains that an expired image is no longer available', async () => {
+  const { buildVisionCaptureView } = await import('./integration-core.js');
+
+  const view = buildVisionCaptureView({
+    status: 'expired',
+    analysis: { summary: '老人此前在客厅休息', presence: 'someone', concerns: [] },
+  });
+
+  assert.equal(view.statusLabel, '已过期');
+  assert.equal(view.statusTone, 'muted');
+  assert.equal(view.summary, '图片已按保留策略清理');
+  assert.equal(view.showImage, false);
+  assert.equal(view.action, null);
 });

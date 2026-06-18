@@ -5,7 +5,14 @@ package xiaozhiclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
+)
+
+var (
+	ErrDeviceOffline      = errors.New("xiaozhi: device offline")
+	ErrMCPToolUnavailable = errors.New("xiaozhi: mcp tool unavailable")
+	ErrUpstreamTimeout    = errors.New("xiaozhi: upstream timeout")
 )
 
 // Client 是各业务域唯一可见的南向接口（域只依赖它，不碰 HTTP 细节）。

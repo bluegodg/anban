@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -39,8 +41,8 @@ type injectReq struct {
 }
 
 type mcpCallReq struct {
-	Tool string         `json:"tool"`
-	Args map[string]any `json:"args,omitempty"`
+	ToolName  string         `json:"tool_name"`
+	Arguments map[string]any `json:"arguments,omitempty"`
 }
 
 type managerDevicePayload struct {
@@ -53,6 +55,11 @@ type managerDevicePayload struct {
 	LastActiveAt      json.RawMessage `json:"last_active_at"`
 	LastSeenAt        json.RawMessage `json:"last_seen_at"`
 	LastInteractionAt json.RawMessage `json:"last_interaction_at"`
+}
+
+type mcpToolPayload struct {
+	Name     string `json:"name"`
+	ToolName string `json:"tool_name"`
 }
 
 type historyMessagePayload struct {
@@ -160,6 +167,33 @@ func (c *HTTPClient) findAgentIDForDevice(ctx context.Context, deviceID string) 
 	return "", fmt.Errorf("xiaozhi manager device %q not found", deviceID)
 }
 
+func (c *HTTPClient) findManagerDeviceID(ctx context.Context, deviceID string) (string, error) {
+	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices", nil)
+	if err != nil {
+		return "", err
+	}
+	devices, err := decodeManagerDevices(body)
+	if err != nil {
+		return "", err
+	}
+
+	target := strings.TrimSpace(deviceID)
+	for _, device := range devices {
+		if !device.matches(target) {
+			continue
+		}
+		if device.explicitlyOffline() {
+			return "", fmt.Errorf("%w: %s", ErrDeviceOffline, deviceID)
+		}
+		managerID := rawJSONIDString(device.ID)
+		if managerID == "" || managerID == "0" {
+			return "", fmt.Errorf("xiaozhi manager device %q has no manager id", deviceID)
+		}
+		return managerID, nil
+	}
+	return "", fmt.Errorf("xiaozhi manager device %q not found", deviceID)
+}
+
 func (c *HTTPClient) GetHistory(ctx context.Context, deviceID string, limit int) ([]HistoryMessage, error) {
 	q := url.Values{}
 	if deviceID != "" {
@@ -191,6 +225,9 @@ func (c *HTTPClient) do(ctx context.Context, method, path string, body []byte) (
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || isTimeoutError(err) {
+			return nil, fmt.Errorf("%w: %v", ErrUpstreamTimeout, err)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -199,6 +236,11 @@ func (c *HTTPClient) do(ctx context.Context, method, path string, body []byte) (
 		return nil, fmt.Errorf("xiaozhi manager %s %s -> %d: %s", method, path, resp.StatusCode, string(respBody))
 	}
 	return respBody, nil
+}
+
+func isTimeoutError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func (d managerDevicePayload) matches(deviceID string) bool {
@@ -237,6 +279,19 @@ func (d managerDevicePayload) toDeviceStatus(fallbackDeviceID string) (DeviceSta
 		Online:       online,
 		LastActiveAt: lastActive,
 	}, nil
+}
+
+func (d managerDevicePayload) explicitlyOffline() bool {
+	if d.Online != nil {
+		return !*d.Online
+	}
+	status := strings.ToLower(strings.TrimSpace(d.Status))
+	switch status {
+	case "offline", "inactive", "disconnected":
+		return true
+	default:
+		return false
+	}
 }
 
 func decodeManagerDevices(body []byte) ([]managerDevicePayload, error) {
@@ -443,15 +498,77 @@ func decodeHistoryMessages(body []byte) ([]HistoryMessage, error) {
 }
 
 func (c *HTTPClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool string, args map[string]any) (json.RawMessage, error) {
-	body, err := json.Marshal(mcpCallReq{Tool: tool, Args: args})
+	managerID, err := c.findManagerDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.do(ctx, http.MethodPost, "/api/open/v1/devices/"+url.PathEscape(deviceID)+"/mcp-call", body)
+	if err := c.ensureMCPToolAvailable(ctx, managerID, tool); err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(mcpCallReq{ToolName: tool, Arguments: args})
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.do(ctx, http.MethodPost, "/api/open/v1/devices/"+url.PathEscape(managerID)+"/mcp-call", body)
 	if err != nil {
 		return nil, err
 	}
 	return unwrapData(resp), nil
+}
+
+func (c *HTTPClient) ensureMCPToolAvailable(ctx context.Context, managerID, tool string) error {
+	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices/"+url.PathEscape(managerID)+"/mcp-tools", nil)
+	if err != nil {
+		return err
+	}
+	tools, err := decodeMCPTools(body)
+	if err != nil {
+		return err
+	}
+	target := strings.TrimSpace(tool)
+	for _, item := range tools {
+		if item.matches(target) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrMCPToolUnavailable, tool)
+}
+
+func (t mcpToolPayload) matches(tool string) bool {
+	return strings.TrimSpace(t.Name) == tool || strings.TrimSpace(t.ToolName) == tool
+}
+
+func decodeMCPTools(body []byte) ([]mcpToolPayload, error) {
+	raw := unwrapData(body)
+	if isJSONNullOrEmpty(raw) {
+		return nil, nil
+	}
+	if tools, err := unmarshalMCPToolArray(raw); err == nil {
+		return tools, nil
+	}
+
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"tools", "items", "list", "records", "rows"} {
+		nested, ok := object[key]
+		if !ok || len(nested) == 0 || isJSONNullOrEmpty(nested) {
+			continue
+		}
+		if tools, err := unmarshalMCPToolArray(nested); err == nil {
+			return tools, nil
+		}
+	}
+	return nil, fmt.Errorf("xiaozhi manager mcp-tools response does not contain a tool list")
+}
+
+func unmarshalMCPToolArray(raw json.RawMessage) ([]mcpToolPayload, error) {
+	var tools []mcpToolPayload
+	if err := json.Unmarshal(raw, &tools); err != nil {
+		return nil, err
+	}
+	return tools, nil
 }
 
 func unwrapData(body []byte) json.RawMessage {

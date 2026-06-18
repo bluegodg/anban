@@ -220,6 +220,20 @@ func TestRunMindLoopsSkipsEmptyMindContext(t *testing.T) {
 	}
 }
 
+func TestRunVisionCaptureMaintenanceFinalizesTimeoutsAndExpiresCaptures(t *testing.T) {
+	now := time.Date(2026, 6, 18, 11, 30, 0, 0, time.UTC)
+	maintainer := &fakeVisionCaptureMaintainer{}
+
+	runVisionCaptureMaintenance(maintainer, now)
+
+	if maintainer.finalizeCalls != 1 || maintainer.expireCalls != 1 || maintainer.pruneCalls != 1 {
+		t.Fatalf("maintenance calls finalize=%d expire=%d prune=%d, want all once", maintainer.finalizeCalls, maintainer.expireCalls, maintainer.pruneCalls)
+	}
+	if !maintainer.finalizeAt.Equal(now) || !maintainer.expireAt.Equal(now) {
+		t.Fatalf("maintenance times finalize=%s expire=%s, want %s", maintainer.finalizeAt, maintainer.expireAt, now)
+	}
+}
+
 func newProfileStoreForMainTest(t *testing.T) *profile.Store {
 	t.Helper()
 	st, err := store.Open(":memory:")
@@ -285,4 +299,29 @@ func (f *fakeMindContextSyncer) SyncMindContext(_ context.Context, deviceID stri
 		mindContext string
 	}{deviceID: deviceID, mindContext: mindContext})
 	return nil
+}
+
+type fakeVisionCaptureMaintainer struct {
+	finalizeCalls int
+	expireCalls   int
+	pruneCalls    int
+	finalizeAt    time.Time
+	expireAt      time.Time
+}
+
+func (f *fakeVisionCaptureMaintainer) FinalizeTimedOutCaptures(_ context.Context, now time.Time) (int, error) {
+	f.finalizeCalls++
+	f.finalizeAt = now
+	return 1, nil
+}
+
+func (f *fakeVisionCaptureMaintainer) ExpireCaptures(_ context.Context, now time.Time) (int, error) {
+	f.expireCalls++
+	f.expireAt = now
+	return 1, nil
+}
+
+func (f *fakeVisionCaptureMaintainer) PruneExcessCaptures(_ context.Context) (int, error) {
+	f.pruneCalls++
+	return 1, nil
 }

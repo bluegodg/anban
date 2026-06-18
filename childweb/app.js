@@ -4,9 +4,10 @@ import {
   buildConversationBubbles,
   buildHomeStatus,
   buildReminderScheduleOptions,
+  buildVisionCaptureView,
+  buildVisionLookProgress,
   formatGreetingTriggerResult,
   formatLoginError,
-  formatVisionPresenceResult,
   formatRelativeTime,
   mapFieldsToStitchProfile,
   mapStitchProfileToFields,
@@ -16,8 +17,6 @@ import {
 } from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
 
-const VISION_CAPTURE_TOOL = 'self.camera.take_photo';
-
 var anbanConfig = loadConfig();
 var anbanSession = {
   token: localStorage.getItem('anban_account_token') || '',
@@ -26,6 +25,8 @@ var anbanSession = {
   authMode: localStorage.getItem('anban_auth_mode') || '',
 };
 var anbanClient = createRuntimeClient();
+var visionImageObjectURL = '';
+var visionCurrentCapture = null;
 
 window.anbanRuntime = {
   ApiError,
@@ -37,6 +38,30 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('./sw.js').catch(function() {});
   });
+}
+
+window.addEventListener('pagehide', releaseVisionImageObjectURL);
+
+function releaseVisionImageObjectURL() {
+  if (!visionImageObjectURL) return;
+  URL.revokeObjectURL(visionImageObjectURL);
+  visionImageObjectURL = '';
+}
+
+function closeVisionResult() {
+  var overlay = document.getElementById('visionResultOverlay');
+  if (overlay) overlay.classList.remove('open');
+  var image = document.getElementById('visionResultImage');
+  var empty = document.getElementById('visionResultImageEmpty');
+  var wrap = document.getElementById('visionResultImageWrap');
+  if (image) {
+    image.removeAttribute('src');
+    image.style.display = 'none';
+  }
+  if (empty) empty.style.display = '';
+  if (wrap) wrap.classList.add('is-empty');
+  releaseVisionImageObjectURL();
+  visionCurrentCapture = null;
 }
 
 function updateAnbanConfig(patch) {
@@ -265,6 +290,7 @@ Object.assign(window, {
   navigateTo,
   notImplemented,
   showToast,
+  closeVisionResult,
   openBindDevice,
   closeBindDevice,
   submitDeviceBinding,
@@ -661,17 +687,226 @@ function initHome() {
     });
   }
 
+  function setVisionProgress(stage) {
+    var view = buildVisionLookProgress(stage);
+    var statusText = document.getElementById('visionStatusText');
+    var label = document.getElementById('visionLookButtonLabel');
+    var button = document.getElementById('visionLookButton');
+    if (statusText) statusText.textContent = view.statusText;
+    if (label) label.textContent = view.buttonText;
+    if (button) {
+      button.disabled = view.disabled;
+      button.classList.toggle('opacity-70', view.disabled);
+    }
+  }
+
+  function visionToneClass(tone) {
+    if (tone === 'success') return 'ab-tag ab-tag-ok';
+    if (tone === 'danger') return 'ab-tag ab-tag-off';
+    if (tone === 'warning') return 'ab-tag ab-tag-cat';
+    return 'ab-tag';
+  }
+
+  function renderVisionRecent(captures) {
+    var list = document.getElementById('visionRecentList');
+    if (!list) return;
+    var items = Array.isArray(captures) ? captures.slice(0, 3) : [];
+    list.innerHTML = '';
+    if (!items.length) {
+      var empty = document.createElement('div');
+      empty.className = 'ab-card';
+      empty.style.cssText = 'padding:13px;color:var(--ab-ink3);font-size:13px';
+      empty.textContent = '暂无拍摄记录';
+      list.appendChild(empty);
+      return;
+    }
+    items.forEach(function(capture) {
+      var view = buildVisionCaptureView(capture);
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'ab-card active:scale-95 transition-all';
+      row.style.cssText = 'padding:12px;display:flex;align-items:center;gap:10px;text-align:left';
+      row.innerHTML = '<span class="material-symbols-outlined" style="font-size:19px;color:var(--ab-primary)">photo_camera</span><span style="flex:1;min-width:0"><span class="font-label-md" style="display:block;font-size:13px;font-weight:700;color:var(--ab-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><span class="font-label-sm" style="display:block;font-size:11px;color:var(--ab-ink3);margin-top:2px"></span></span><span class="ab-tag" style="flex-shrink:0"></span>';
+      row.querySelector('.font-label-md').textContent = view.summary;
+      row.querySelector('.font-label-sm').textContent = view.capturedAtLabel;
+      var tag = row.querySelector('.ab-tag');
+      tag.className = visionToneClass(view.statusTone);
+      tag.textContent = view.statusLabel;
+      row.addEventListener('click', async function() {
+        try {
+          await showVisionCapture(capture);
+        } catch (error) {
+          showToast(error.message || '图片加载失败');
+        }
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function renderVisionResult(capture, imageURL) {
+    var view = buildVisionCaptureView(capture);
+    visionCurrentCapture = capture;
+    var overlay = document.getElementById('visionResultOverlay');
+    var image = document.getElementById('visionResultImage');
+    var empty = document.getElementById('visionResultImageEmpty');
+    var wrap = document.getElementById('visionResultImageWrap');
+    var status = document.getElementById('visionResultStatus');
+    var meta = document.getElementById('visionResultMeta');
+    var summary = document.getElementById('visionResultSummary');
+    var presence = document.getElementById('visionResultPresence');
+    var concerns = document.getElementById('visionResultConcerns');
+    var action = document.getElementById('visionResultAction');
+
+    if (status) {
+      status.className = visionToneClass(view.statusTone);
+      status.textContent = view.statusLabel;
+    }
+    if (meta) meta.textContent = view.capturedAtLabel;
+    if (summary) summary.textContent = view.summary;
+    if (presence) presence.textContent = view.presenceLabel;
+    if (concerns) {
+      concerns.innerHTML = '';
+      view.concerns.forEach(function(item) {
+        var tag = document.createElement('span');
+        tag.className = 'ab-tag ab-tag-cat';
+        tag.textContent = item;
+        concerns.appendChild(tag);
+      });
+    }
+    if (image && empty && wrap) {
+      if (imageURL && view.showImage) {
+        image.src = imageURL;
+        image.style.display = '';
+        empty.style.display = 'none';
+        wrap.classList.remove('is-empty');
+      } else {
+        releaseVisionImageObjectURL();
+        image.removeAttribute('src');
+        image.style.display = 'none';
+        empty.style.display = '';
+        wrap.classList.add('is-empty');
+      }
+    }
+    if (action) {
+      if (view.action) {
+        action.style.display = '';
+        action.textContent = view.action.label;
+        action.onclick = view.action.kind === 'reanalyze' ? reanalyzeCurrentVisionCapture : startVisionLook;
+      } else {
+        action.style.display = 'none';
+        action.onclick = null;
+      }
+    }
+    if (overlay) overlay.classList.add('open');
+  }
+
+  async function loadVisionImage(capture) {
+    var view = buildVisionCaptureView(capture);
+    if (!view.showImage) return '';
+    setVisionProgress('analyzing');
+    var blob = await anbanClient.getVisionCaptureImage(capture.captureId, { deviceId: anbanConfig.deviceId });
+    releaseVisionImageObjectURL();
+    visionImageObjectURL = URL.createObjectURL(blob);
+    return visionImageObjectURL;
+  }
+
+  async function showVisionCapture(capture) {
+    var imageURL = '';
+    if (buildVisionCaptureView(capture).showImage) {
+      imageURL = await loadVisionImage(capture);
+    }
+    renderVisionResult(capture, imageURL);
+  }
+
+  function sleep(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  }
+
+  async function waitForVisionCapture(capture) {
+    if (!capture || capture.status !== 'pending') return capture;
+    for (var attempt = 0; attempt < 12; attempt++) {
+      await sleep(1500);
+      var captures = await anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 3 });
+      var found = (Array.isArray(captures) ? captures : []).find(function(item) {
+        return item.captureId === capture.captureId;
+      });
+      if (found && found.status !== 'pending') return found;
+    }
+    return capture;
+  }
+
+  async function refreshVisionCaptures() {
+    if (!isDeviceBound()) {
+      renderVisionRecent([]);
+      return;
+    }
+    try {
+      var captures = await anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 3 });
+      renderVisionRecent(captures);
+    } catch (error) {
+      renderVisionRecent([]);
+    }
+  }
+
+  async function reanalyzeCurrentVisionCapture() {
+    if (!visionCurrentCapture) return;
+    try {
+      setVisionProgress('analyzing');
+      var capture = await anbanClient.reanalyzeVisionCapture(visionCurrentCapture.captureId, { deviceId: anbanConfig.deviceId });
+      await showVisionCapture(capture);
+      await refreshVisionCaptures();
+      showToast('重新分析完成');
+    } catch (error) {
+      showToast(error.message || '重新分析失败');
+    } finally {
+      setVisionProgress('idle');
+    }
+  }
+
+  async function startVisionLook() {
+    if (!ensureDeviceBound()) return;
+    var captureTimer;
+    var finalStatusText = '';
+    try {
+      setVisionProgress('connecting');
+      captureTimer = setTimeout(function() { setVisionProgress('capturing'); }, 900);
+      var capture = await anbanClient.lookVision({ deviceId: anbanConfig.deviceId });
+      clearTimeout(captureTimer);
+      capture = await waitForVisionCapture(capture);
+      await showVisionCapture(capture);
+      await refreshVisionCaptures();
+      var view = buildVisionCaptureView(capture);
+      finalStatusText = view.statusLabel + ' · ' + view.presenceLabel;
+      showToast('看一眼完成');
+    } catch (error) {
+      var failedCapture = {
+        status: 'failed',
+        failureMessage: error.message || '看一眼失败',
+        analysis: { presence: 'unknown', concerns: [] },
+      };
+      renderVisionResult(failedCapture, '');
+      finalStatusText = '看一眼失败';
+      showToast(error.message || '看一眼失败');
+    } finally {
+      clearTimeout(captureTimer);
+      setVisionProgress('idle');
+      if (finalStatusText) document.getElementById('visionStatusText').textContent = finalStatusText;
+    }
+  }
+
   window.refreshHome = async function() {
     if (!isDeviceBound()) {
       renderHomeStatus({ online: false });
       document.getElementById('statusTitle').textContent = '请先绑定安伴设备';
       document.getElementById('statusDesc').textContent = '绑定后即可查看老人状态与最近对话';
       renderRecentHistory({ messages: [] });
+      renderVisionRecent([]);
       return;
     }
     var results = await Promise.allSettled([
       anbanClient.getStatus({ deviceId: anbanConfig.deviceId }),
       anbanClient.getHistory({ deviceId: anbanConfig.deviceId, limit: 10 }),
+      anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 3 }),
     ]);
 
     if (results[0].status === 'fulfilled') {
@@ -686,6 +921,12 @@ function initHome() {
       renderRecentHistory(results[1].value);
     } else {
       renderRecentHistory({ messages: [] });
+    }
+
+    if (results[2].status === 'fulfilled') {
+      renderVisionRecent(results[2].value);
+    } else {
+      renderVisionRecent([]);
     }
   };
 
@@ -714,30 +955,7 @@ function initHome() {
 
   var visionButton = document.getElementById('visionLookButton');
   if (visionButton) {
-    visionButton.addEventListener('click', async function() {
-      if (!ensureDeviceBound()) return;
-      var statusText = document.getElementById('visionStatusText');
-      visionButton.disabled = true;
-      visionButton.classList.add('opacity-70');
-      if (statusText) statusText.textContent = '正在看一眼...';
-      try {
-        var status = await anbanClient.getStatus({ deviceId: anbanConfig.deviceId });
-        if (status && status.online === false) {
-          if (statusText) statusText.textContent = '设备暂时离线，稍后再看';
-          return;
-        }
-        var presence = await anbanClient.checkVisionPresence({ deviceId: anbanConfig.deviceId, tool: VISION_CAPTURE_TOOL });
-        var result = formatVisionPresenceResult(presence);
-        if (statusText) statusText.textContent = result.detail;
-        showToast(result.notice);
-      } catch (error) {
-        if (statusText) statusText.textContent = '看一眼失败';
-        showToast(error.message || '看一眼失败');
-      } finally {
-        visionButton.disabled = false;
-        visionButton.classList.remove('opacity-70');
-      }
-    });
+    visionButton.addEventListener('click', startVisionLook);
   }
 
   // Quick Msg Modal

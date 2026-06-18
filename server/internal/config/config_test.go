@@ -48,6 +48,15 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	if c.VisionPresenceInterval != 30*time.Second {
 		t.Fatalf("VisionPresenceInterval default = %s, want 30s", c.VisionPresenceInterval)
 	}
+	if c.VisionCaptureTimeout != 30*time.Second {
+		t.Fatalf("VisionCaptureTimeout default = %s, want 30s", c.VisionCaptureTimeout)
+	}
+	if c.VisionRetentionDays != 30 {
+		t.Fatalf("VisionRetentionDays default = %d, want 30", c.VisionRetentionDays)
+	}
+	if c.VisionMaxCapturesPerDevice != 100 {
+		t.Fatalf("VisionMaxCapturesPerDevice default = %d, want 100", c.VisionMaxCapturesPerDevice)
+	}
 	if c.MindLoopInterval != 15*time.Minute {
 		t.Fatalf("MindLoopInterval default = %s, want 15m", c.MindLoopInterval)
 	}
@@ -62,6 +71,41 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	}
 	if c.TimezoneName != "Asia/Shanghai" || c.TimezoneLocation == nil {
 		t.Fatalf("timezone = %q/%v, want Asia/Shanghai location", c.TimezoneName, c.TimezoneLocation)
+	}
+}
+
+func TestLoadParsesVisionLookConfig(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+	t.Setenv("ANBAN_VISION_MEDIA_ROOT", " /data/anban-media ")
+	t.Setenv("ANBAN_DEVICE_VISION_TOKEN", " device-secret ")
+	t.Setenv("ANBAN_XIAOZHI_VISION_URL", " http://127.0.0.1:8989/xiaozhi/api/vision ")
+	t.Setenv("ANBAN_VISION_CAPTURE_TIMEOUT", "45s")
+	t.Setenv("ANBAN_VISION_RETENTION_DAYS", "14")
+	t.Setenv("ANBAN_VISION_MAX_CAPTURES_PER_DEVICE", "25")
+
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.VisionMediaRoot != "/data/anban-media" {
+		t.Fatalf("VisionMediaRoot = %q, want trimmed media root", c.VisionMediaRoot)
+	}
+	if c.DeviceVisionToken != "device-secret" {
+		t.Fatalf("DeviceVisionToken = %q, want trimmed token", c.DeviceVisionToken)
+	}
+	if c.XiaozhiVisionURL != "http://127.0.0.1:8989/xiaozhi/api/vision" {
+		t.Fatalf("XiaozhiVisionURL = %q, want trimmed URL", c.XiaozhiVisionURL)
+	}
+	if c.VisionCaptureTimeout != 45*time.Second {
+		t.Fatalf("VisionCaptureTimeout = %s, want 45s", c.VisionCaptureTimeout)
+	}
+	if c.VisionRetentionDays != 14 {
+		t.Fatalf("VisionRetentionDays = %d, want 14", c.VisionRetentionDays)
+	}
+	if c.VisionMaxCapturesPerDevice != 25 {
+		t.Fatalf("VisionMaxCapturesPerDevice = %d, want 25", c.VisionMaxCapturesPerDevice)
 	}
 }
 

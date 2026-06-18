@@ -26,6 +26,24 @@ export function createAnbanClient({ baseURL = '', accessCode = '', token = '', i
     return payload;
   }
 
+  async function requestBlob(path, { method = 'GET', device = false } = {}) {
+    if (device && bearerToken && !isBound) {
+      throw new ApiError('请先绑定安伴设备', 409, { error: 'device_not_bound' });
+    }
+    const headers = {};
+    if (bearerToken) headers.Authorization = `Bearer ${bearerToken}`;
+    else if (childAccessCode) headers['X-Access-Code'] = childAccessCode;
+
+    const response = await fetchImpl(`${root}${path}`, { method, headers });
+    if (!response.ok) {
+      const contentType = response.headers.get('Content-Type') || '';
+      const payload = contentType.includes('application/json') ? await response.json() : await response.text();
+      const message = typeof payload === 'string' ? payload : payload.error || '请求失败';
+      throw new ApiError(message, response.status, payload);
+    }
+    return response.blob();
+  }
+
   return {
     register(payload) {
       return request('/api/auth/register', { method: 'POST', body: payload });
@@ -87,6 +105,28 @@ export function createAnbanClient({ baseURL = '', accessCode = '', token = '', i
     },
     captureVision(payload) {
       return request('/api/vision/capture', { method: 'POST', body: payload, device: true });
+    },
+    lookVision(payload = {}) {
+      return request('/api/vision/look', { method: 'POST', body: payload, device: true });
+    },
+    getVisionCaptureImage(captureId, { deviceId } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return requestBlob(`/api/vision/captures/${encodePathSegment(captureId)}/image${suffix}`, { device: true });
+    },
+    listVisionCaptures({ deviceId, limit } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'limit', limit);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/vision/captures${suffix}`, { device: true });
+    },
+    reanalyzeVisionCapture(captureId, { deviceId } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/vision/captures/${encodePathSegment(captureId)}/reanalyze${suffix}`, { method: 'POST', device: true });
     },
     checkVisionPresence(payload) {
       return request('/api/vision/check-presence', { method: 'POST', body: payload, device: true });

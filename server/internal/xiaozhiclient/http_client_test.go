@@ -3,6 +3,7 @@ package xiaozhiclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -619,41 +620,56 @@ func TestGetHistoryRejectsMalformedObjectWithoutList(t *testing.T) {
 	}
 }
 
-func TestCallDeviceMCPToolSendsManagerRequest(t *testing.T) {
+func TestCallDeviceMCPToolResolvesManagerDeviceIDAndSendsMCPContract(t *testing.T) {
 	var gotPath, gotMethod, gotToken string
 	var gotBody map[string]any
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotMethod = r.Method
-		gotToken = r.Header.Get("X-API-Token")
-		b, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(b, &gotBody)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success":true,"data":{"imageUrl":"https://example.test/capture.jpg"}}`))
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"success":true,"data":[{"id":1,"device_name":"9c:13:9e:8b:af:28","online":true}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices/1/mcp-tools":
+			_, _ = w.Write([]byte(`{"success":true,"data":[{"name":"self.camera.take_photo"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/open/v1/devices/1/mcp-call":
+			gotPath = r.URL.Path
+			gotMethod = r.Method
+			gotToken = r.Header.Get("X-API-Token")
+			b, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(b, &gotBody)
+			_, _ = w.Write([]byte(`{"success":true,"data":{"imageUrl":"https://example.test/capture.jpg"}}`))
+		default:
+			t.Fatalf("unexpected manager request %s %s", r.Method, r.URL.Path)
+		}
 	}))
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.URL, "tok_abc")
-	raw, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "camera.capture", map[string]any{"quality": "low"})
+	raw, err := c.CallDeviceMCPTool(context.Background(), "9c:13:9e:8b:af:28", "self.camera.take_photo", map[string]any{"question": "请拍照看一眼"})
 	if err != nil {
 		t.Fatalf("CallDeviceMCPTool: %v", err)
 	}
 	if gotMethod != http.MethodPost {
 		t.Fatalf("method = %q, want POST", gotMethod)
 	}
-	if gotPath != "/api/open/v1/devices/dev-001/mcp-call" {
+	if gotPath != "/api/open/v1/devices/1/mcp-call" {
 		t.Fatalf("path = %q, want device mcp call endpoint", gotPath)
 	}
 	if gotToken != "tok_abc" {
 		t.Fatalf("X-API-Token = %q", gotToken)
 	}
-	if gotBody["tool"] != "camera.capture" {
-		t.Fatalf("tool = %v, want camera.capture", gotBody["tool"])
+	if gotBody["tool_name"] != "self.camera.take_photo" {
+		t.Fatalf("tool_name = %v, want self.camera.take_photo", gotBody["tool_name"])
 	}
-	args, ok := gotBody["args"].(map[string]any)
-	if !ok || args["quality"] != "low" {
-		t.Fatalf("args = %v, want quality low", gotBody["args"])
+	if _, ok := gotBody["tool"]; ok {
+		t.Fatalf("legacy tool field should not be sent: %v", gotBody)
+	}
+	arguments, ok := gotBody["arguments"].(map[string]any)
+	if !ok || arguments["question"] != "请拍照看一眼" {
+		t.Fatalf("arguments = %v, want question", gotBody["arguments"])
+	}
+	if _, ok := gotBody["args"]; ok {
+		t.Fatalf("legacy args field should not be sent: %v", gotBody)
 	}
 
 	var payload map[string]string
@@ -668,7 +684,16 @@ func TestCallDeviceMCPToolSendsManagerRequest(t *testing.T) {
 func TestCallDeviceMCPToolReturnsDirectPayload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ok":true}`))
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"data":[{"id":2,"device_id":"dev-001","online":true}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices/2/mcp-tools":
+			_, _ = w.Write([]byte(`{"data":[{"name":"camera.capture"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/open/v1/devices/2/mcp-call":
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		default:
+			t.Fatalf("unexpected manager request %s %s", r.Method, r.URL.Path)
+		}
 	}))
 	defer srv.Close()
 
@@ -683,5 +708,83 @@ func TestCallDeviceMCPToolReturnsDirectPayload(t *testing.T) {
 	}
 	if !payload["ok"] {
 		t.Fatalf("payload = %v, want ok true", payload)
+	}
+}
+
+func TestCallDeviceMCPToolClassifiesOfflineDevice(t *testing.T) {
+	var posted bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"data":[{"id":1,"device_name":"dev-offline","online":false}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/open/v1/devices/1/mcp-call":
+			posted = true
+			t.Fatalf("mcp-call should not be sent for an offline device")
+		default:
+			t.Fatalf("unexpected manager request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	_, err := c.CallDeviceMCPTool(context.Background(), "dev-offline", "self.camera.take_photo", nil)
+	if !errors.Is(err, ErrDeviceOffline) {
+		t.Fatalf("err = %v, want ErrDeviceOffline", err)
+	}
+	if posted {
+		t.Fatal("mcp-call was sent for an offline device")
+	}
+}
+
+func TestCallDeviceMCPToolClassifiesUnavailableTool(t *testing.T) {
+	var posted bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"data":[{"id":1,"device_name":"dev-001","online":true}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices/1/mcp-tools":
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/open/v1/devices/1/mcp-call":
+			posted = true
+			t.Fatalf("mcp-call should not be sent when the tool is unavailable")
+		default:
+			t.Fatalf("unexpected manager request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	_, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "self.camera.take_photo", nil)
+	if !errors.Is(err, ErrMCPToolUnavailable) {
+		t.Fatalf("err = %v, want ErrMCPToolUnavailable", err)
+	}
+	if posted {
+		t.Fatal("mcp-call was sent when the tool is unavailable")
+	}
+}
+
+func TestCallDeviceMCPToolClassifiesTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"data":[{"id":1,"device_name":"dev-001","online":true}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices/1/mcp-tools":
+			time.Sleep(50 * time.Millisecond)
+			_, _ = w.Write([]byte(`{"data":[{"name":"self.camera.take_photo"}]}`))
+		default:
+			t.Fatalf("unexpected manager request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	_, err := c.CallDeviceMCPTool(ctx, "dev-001", "self.camera.take_photo", nil)
+	if !errors.Is(err, ErrUpstreamTimeout) {
+		t.Fatalf("err = %v, want ErrUpstreamTimeout", err)
 	}
 }

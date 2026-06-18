@@ -3923,3 +3923,34 @@
 - 目的：补齐 PRD #7 的 presence 触发链路，使视觉不止有 childweb 手动“看一眼”，也具备可演示的后台回家触发问候路径。
 - 边界：不改 xiaozhi、不改设备协议、不修保活；视觉触发问候仍走 greeting 服务和共享 10 分钟主动语音配额。
 - 验证：`go test ./internal/config ./internal/domains/vision` 从 RED 变 GREEN；全量 `go build ./... && go vet ./... && go test -count=1 ./...` 通过，`internal/architecture` 通过；`node --test web/smoke.test.mjs` 80/80；`node --test childweb/smoke.test.mjs` 33/33。
+
+### 22:53 看一眼·原图 childweb 接线 RED 测试
+
+- 文件：`childweb/smoke.test.mjs`
+- 内容：把旧的 `checkVisionPresence` 手动入口断言替换为新 `/api/vision/look` 原图流程断言；要求首页保留 `visionLookButton/visionStatusText`，新增结果层和最近记录 DOM；要求 app.js 使用 `lookVision`、`getVisionCaptureImage`、`listVisionCaptures`，并释放 Blob URL；新增 `buildVisionLookProgress` 与拍摄时间展示断言。
+- 目的：对齐 `docs/superpowers/specs/2026-06-18-vision-look-design.md`，把 childweb 从“只看 presence 文本”推进到“原图 + AI 摘要 + 状态”的用户可见闭环。
+- 功能影响：暂无；这是 RED 阶段，预期缺少结果层 DOM、加载阶段函数和原图接线。
+- 验证：`npm test --prefix childweb` 得到有效 RED，44 个测试中 3 个失败，失败点分别是缺少 `visionRecentList`、缺少 `capturedAtLabel`、缺少 `buildVisionLookProgress`。
+
+### 22:53 看一眼·原图 childweb 接线 GREEN 实现
+
+- 文件：`childweb/integration-core.js`、`childweb/index.html`、`childweb/app.js`
+- 内容：新增 `buildVisionLookProgress`；`buildVisionCaptureView` 增加拍摄时间和更明确的 presence 文案；首页新增“最近看一眼”列表和 B 玻璃风格结果层；“看一眼”按钮改为 `lookVision -> pending 轮询 -> getVisionCaptureImage -> 展示原图`，支持 partial 重新分析、failed 重试、关闭/替换/离页释放 Blob URL。
+- 目的：完成 childweb 关键缺口，让当前子女端 `childweb/` 使用后端已实现的 `/api/vision/look` 和鉴权图片接口，不再把旧 presence 接口当手动“看一眼”。
+- 边界：只动 childweb UI 接线和纯显示逻辑；不改 xiaozhi、不改固件、不重构后端；旧 `web/` UI 不参与视觉验收。
+- 验证：`npm test --prefix childweb` 从 RED 变 GREEN，44/44。
+
+### 22:53 看一眼·原图部署配置说明
+
+- 文件：`docs/deployment/方案C部署与联调指南.md`
+- 内容：新增“看一眼·原图”视觉代理配置，列出 `ANBAN_VISION_MEDIA_ROOT`、`ANBAN_DEVICE_VISION_TOKEN`、`ANBAN_XIAOZHI_VISION_URL`、保留/超时/数量 env；写明把 xiaozhi 下发给设备的 `vision_url` 切到 `/api/device/vision?ingress_token=...` 的步骤、旁路 curl 验证、普通语音看图透明转发要求和回滚/降级条件。
+- 目的：让远端部署按方案 3.3 执行，避免误改 xiaozhi 源码或固件，也避免切代理时破坏普通语音看图链路。
+- 验证：文档列明当前代码已覆盖透明转发测试：`vision_forwarder_test.go`、`handler_test.go`、`service_test.go`。
+
+### 23:32 看一眼·原图远端状态校准与阻塞决策
+
+- 文件：`docs/deployment/方案C部署与联调指南.md`、`docs/decisions/README.md`、`docs/decisions/2026-06-18-vision-vlm-and-device-verification-blocker.md`
+- 内容：把部署指南中残留的旧 `web/` 子女端入口修正为当前 `childweb/` 与线上 `http://101.34.214.149:8091/`；补充 xiaozhi VLM 供应商/API key/model 必须独立可用，安伴视觉代理只负责原图保存与透明转发；新增决策记录，说明当前未完成端到端验收的原因是设备离线和 xiaozhi VLM 模型/endpoint 不可用。
+- 目的：避免继续误用本地旧控制台或把 VLM 配置问题误判成 childweb 接线问题；按方案 3.3 保持代理路线，但不虚报“看一眼·原图”已完成。
+- 远端验证：2026-06-18 23:29 +08:00 SSH 到 `101.34.214.149`，AnBan `/health` 正常；`childweb` 页面包含 `visionRecentList` 与 `visionResultOverlay`；设备 `9c:13:9e:8b:af:28` 仍离线，`lastInteractionAt=2026-06-18T10:44:44.057Z`；capture 列表为空；xiaozhi 视觉日志显示 VLM 到达调用层但模型/endpoint 不可用，返回空识别结果。
+- 边界：不改 xiaozhi 源码、不改固件、不输出或记录任何真实入口令牌/API key；最终真机验收仍需设备上线并配置可用 VLM。

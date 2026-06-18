@@ -11,7 +11,7 @@
 1. **只跑 xiaozhi**：先在 `xiaozhi-esp32-server-golang` 仓库部署上游服务，完成设备唤醒、回应、打断。此时不要启动 `anban`。
 2. **签 manager token**：在 xiaozhi manager 里拿到 OpenAPI Token，记录设备 ID，确认 manager URL 能从运行 `anban` 的机器访问。
 3. **启动 anban**：回到本仓库 `anban-code`，配置 `.env`，先跑 `server/cmd/anban-preflight`，再跑 `server/cmd/anban`。
-4. **打开子女端 web**：本仓库 `web/` 用静态 HTTP 服务打开，填后端地址、访问码、设备 ID，按状态 -> 留言 -> 问候 -> 提醒的顺序联调。
+4. **打开子女端 childweb**：当前子女端是本仓库 `childweb/`，线上静态站为 `http://101.34.214.149:8091/`；填后端地址、访问码、设备 ID，按状态 -> 留言 -> 问候 -> 提醒的顺序联调。
 
 最短命令清单：
 
@@ -34,10 +34,10 @@ $env:ANBAN_ACCESS_CODE="demo"
 go run ./cmd/anban
 ```
 
-另开一个 PowerShell 启动子女端：
+本地只做代码级检查时，可另开一个 PowerShell 启动当前子女端：
 
 ```powershell
-Set-Location web
+Set-Location childweb
 python -m http.server 5173
 ```
 
@@ -89,7 +89,8 @@ flowchart LR
 本仓库 `anban-code` 是安伴代码仓：
 
 - `server/`：安伴 Go 后端，启动入口是 `server/cmd/anban/main.go`。
-- `web/`：子女端静态前端，调用 `anban` 的 `childapi`。
+- `childweb/`：当前子女端 PWA，线上静态站为 `http://101.34.214.149:8091/`，调用 `anban` 的 `childapi`。
+- `web/`：早期静态子女端骨架和 API/交互验证页面，不作为当前 UI 验收入口。
 - `docs/`：编码常用文档工作副本，不是完整设计文档仓。
 - `docker-compose.yml`：两进程联调的编排示例。里面的 `xiaozhi` 服务只是占位，镜像、构建、环境变量要按 xiaozhi 上游仓库文档填写。
 
@@ -275,10 +276,10 @@ Invoke-RestMethod http://localhost:8090/health
 
 ## 9. 阶段 4：打开子女端 Web
 
-当前 `web/` 是静态页面，可以先用简单 HTTP 服务打开：
+当前子女端是 `childweb/`，服务器已有静态站 `http://101.34.214.149:8091/`。本地只做前端代码级检查时，可以用简单 HTTP 服务打开：
 
 ```powershell
-Set-Location web
+Set-Location childweb
 python -m http.server 5173
 ```
 
@@ -312,6 +313,89 @@ http://127.0.0.1:5173/
 8. 提醒能创建、到点播报，并在子女端显示状态。
 9. 画像能保存，并通过 manager agent API 写入角色 prompt。
 10. 视觉能力最后联调。当前可以先走降级链路或 Fake/MCP raw presence，真实主动采帧能力按 xiaozhi manager/MCP 实际支持程度接入。
+
+### 10.1 “看一眼·原图”视觉代理配置
+
+当前子女端以 `childweb/` 为准，线上静态站是：
+
+```text
+http://101.34.214.149:8091/
+```
+
+“看一眼·原图”采用安伴兼容视觉代理，不改 xiaozhi 源码、不改设备固件。设备仍向固件下发的 `vision_url` 上传原 multipart；只是把这个 URL 从 xiaozhi 原视觉接口切到安伴入口，由安伴保存手动“看一眼”的原图，再透明转发到真正 xiaozhi 视觉接口。
+
+安伴后端新增或需要确认的 `anban.env`：
+
+```bash
+ANBAN_VISION_MEDIA_ROOT=/home/ubuntu/anban/media
+ANBAN_DEVICE_VISION_TOKEN=<随机入口令牌，至少 32 字节强随机>
+ANBAN_XIAOZHI_VISION_URL=http://127.0.0.1:8989/xiaozhi/api/vision
+ANBAN_VISION_CAPTURE_TIMEOUT=30s
+ANBAN_VISION_RETENTION_DAYS=30
+ANBAN_VISION_MAX_CAPTURES_PER_DEVICE=100
+ANBAN_VISION_PRESENCE_INTERVAL=0
+```
+
+说明：
+
+- `ANBAN_DEVICE_VISION_TOKEN` 只放服务器环境，不写入 Git、日志或截图。
+- `ANBAN_XIAOZHI_VISION_URL` 指向 xiaozhi core 的真实视觉接口；如果 anban 和 xiaozhi 不在同一网络，要换成 anban 进程实际能访问的内网地址。
+- xiaozhi 自身的 VLM 供应商、API key 和 `model_name` 也必须是可用的；安伴视觉代理只负责保存原图并透明转发 multipart，不能替 xiaozhi 修复上游视觉模型未开通、endpoint 不存在或 key 错误的问题。
+- `ANBAN_VISION_PRESENCE_INTERVAL=0` 是为了避免自动轮询频繁调摄像头；手动“看一眼”不受影响。
+- `ANBAN_VISION_MEDIA_ROOT` 是媒体根目录，图片实际会落到其下的 `vision/<device-hash>/...`。
+
+入口令牌可在服务器上生成：
+
+```bash
+python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+```
+
+部署顺序固定：
+
+1. 备份当前 anban 二进制、SQLite 数据库、当前 xiaozhi `vision_url` 配置和已有媒体目录。
+2. 部署新版 anban，并把上面的 env 写入 `anban.env`，先重启 anban，但暂时不要切 xiaozhi 的 `vision_url`。
+3. 用模拟 multipart 从服务器本机验证安伴设备视觉入口可用：
+
+   ```bash
+   curl -i \
+     -X POST 'http://127.0.0.1:8090/api/device/vision?ingress_token=<ANBAN_DEVICE_VISION_TOKEN>' \
+     -H 'Device-Id: 9c:13:9e:8b:af:28' \
+     -H 'Client-Id: manual-probe' \
+     -F 'question=普通语音看图透明转发测试' \
+     -F 'file=@/tmp/vision-probe.jpg;type=image/jpeg'
+   ```
+
+   预期：返回 xiaozhi 视觉接口的状态码、`Content-Type` 和正文；因为 question 里没有 `[[ANBAN_CAPTURE:...]]` 标记，安伴不保存图片、不创建拍摄记录。
+
+4. 确认 `childweb/` 仍指向线上 anban 后端 `http://101.34.214.149:8090`，不要把服务器上的 `config.js` 覆盖成本地 localhost。
+5. 在 xiaozhi manager 中找到下发给设备的视觉地址配置项，名称可能显示为 `vision_url`、视觉识别地址、Explain URL 或 VLM/视觉接口地址。把它从原 xiaozhi 接口切为：
+
+   ```text
+   http://101.34.214.149:8090/api/device/vision?ingress_token=<ANBAN_DEVICE_VISION_TOKEN>
+   ```
+
+6. 让设备重新建立会话，确认 manager/MCP 工具列表包含 `self.camera.take_photo`。
+7. 真机验收两条链路：
+   - 普通语音看图：对设备说“打开摄像头/看一下画面”，应仍能得到 xiaozhi VLM 的文字回答。
+   - 子女端手动看一眼：打开 `http://101.34.214.149:8091/`，点击首页“看一眼”，应显示原图、拍摄时间、AI 摘要、是否看到老人、关注事项和状态。
+8. 如果普通语音看图能到达 xiaozhi 但 AI 文字为空，先查 xiaozhi VLM 日志和模型开通状态；不要把它误判为 `childweb/` 或安伴媒体保存问题。
+
+安伴代理必须保持透明转发语义：
+
+- 对没有安伴 capture 标记的普通语音看图请求，不保存图片、不建记录。
+- 转发到 `ANBAN_XIAOZHI_VISION_URL` 前保留 `Device-Id`、`Client-Id`、`Authorization`、`question`、`file` 图片字节和文件类型。
+- xiaozhi 上游返回的 HTTP 状态码、`Content-Type` 和响应正文原样返回设备。
+
+当前代码已有自动化测试覆盖这个契约：
+
+- `server/internal/xiaozhiclient/vision_forwarder_test.go`：验证 multipart、headers、图片字节和上游响应保持。
+- `server/internal/domains/vision/handler_test.go`：验证 `/api/device/vision` 把上游响应原样回给设备。
+- `server/internal/domains/vision/service_test.go`：验证普通语音看图请求不会保存为安伴 capture。
+
+如果 manager 不允许配置 `vision_url`，或切换后普通语音看图被破坏，立刻回滚原 `vision_url`，停止继续硬调，并按设计文档的方案 3.1 降级为“仅展示 AI 文字描述的看一眼”。同时在 `docs/decisions/` 写明问题、证据和备选方案。
 
 ## 11. docker-compose 怎么用
 
@@ -370,7 +454,7 @@ http://127.0.0.1:5173/
 1. 按 xiaozhi 上游文档完成纯 xiaozhi 部署和设备联调。
 2. 签发 manager API Token。
 3. 启动本仓库 `server/cmd/anban`。
-4. 打开 `web/` 静态子女端，先联调状态、留言、问候。
+4. 打开 `childweb/` 当前子女端，先联调状态、留言、问候。
 5. 再补提醒、画像、视觉等演示链路。
 
 不要在 Gate A 未通过前继续堆安伴大功能。方案 C 的核心价值就是可插拔：xiaozhi 先独立可用，安伴再作为增强接入。
