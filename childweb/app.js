@@ -1107,7 +1107,7 @@ function initMessage() {
 
     if (!items.length) {
       var empty = document.createElement('div');
-      empty.className = 'text-center py-12 font-body-md text-body-md text-text-secondary';
+      empty.style.cssText = 'text-align:center;padding:48px 0;color:var(--ab-ink3);font-size:13px';
       empty.textContent = '暂无对话记录';
       chatArea.appendChild(empty);
     }
@@ -1115,21 +1115,29 @@ function initMessage() {
     items.forEach(function(item) {
       var row = document.createElement('div');
       var isRight = item.type === 'child_message';
-      row.className = 'flex flex-col max-w-[85%] ' + (isRight ? 'items-end self-end' : 'items-start self-start');
-      row.innerHTML = '<div class="text-[11px] text-on-surface-variant/60 mb-1 px-1"></div><div class="p-4 rounded-2xl"><p class="font-body-md text-body-md"></p></div><div class="flex items-center gap-2 mt-1.5 px-1"><span class="text-[11px] text-on-surface-variant/50"></span><span class="text-[11px] font-medium"></span></div>';
+      row.className = 'flex flex-col';
+      row.style.cssText = 'max-width:85%;' + (isRight ? 'align-self:flex-end;align-items:flex-end' : 'align-self:flex-start;align-items:flex-start');
+      row.innerHTML = '<div style="font-size:11px;color:var(--ab-ink3);margin-bottom:4px;padding:0 2px"></div><div style="padding:11px 13px;font-size:13px;line-height:1.5"><p style="margin:0"></p></div><div style="display:flex;align-items:center;gap:6px;margin-top:4px;padding:0 2px"><span style="font-size:10px;color:var(--ab-ink3)"></span><span style="font-size:10px;font-weight:600"></span></div>';
       row.firstElementChild.textContent = item.sourceLabel || (isRight ? '家人' : '安伴');
       if (isRight && item.avatarColor) row.firstElementChild.style.color = item.avatarColor;
       var bubbleEl = row.children[1];
-      bubbleEl.className += isRight
-        ? ' bg-secondary-container text-on-secondary-container bubble-right'
-        : ' bg-surface-white text-on-surface bubble-left soft-shadow';
+      if (isRight) {
+        bubbleEl.style.background = 'var(--ab-primary)';
+        bubbleEl.style.color = '#fff';
+        bubbleEl.style.borderRadius = '12px 12px 3px 12px';
+      } else {
+        bubbleEl.style.background = '#fff';
+        bubbleEl.style.border = '1px solid var(--ab-line)';
+        bubbleEl.style.color = 'var(--ab-ink)';
+        bubbleEl.style.borderRadius = '12px 12px 12px 3px';
+      }
       bubbleEl.querySelector('p').textContent = item.text;
       var meta = row.lastElementChild;
       meta.firstElementChild.textContent = formatRelativeTime(item.at);
       var status = meta.lastElementChild;
       var statusLabels = { played: '已播报', pending: '待播报', failed: '发送失败' };
       status.textContent = statusLabels[item.status] || '';
-      status.className += item.status === 'played' ? ' text-success' : item.status === 'failed' ? ' text-danger' : ' text-on-surface-variant/60';
+      status.style.color = item.status === 'played' ? 'var(--ab-ok)' : item.status === 'failed' ? '#d9534f' : 'var(--ab-ink3)';
       if (!item.status) status.remove();
       chatArea.appendChild(row);
     });

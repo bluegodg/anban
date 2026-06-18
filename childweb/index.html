@@ -421,131 +421,30 @@
 
       <!-- ============ MESSAGE ============ -->
       <section class="spa-section" id="s-message" data-statusbar="dark">
-        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
-          <div class="w-10"></div>
-          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">消息</h1>
-          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
-            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
-          </button>
+        <header class="sticky z-40 w-full flex-shrink-0" style="background:var(--ab-bg);padding:18px 20px 12px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:19px;font-weight:800;color:var(--ab-ink)">消息</span>
+          <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')"><span class="material-symbols-outlined" style="color:#9c8378;font-variation-settings:'wght' 300">settings</span></button>
         </header>
-        <main class="flex-1 px-page-margin pt-4 pb-4 overflow-y-auto" id="messagesContainer">
-          <section class="mb-section-gap">
-            <div class="bg-secondary-container rounded-3xl p-6 soft-shadow relative overflow-hidden">
-              <div class="absolute -top-12 -right-12 w-32 h-32 bg-primary-container/20 rounded-full blur-3xl"></div>
-              <div class="relative z-10">
-                <div class="flex justify-between items-start">
-                  <div>
-                    <p class="font-label-md text-label-md text-on-secondary-container/70 mb-1">语音伴侣</p>
-                    <h2 class="font-headline-md text-headline-md text-on-secondary-container">留言已就绪</h2>
-                  </div>
-                  <span class="material-symbols-outlined text-primary text-[32px]">spatial_audio</span>
-                </div>
-                <p class="font-body-md text-body-md text-on-secondary-container/80 mt-3">您的每一条留言都会通过柔和的语音准时传达给家中的长辈。</p>
-              </div>
-            </div>
-          </section>
-          <section class="space-y-6 flex flex-col mb-4" id="chatArea">
-            <!-- 消息1: 子女发的关怀消息 - 已播报 -->
-            <div class="flex flex-col items-end max-w-[85%] self-end">
-              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
-                <p class="font-body-md text-body-md">妈，今天降温了，出门记得多穿件衣服，别着凉了。晚上我给你视频。</p>
-              </div>
-              <div class="flex items-center gap-2 mt-1.5 px-1">
-                <span class="text-[11px] text-on-surface-variant/50">昨天 08:30</span>
-                <span class="text-[11px] font-medium text-success flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 700">done_all</span>已播报
-                </span>
-              </div>
-            </div>
-            <!-- 消息2: 老人回复 -->
-            <div class="flex flex-col items-start max-w-[85%] self-start">
-              <div class="bg-surface-white text-on-surface bubble-left soft-shadow p-4 rounded-2xl">
-                <p class="font-body-md text-body-md">好嘞，我加了件外套，你放心吧。</p>
-              </div>
-              <div class="flex items-center gap-2 mt-1.5 px-1">
-                <span class="text-[11px] text-on-surface-variant/50">昨天 08:35</span>
-              </div>
-            </div>
-            <!-- 消息3: 子女发的提醒 - 已播报 -->
-            <div class="flex flex-col items-end max-w-[85%] self-end">
-              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
-                <p class="font-body-md text-body-md">妈，下午两点社区有免费体检，别忘了去，就在小区门口。</p>
-              </div>
-              <div class="flex items-center gap-2 mt-1.5 px-1">
-                <span class="text-[11px] text-on-surface-variant/50">今天 09:00</span>
-                <span class="text-[11px] font-medium text-success flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 700">done_all</span>已播报
-                </span>
-              </div>
-            </div>
-            <!-- 消息4: 老人回复 -->
-            <div class="flex flex-col items-start max-w-[85%] self-start">
-              <div class="bg-surface-white text-on-surface bubble-left soft-shadow p-4 rounded-2xl">
-                <p class="font-body-md text-body-md">我去啦，量了血压正常的，你安心上班。</p>
-              </div>
-              <div class="flex items-center gap-2 mt-1.5 px-1">
-                <span class="text-[11px] text-on-surface-variant/50">今天 14:30</span>
-              </div>
-            </div>
-            <!-- 消息5: 子女发的提醒 - 老人忙碌，延期待播 -->
-            <div class="flex flex-col items-end max-w-[85%] self-end">
-              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
-                <p class="font-body-md text-body-md">妈，该吃降压药了，温水服药，饭后半小时再吃。</p>
-              </div>
-              <div class="flex items-center gap-2 mt-1.5 px-1">
-                <span class="text-[11px] text-on-surface-variant/50">今天 15:00</span>
-                <span class="text-[11px] font-medium text-on-surface-variant/60 flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 500">radio_button_unchecked</span>未播报
-                </span>
-              </div>
-            </div>
-            <!-- 消息7: 预设提醒 - 待播报 -->
-            <div class="flex flex-col items-end max-w-[85%] self-end">
-              <div class="bg-secondary-container text-on-secondary-container bubble-right p-4 rounded-2xl">
-                <p class="font-body-md text-body-md">爸，明天你生日，我和小宇中午就到家，想吃什么提前跟我说！</p>
-              </div>
-              <div class="flex items-center gap-2 mt-1.5 px-1">
-                <span class="text-[11px] text-on-surface-variant/50">今天 18:00</span>
-                <span class="text-[11px] font-medium text-on-surface-variant/60 flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[12px]" style="font-variation-settings:'wght' 500">radio_button_unchecked</span>未播报
-                </span>
-              </div>
-            </div>
+        <main class="flex-1 overflow-y-auto" id="messagesContainer" style="position:relative;padding:2px 18px 8px">
+          <div style="font-size:12px;color:var(--ab-ink2);padding:4px 2px 12px">安伴会用柔和的语音把你的话念给妈妈听</div>
+          <section class="flex flex-col" style="gap:14px" id="chatArea">
+            <div style="text-align:center;color:var(--ab-ink3);font-size:13px;padding:24px 0">正在加载对话…</div>
           </section>
         </main>
-        <div class="flex-shrink-0 bg-surface-white/80 backdrop-blur-xl px-page-margin pt-3 pb-4" style="box-shadow:0 -4px 20px rgba(0,0,0,0.04)">
-          <div class="flex items-end gap-3">
-            <button class="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container/30 text-primary active:scale-90 transition-transform" onclick="notImplemented('图片留言')"><span class="material-symbols-outlined">image</span></button>
-            <button class="w-12 h-12 flex items-center justify-center rounded-full bg-secondary-container/30 text-primary active:scale-90 transition-transform" onclick="notImplemented('语音留言')"><span class="material-symbols-outlined">mic</span></button>
-            <div class="flex-1 relative">
-              <textarea class="w-full bg-background-cream border border-divider-warm rounded-2xl px-4 py-3 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all duration-200" id="messageInput" placeholder="请输入内容" rows="1" style="height:48px;overflow-y:hidden"></textarea>
-            </div>
-            <button class="primary-gradient text-white h-[48px] w-[48px] rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="handleSend()">
-              <span class="material-symbols-outlined">send</span>
-            </button>
+        <div class="flex-shrink-0" style="background:rgba(255,250,246,.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--ab-line);padding:10px 16px 12px">
+          <div style="display:flex;align-items:flex-end;gap:8px">
+            <button class="active:scale-90 transition-transform" style="width:42px;height:42px;border-radius:var(--ab-rmd);background:#f3ebe4;color:var(--ab-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none" onclick="notImplemented('图片留言')"><span class="material-symbols-outlined" style="font-size:20px">image</span></button>
+            <button class="active:scale-90 transition-transform" style="width:42px;height:42px;border-radius:var(--ab-rmd);background:#f3ebe4;color:var(--ab-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none" onclick="notImplemented('语音留言')"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>
+            <textarea class="ab-input" id="messageInput" placeholder="给妈妈说点什么…" rows="1" style="flex:1;min-width:0;height:44px;padding:11px 14px;resize:none;line-height:20px"></textarea>
+            <button class="ab-btn-primary active:scale-95 transition-all" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex-shrink:0" onclick="handleSend()"><span class="material-symbols-outlined" style="font-size:20px">send</span></button>
           </div>
         </div>
         <!-- Message Bottom Nav -->
-        <nav class="flex-shrink-0 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)]">
-          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#home" data-nav="home">
-            <span class="material-symbols-outlined mb-1">home</span>
-            <span class="font-label-sm text-label-sm">首页</span>
-          </a>
-          <div class="relative flex flex-col items-center justify-center w-16 h-16">
-            <div class="absolute inset-0 bg-primary-container/10 rounded-full scale-90"></div>
-            <a class="relative z-10 flex flex-col items-center justify-center text-primary transition-all duration-300 active:scale-90 nav-link" href="#message" data-nav="message">
-              <span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">chat_bubble</span>
-              <span class="font-label-sm text-label-sm font-medium">消息</span>
-            </a>
-          </div>
-          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#warn" data-nav="warn">
-            <span class="material-symbols-outlined mb-1">notifications</span>
-            <span class="font-label-sm text-label-sm">提醒</span>
-          </a>
-          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 transition-all duration-300 active:scale-90 nav-link" href="#family" data-nav="family">
-            <span class="material-symbols-outlined mb-1">group</span>
-            <span class="font-label-sm text-label-sm">家人</span>
-          </a>
+        <nav class="ab-navbar flex-shrink-0">
+          <a class="nav-link" href="#home" data-nav="home"><span class="material-symbols-outlined" style="font-size:19px">home</span><span class="font-label-sm">首页</span></a>
+          <a class="nav-link" href="#message" data-nav="message"><span class="material-symbols-outlined" style="font-size:19px;font-variation-settings:'FILL' 1">chat_bubble</span><span class="font-label-sm">消息</span></a>
+          <a class="nav-link" href="#warn" data-nav="warn"><span class="material-symbols-outlined" style="font-size:19px">notifications</span><span class="font-label-sm">提醒</span></a>
+          <a class="nav-link" href="#family" data-nav="family"><span class="material-symbols-outlined" style="font-size:19px">group</span><span class="font-label-sm">家人</span></a>
         </nav>
       </section>
 
