@@ -129,7 +129,7 @@ func TestBearerDeviceAPIReceivesBoundDeviceAndSender(t *testing.T) {
 	}
 }
 
-func TestMemberCannotWriteProfileButAccessCodeStillCan(t *testing.T) {
+func TestMemberCannotWriteProfileOrMemoryButAccessCodeStillCan(t *testing.T) {
 	r := newAccountBindingRouter(t)
 	register := httptest.NewRecorder()
 	r.ServeHTTP(register, jsonRequest(http.MethodPost, "/api/auth/register", `{"phone":"13800000003","password":"secret123","nickname":"成员"}`))
@@ -144,6 +144,14 @@ func TestMemberCannotWriteProfileButAccessCodeStillCan(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "admin_required") {
 		t.Fatalf("member profile status=%d body=%s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	req = jsonRequest(http.MethodPost, "/api/memory/facts", `{"text":"蓝喜欢养花"}`)
+	req.Header.Set("Authorization", "Bearer "+token)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "admin_required") {
+		t.Fatalf("member memory status=%d body=%s", w.Code, w.Body.String())
 	}
 
 	compat := httptest.NewRecorder()
