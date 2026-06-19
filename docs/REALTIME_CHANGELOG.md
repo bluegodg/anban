@@ -4,6 +4,15 @@
 
 ## 2026-06-19
 
+### 20:25 真机长记忆身份映射修复
+
+- 文件：`server/internal/openmemory/handler.go`、`server/internal/openmemory/handler_test.go`、`server/cmd/anban/main.go`、`docs/capabilities/family-profile-memory-mind.md`
+- 根因：xiaozhi 的 `GetDeviceIDOrAgentID()` 在设备绑定智能体后优先使用智能体 ID；当前设备真实对话向 MemOS 发送 `user_id=1`，而安伴资料按真实设备 ID `9c:13:9e:8b:af:28` 存储，导致 OpenMemory 返回空结果。真机日志表现为 `搜索记忆成功 ... 记忆内容:` 为空，设备因此回答不知道姓名和喜好。
+- 修复：OpenMemory 先按 xiaozhi 传入身份读取资料；仅当资料不存在时，回退到 `ANBAN_DEMO_DEVICE_ID` 对应的真实设备资料。静态智能体 prompt 仍只保留风格层，陪伴对象资料、AI 画像、专属记忆和 Mind 上下文继续通过 OpenMemory 动态进入对话。
+- 边界：不改 xiaozhi 源码、不把“蓝”或其他个人资料写入 manager 静态 prompt；非 `profile.ErrNotFound` 错误不会被回退逻辑掩盖。当前映射满足单设备 Demo，未来多设备部署需升级为 agent/device 显式映射。
+- TDD：先新增 `TestSearchFallsBackFromXiaozhiAgentIDToConfiguredDeviceID`，验证 `user_id=1` 能读取配置设备的“蓝/养花”上下文；RED 阶段按预期失败于 `NewHandler` 尚不接受默认设备 ID，最小实现后目标测试转绿。
+- 验证：`go test -count=1 ./...`、`go vet ./...`、`go build ./...` 全绿；childweb 47/47 回归通过。Linux 二进制 SHA-256 为 `7a730093065c661c42d13b5ec564c43fdc5452a54523eec3c13226bbc0e56aec`，已部署到 `101.34.214.149`，`start.sh` 返回 `/health=200`。部署后按 xiaozhi 实际请求形态用 `user_id=1` 查询返回 200，并包含“蓝”、AI 认知画像、专属记忆和 Mind 上下文，旧姓名/二人称污染检查为空；修复后的真机语音回答仍待设备再次上线确认。
+
 ### AI 认知画像独立字段与自动更新
 
 - 文件：`server/internal/domains/profile/`、`server/internal/llm/`、`server/cmd/anban/`、`childweb/`、`docs/capabilities/family-profile-memory-mind.md`

@@ -25,6 +25,7 @@
 - Data: `fields.aiPortrait` 是独立 AI 认知画像，`fields.aiPortraitMode=auto|manual` 决定更新权；不再把画像编码成 `health` 的 `AI画像：` 文本行。
 - Data: memory facts 带 `source=manual|dialogue`，手动和自动沉淀共用同一事实库。
 - Runtime: 空 query 返回空，避免 xiaozhi 会话启动时缓存旧资料；每轮非空 query 都读取当前 profile，因此管理员修改后下一轮即可生效。
+- Runtime: xiaozhi 绑定智能体后会用 agent ID 作为 MemOS `user_id/conversation_id`；OpenMemory 若按该身份查不到 profile，会回退到当前 `ANBAN_DEMO_DEVICE_ID` 的真实设备资料。当前是单设备 Demo 兼容层，多设备部署必须改为显式 agent/device 映射。
 - Runtime: `xiaozhiclient.SetRolePrompt` 只允许写风格 prompt；检测到 `ANBAN_CONTEXT` 或陪伴对象/记忆/心智标签时直接拒绝。
 - Runtime: manager 风格层要求称呼严格使用 profile 的“常用称呼”原文，不自行追加“阿姨”“奶奶”等后缀。
 - Runtime: `auto` 模式在管理员资料或专属记忆变化后调用已配置的 AnBan LLM 重建画像；输入指纹未变化时不重复调用，生成失败时保留上一版且不阻断资料/记忆保存。`manual` 模式绝不被自动流程覆盖。

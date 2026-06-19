@@ -23,7 +23,7 @@ func (f fakeProfileReader) Get(context.Context, string) (profile.Profile, error)
 
 func TestSearchReturnsCurrentCompanionContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := NewHandler("provider-secret", fakeProfileReader{profile: profile.Profile{
+	h := NewHandler("provider-secret", "dev-001", fakeProfileReader{profile: profile.Profile{
 		DeviceID: "dev-001",
 		Fields: profile.Fields{
 			Name:          "蓝",
@@ -70,9 +70,52 @@ func TestSearchReturnsCurrentCompanionContext(t *testing.T) {
 	}
 }
 
+type profileReaderByDeviceID map[string]profile.Profile
+
+func (profiles profileReaderByDeviceID) Get(_ context.Context, deviceID string) (profile.Profile, error) {
+	current, ok := profiles[deviceID]
+	if !ok {
+		return profile.Profile{}, profile.ErrNotFound
+	}
+	return current, nil
+}
+
+func TestSearchFallsBackFromXiaozhiAgentIDToConfiguredDeviceID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewHandler("provider-secret", "9c:13:9e:8b:af:28", profileReaderByDeviceID{
+		"9c:13:9e:8b:af:28": {
+			DeviceID: "9c:13:9e:8b:af:28",
+			Fields: profile.Fields{
+				Name:    "蓝",
+				Hobbies: []string{"养花"},
+			},
+		},
+	})
+	r := gin.New()
+	h.RegisterRoutes(r.Group("/api/openmem/v1"))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/openmem/v1/search/memory", strings.NewReader(`{
+		"user_id":"1",
+		"conversation_id":"1",
+		"agent_id":"1",
+		"query":"你知道我叫什么吗"
+	}`))
+	req.Header.Set("Authorization", "Bearer provider-secret")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "陪伴对象姓名：蓝") || !strings.Contains(w.Body.String(), "喜好：养花") {
+		t.Fatalf("body = %s, want configured device companion context for xiaozhi agent identity", w.Body.String())
+	}
+}
+
 func TestSearchReturnsNoStaticContextForEmptyQuery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := NewHandler("provider-secret", fakeProfileReader{profile: profile.Profile{
+	h := NewHandler("provider-secret", "dev-001", fakeProfileReader{profile: profile.Profile{
 		DeviceID: "dev-001",
 		Fields:   profile.Fields{Name: "蓝"},
 	}})
@@ -92,7 +135,7 @@ func TestSearchReturnsNoStaticContextForEmptyQuery(t *testing.T) {
 
 func TestProviderRejectsMissingOrWrongToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h := NewHandler("provider-secret", fakeProfileReader{})
+	h := NewHandler("provider-secret", "dev-001", fakeProfileReader{})
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/api/openmem/v1"))
 
@@ -111,7 +154,7 @@ func TestProviderRejectsMissingOrWrongToken(t *testing.T) {
 func TestWriteProtocolIsAcknowledgedWithoutIngestingConversation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	reader := fakeProfileReader{}
-	h := NewHandler("provider-secret", reader)
+	h := NewHandler("provider-secret", "dev-001", reader)
 	r := gin.New()
 	h.RegisterRoutes(r.Group("/api/openmem/v1"))
 

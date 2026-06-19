@@ -229,7 +229,7 @@ func main() {
 		TimelineRoutes:       timelineHandler,
 	})
 	if cfg.MemoryProviderToken != "" {
-		openmemory.NewHandler(cfg.MemoryProviderToken, profileService).RegisterRoutes(r.Group("/api/openmem/v1"))
+		openmemory.NewHandler(cfg.MemoryProviderToken, cfg.DemoDeviceID, profileService).RegisterRoutes(r.Group("/api/openmem/v1"))
 		log.Printf("open memory provider enabled: /api/openmem/v1")
 	} else {
 		log.Printf("open memory provider disabled: ANBAN_MEMORY_PROVIDER_TOKEN 未配置")

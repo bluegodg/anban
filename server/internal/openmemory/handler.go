@@ -19,8 +19,9 @@ type ProfileReader interface {
 }
 
 type Handler struct {
-	token  string
-	reader ProfileReader
+	token           string
+	defaultDeviceID string
+	reader          ProfileReader
 }
 
 type request struct {
@@ -29,8 +30,12 @@ type request struct {
 	Query          string `json:"query"`
 }
 
-func NewHandler(token string, reader ProfileReader) *Handler {
-	return &Handler{token: strings.TrimSpace(token), reader: reader}
+func NewHandler(token, defaultDeviceID string, reader ProfileReader) *Handler {
+	return &Handler{
+		token:           strings.TrimSpace(token),
+		defaultDeviceID: strings.TrimSpace(defaultDeviceID),
+		reader:          reader,
+	}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
@@ -71,7 +76,7 @@ func (h *Handler) search(c *gin.Context) {
 		return
 	}
 
-	current, err := h.reader.Get(c.Request.Context(), deviceID)
+	current, err := h.getProfile(c.Request.Context(), deviceID)
 	if errors.Is(err, profile.ErrNotFound) {
 		writeSearchResult(c, "")
 		return
@@ -81,6 +86,14 @@ func (h *Handler) search(c *gin.Context) {
 		return
 	}
 	writeSearchResult(c, profile.BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext))
+}
+
+func (h *Handler) getProfile(ctx context.Context, identity string) (profile.Profile, error) {
+	current, err := h.reader.Get(ctx, identity)
+	if !errors.Is(err, profile.ErrNotFound) || h.defaultDeviceID == "" || h.defaultDeviceID == identity {
+		return current, err
+	}
+	return h.reader.Get(ctx, h.defaultDeviceID)
 }
 
 func (h *Handler) getMessages(c *gin.Context) {
