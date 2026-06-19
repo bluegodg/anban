@@ -4056,3 +4056,12 @@
 - 首页：保留设备在线状态、最近互动和最新留言播报状态；收拢为问候、看一眼、原图记录、留言四个入口；移除最近拍摄长列表、最近留言长列表、虚假环境状态和应用内 9:41/信号/电池状态栏及其 54px 偏移。
 - 边界：不改 xiaozhi、固件、设备协议、视觉留存策略；仍只保存带安伴 capture 标记的手动“看一眼”原图，普通语音看图不入历史。
 - 验证：TDD RED 覆盖删除服务/路由/权限和前端历史交互；`npm test --prefix childweb` 51/51、`node --test web/smoke.test.mjs` 80/80、JS syntax、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
+
+### 01:57 子女端信息收拢第二批：提醒首页、创建弹窗与专属列表
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/sw.js`。
+- 页面：提醒主页面只保留下一条待执行提醒摘要，以及“新建提醒 / 全部提醒 / 历史提醒”三个明确入口；移除内联长表单和四条静态示例提醒。
+- 交互：新建提醒表单迁移到可上下滑动的底部弹窗，继续复用现有时间、频率、自定义日期和重要提醒能力；保存成功后自动关闭弹窗并刷新摘要和列表。
+- 导航：新增 `#reminder-list` 专属页面承载全部待执行提醒，保留现有提醒详情和历史页面；直接打开该 hash 时会自行初始化提醒域，不依赖先访问提醒主页。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v6`，确保线上 PWA 获取新页面结构。
+- 验证：TDD RED/GREEN；`npm test --prefix childweb` 52/52、`node --test web/smoke.test.mjs` 80/80、JS syntax、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。

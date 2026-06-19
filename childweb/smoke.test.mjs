@@ -213,6 +213,32 @@ test('W1.2 childweb sends recurrence and important reminder fields', () => {
   assert.match(appJS, /important: isImportant/);
 });
 
+test('reminder information architecture uses a create sheet and dedicated list page', () => {
+  for (const id of [
+    'nextReminderSummary',
+    'openReminderCreateButton',
+    'openReminderListButton',
+    'openReminderHistoryButton',
+    'reminderCreateOverlay',
+    'reminderCreateSheet',
+    'reminderCreateClose',
+    's-reminder-list',
+    'reminderList',
+  ]) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
+  for (const sample of ['饭后半小时服用', '保持身体水分', '营养均衡，按时吃饭', '早点休息，养成好习惯']) {
+    assert.doesNotMatch(indexHTML, new RegExp(sample));
+  }
+  assert.match(appJS, /'reminder-list':'s-reminder-list'/);
+  assert.match(appJS, /function initReminderList\(\)/);
+  assert.match(appJS, /if \(!SPA\.initialized\.warn\)[\s\S]*initWarn\(\)/);
+  assert.match(appJS, /function openReminderCreateModal\(\)/);
+  assert.match(appJS, /function closeReminderCreateModal\(\)/);
+  assert.match(appJS, /renderNextReminder\(reminders\)/);
+  assert.match(appJS, /closeReminderCreateModal\(\);[\s\S]*await loadSavedReminders\(\)/);
+});
+
 test('P6 maps Stitch profile data to backend fields without changing the contract', async () => {
   const { mapStitchProfileToFields } = await import('./integration-core.js');
   assert.deepEqual(mapStitchProfileToFields({
@@ -305,7 +331,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v5/);
+  assert.match(sw, /anban-childweb-v6/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);

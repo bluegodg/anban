@@ -102,6 +102,27 @@ function closeVisionHistory() {
   releaseVisionHistoryObjectURLs();
 }
 
+function openReminderCreateModal() {
+  if (!ensureDeviceBound()) return;
+  document.getElementById('reminderCreateOverlay').classList.add('open');
+  document.getElementById('reminderCreateSheet').classList.add('open');
+}
+
+function closeReminderCreateModal() {
+  document.getElementById('reminderCreateOverlay').classList.remove('open');
+  document.getElementById('reminderCreateSheet').classList.remove('open');
+  if (typeof window.closeTimePickerModal === 'function') window.closeTimePickerModal();
+  if (typeof window.closeFreqPickerModal === 'function') window.closeFreqPickerModal();
+}
+
+function initReminderList() {
+  if (!SPA.initialized.warn) {
+    SPA.initialized.warn = true;
+    initWarn();
+  }
+  if (typeof window.refreshReminders === 'function') window.refreshReminders();
+}
+
 function updateAnbanConfig(patch) {
   anbanConfig = saveConfig({ ...anbanConfig, ...patch });
   anbanClient = createRuntimeClient();
@@ -185,13 +206,13 @@ var SPA = {
   currentSection: null,
   initialized: {},
   sectionsWithNav: { home:1, warn:1, message:1, family:1, mine:1 },
-  sectionIds: { login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine', 'family-edit':'s-family-edit', history:'s-history', detail:'s-detail' }
+  sectionIds: { login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine', 'family-edit':'s-family-edit', 'reminder-list':'s-reminder-list', history:'s-history', detail:'s-detail' }
 };
 
 function navigateTo(name) {
   // Save warn scroll position before navigating to sub-pages (detail, history)
   // Only sub-pages should restore scroll when returning; main pages should reset to top
-  var subPages = ['detail', 'history', 'family-edit'];
+  var subPages = ['detail', 'history', 'reminder-list', 'family-edit'];
   if (SPA.currentSection === 'warn' && subPages.indexOf(name) >= 0) {
     var inner = document.getElementById('screenInner');
     if (inner) SPA._warnScrollTop = inner.scrollTop;
@@ -228,6 +249,7 @@ function showSection(name) {
   // Reset login UI when entering login page
   if (name === 'login') resetLoginUI();
   if (name !== 'home') closeVisionHistory();
+  if (SPA.currentSection && name !== SPA.currentSection) closeReminderCreateModal();
 
   // Hide current
   if (SPA.currentSection) {
@@ -259,7 +281,7 @@ function showSection(name) {
   }
 
   // Hide bottom navs for secondary pages (history, family-edit)
-  var noNavPages = ['history', 'family-edit', 'detail'];
+  var noNavPages = ['history', 'reminder-list', 'family-edit', 'detail'];
   var allNavs = document.querySelectorAll('#s-home nav, #s-warn nav, #s-message nav, #s-family nav, #s-mine nav');
   if (noNavPages.indexOf(name) >= 0) {
     for (var n = 0; n < allNavs.length; n++) allNavs[n].style.display = 'none';
@@ -275,7 +297,7 @@ function showSection(name) {
 
   // Lazy init
   var initFn = 'init' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-./g, function(x){return x[1].toUpperCase()});
-  var alwaysRefresh = ['history', 'detail'];
+  var alwaysRefresh = ['history', 'reminder-list', 'detail'];
   if ((!SPA.initialized[name] || alwaysRefresh.indexOf(name) >= 0) && typeof window[initFn] === 'function') {
     SPA.initialized[name] = true;
     window[initFn]();
@@ -324,6 +346,8 @@ Object.assign(window, {
   showToast,
   closeVisionResult,
   closeVisionHistory,
+  openReminderCreateModal,
+  closeReminderCreateModal,
   openBindDevice,
   closeBindDevice,
   submitDeviceBinding,
@@ -334,6 +358,7 @@ Object.assign(window, {
   initHome,
   initMessage,
   initWarn,
+  initReminderList,
   initFamily,
   initMine,
   initFamilyEdit,
@@ -1853,6 +1878,7 @@ function initWarn() {
       input.setAttribute('placeholder', '例如：吃早饭、吃降压药、喝水等');
       if (counter) counter.textContent = '0/20';
       showToast('提醒已保存');
+      closeReminderCreateModal();
       await loadSavedReminders();
     } catch (error) {
       showToast(error.message || '提醒保存失败');
@@ -1899,11 +1925,32 @@ function initWarn() {
     return '仅一次';
   }
 
+  function renderNextReminder(reminders) {
+    var title = document.getElementById('nextReminderTitle');
+    var meta = document.getElementById('nextReminderMeta');
+    if (!title || !meta) return;
+    var items = Array.isArray(reminders) ? reminders.slice() : [];
+    items.sort(function(left, right) {
+      return new Date(left.scheduledAt || 0).getTime() - new Date(right.scheduledAt || 0).getTime();
+    });
+    var next = items[0];
+    if (!next) {
+      title.textContent = '暂无待执行提醒';
+      meta.textContent = '可以新建一条关怀提醒';
+      return;
+    }
+    var scheduled = new Date(next.scheduledAt);
+    var when = Number.isNaN(scheduled.getTime()) ? '时间待确认' : scheduled.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    title.textContent = next.content || next.text || '提醒';
+    meta.textContent = when + ' · ' + reminderFrequencyLabel(next);
+  }
+
   async function loadSavedReminders() {
     var list = document.getElementById('reminderList');
     try {
       var payload = await anbanClient.listReminders({ deviceId: anbanConfig.deviceId, status: 'scheduled' });
       var reminders = payload.reminders || [];
+      renderNextReminder(reminders);
       list.innerHTML = '';
       if (!reminders.length) {
         var empty = document.createElement('div');
@@ -1915,6 +1962,7 @@ function initWarn() {
         list.appendChild(createReminderCard(reminders[i]));
       }
     } catch (error) {
+      renderNextReminder([]);
       list.innerHTML = '<div class="bg-surface-white rounded-2xl p-6 text-center text-text-secondary">提醒加载失败</div>';
     }
   }
@@ -1933,6 +1981,17 @@ function initWarn() {
     var mItems = document.querySelectorAll('#minuteList .tp-col-item');
     for (var j = 0; j < mItems.length; j++) { mItems[j].classList.toggle('selected', parseInt(mItems[j].textContent) === m); }
   };
+
+  var createButton = document.getElementById('openReminderCreateButton');
+  var listButton = document.getElementById('openReminderListButton');
+  var historyButton = document.getElementById('openReminderHistoryButton');
+  var createOverlay = document.getElementById('reminderCreateOverlay');
+  var createClose = document.getElementById('reminderCreateClose');
+  if (createButton) createButton.addEventListener('click', openReminderCreateModal);
+  if (listButton) listButton.addEventListener('click', function() { navigateTo('reminder-list'); });
+  if (historyButton) historyButton.addEventListener('click', function() { navigateTo('history'); });
+  if (createOverlay) createOverlay.addEventListener('click', closeReminderCreateModal);
+  if (createClose) createClose.addEventListener('click', closeReminderCreateModal);
 
   buildTimePicker();
 }

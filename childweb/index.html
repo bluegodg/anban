@@ -232,6 +232,12 @@
   .vision-delete-overlay.open{opacity:1;pointer-events:auto}
   .vision-delete-confirm{position:absolute;left:18px;right:18px;top:50%;z-index:125;transform:translateY(-46%) scale(.97);background:#fff;border-radius:12px;padding:20px;opacity:0;pointer-events:none;transition:all .18s;box-shadow:0 20px 60px rgba(45,25,18,.24)}
   .vision-delete-confirm.open{transform:translateY(-50%) scale(1);opacity:1;pointer-events:auto}
+  .reminder-create-overlay{position:absolute;inset:0;z-index:80;background:rgba(46,31,24,.38);opacity:0;pointer-events:none;transition:opacity .22s}
+  .reminder-create-overlay.open{opacity:1;pointer-events:auto}
+  .reminder-create-sheet{position:absolute;left:0;right:0;bottom:0;z-index:81;height:min(88%,760px);background:var(--ab-bg);border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;box-shadow:0 -18px 50px rgba(54,32,22,.2)}
+  .reminder-create-sheet.open{transform:translateY(0)}
+  .reminder-create-header{height:68px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--ab-line)}
+  .reminder-create-body{flex:1;overflow-y:auto;padding:18px 18px 28px;-webkit-overflow-scrolling:touch}
 </style>
 </head>
 <body>
@@ -463,91 +469,15 @@
           </button>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
-          <section class="mb-section-gap">
-            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
-              <div class="flex items-center gap-2 mb-6">
-                <span class="material-symbols-outlined text-primary">add_circle</span>
-                <h3 class="font-title-lg text-title-lg text-on-surface">创建新提醒</h3>
-              </div>
-              <div class="space-y-4 mb-6">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-on-surface-variant">schedule</span>
-                    <span class="font-label-md text-label-md text-on-surface">时间</span>
-                  </div>
-                  <div class="relative">
-                    <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openTimePickerModal()">
-                      <span class="font-bold text-body-lg text-body-lg" id="timeDisplay">08:30</span>
-                      <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
-                    </button>
-                    
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-on-surface-variant">wb_sunny</span>
-                    <span class="font-label-md text-label-md text-on-surface">频率</span>
-                  </div>
-                  <div class="relative">
-                    <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openFreqPickerModal()">
-                      <span class="font-label-md text-label-md" id="freqDisplay">仅一次</span>
-                      <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
-                    </button>
-
-                  </div>
-                </div>
-                <div class="flex flex-col gap-2">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-on-surface-variant">description</span>
-                    <span class="font-label-md text-label-md text-on-surface">提醒内容</span>
-                  </div>
-                  <div class="relative">
-                    <textarea class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all h-24" id="reminderContent" placeholder="例如：吃早饭、吃降压药、喝水等" maxlength="20"></textarea>
-                    <span class="absolute bottom-2 right-3 text-[10px] text-on-surface-variant/40" id="charCount">0/20</span>
-                  </div>
-                </div>
-
-              </div>
-              <div class="flex items-center justify-between py-2">
-                <div class="flex items-center gap-3">
-                  <span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">priority_high</span>
-                  <div>
-                    <span class="font-label-md text-label-md text-on-surface">重要提醒</span>
-                    <p class="font-label-sm text-label-sm text-text-secondary">开启后老人忙碌时也会强制播报</p>
-                  </div>
-                </div>
-                <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="toggleImportant(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="saveReminder()">保存提醒</button>
-            </div>
+          <section id="nextReminderSummary" class="ab-glass" style="padding:20px;margin-bottom:16px">
+            <div class="flex items-center justify-between"><span class="ab-label">下一条提醒</span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">notifications_active</span></div>
+            <h2 id="nextReminderTitle" style="font-size:21px;font-weight:800;color:var(--ab-ink);margin-top:16px">正在读取提醒</h2>
+            <p id="nextReminderMeta" style="font-size:13px;color:var(--ab-ink2);margin-top:7px">请稍候</p>
           </section>
-          <section>
-            <div class="flex justify-between items-end mb-4">
-              <h3 class="font-title-lg text-title-lg text-on-surface">我的提醒</h3>
-              <a class="font-label-sm text-label-sm text-primary flex items-center gap-1 active:opacity-60" onclick="navigateTo('history')">历史提醒<span class="material-symbols-outlined text-[16px]">chevron_right</span></a>
-            </div>
-            <div class="space-y-card-gap" id="reminderList">
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="1" data-name="吃降压药" data-time="08:30" data-freq="每天" data-note="饭后半小时服用" data-icon="medication" data-iconcolor="warning">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">medication</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">吃降压药</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span><span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:'FILL' 1">priority_high</span>重要</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">08:30</p><p class="font-label-sm text-label-sm text-text-secondary">备注：饭后半小时服用</p></div></div>
-                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="0" data-name="喝水" data-time="10:00" data-freq="每天" data-note="保持身体水分" data-icon="water_drop" data-iconcolor="tertiary">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-tertiary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-tertiary">water_drop</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">喝水</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">10:00</p><p class="font-label-sm text-label-sm text-text-secondary">备注：保持身体水分</p></div></div>
-                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="0" data-name="吃午饭" data-time="12:00" data-freq="每天" data-note="营养均衡，按时吃饭" data-icon="restaurant" data-iconcolor="on-secondary-container">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-secondary-container">restaurant</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">吃午饭</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">12:00</p><p class="font-label-sm text-label-sm text-text-secondary">备注：营养均衡，按时吃饭</p></div></div>
-                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between reminder-paused" data-important="0" data-name="睡觉" data-time="21:30" data-freq="每天" data-note="早点休息，养成好习惯" data-icon="bedtime" data-iconcolor="on-surface-variant">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-on-surface-variant/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-surface-variant">bedtime</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">睡觉</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">21:30</p><p class="font-label-sm text-label-sm text-text-secondary">备注：早点休息，养成好习惯</p></div></div>
-                <div class="toggle-track off flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-            </div>
+          <section style="display:flex;flex-direction:column;gap:10px">
+            <button id="openReminderCreateButton" type="button" class="ab-btn-primary" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">add_alarm</span>新建提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
+            <button id="openReminderListButton" type="button" class="ab-btn-ghost" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">list_alt</span>全部提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
+            <button id="openReminderHistoryButton" type="button" class="ab-btn-ghost" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">history</span>历史提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
           </section>
         </main>
         <!-- Warn Bottom Nav -->
@@ -572,6 +502,18 @@
             <span class="font-label-sm text-label-sm">家人</span>
           </a>
         </nav>
+      </section>
+
+      <!-- ============ REMINDER LIST ============ -->
+      <section class="spa-section" id="s-reminder-list">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('warn')" type="button"><span class="material-symbols-outlined">arrow_back</span></button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">全部提醒</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="openReminderCreateModal()" type="button" title="新建提醒"><span class="material-symbols-outlined">add</span></button>
+        </header>
+        <main class="flex-1 px-page-margin pt-4 pb-6">
+          <div class="space-y-card-gap" id="reminderList"><div class="bg-surface-white rounded-xl p-6 text-center text-text-secondary">正在加载提醒</div></div>
+        </main>
       </section>
 
       <!-- ============ HISTORY (Reminders History) ============ -->
@@ -1137,6 +1079,32 @@
       </div>
       <button class="ab-btn-primary w-full h-[50px]" id="bindDeviceBtn" onclick="submitDeviceBinding()" type="button">确认绑定</button>
     </div>
+
+    <div class="reminder-create-overlay" id="reminderCreateOverlay"></div>
+    <section class="reminder-create-sheet" id="reminderCreateSheet" role="dialog" aria-modal="true" aria-labelledby="reminderCreateTitle">
+      <div class="reminder-create-header">
+        <h3 id="reminderCreateTitle" style="font-size:19px;font-weight:800;color:var(--ab-ink);margin:0">新建提醒</h3>
+        <button id="reminderCreateClose" class="ab-btn-ghost" type="button" title="关闭新建提醒" style="width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="reminder-create-body">
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">schedule</span><span class="font-label-md text-label-md text-on-surface">时间</span></div>
+            <button class="flex items-center gap-2 bg-surface-white px-4 py-2 rounded-xl border border-divider-warm" onclick="openTimePickerModal()" type="button"><span class="font-bold text-body-lg" id="timeDisplay">08:30</span><span class="material-symbols-outlined text-[18px]">expand_more</span></button>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">event_repeat</span><span class="font-label-md text-label-md text-on-surface">频率</span></div>
+            <button class="flex items-center gap-2 bg-surface-white px-4 py-2 rounded-xl border border-divider-warm" onclick="openFreqPickerModal()" type="button"><span class="font-label-md" id="freqDisplay">仅一次</span><span class="material-symbols-outlined text-[18px]">expand_more</span></button>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:8px"><span class="font-label-md text-label-md text-on-surface">提醒内容</span><span class="relative"><textarea class="w-full bg-surface-white border border-divider-warm rounded-xl px-4 py-3 text-[15px] leading-[22px] resize-none h-28" id="reminderContent" placeholder="例如：吃早饭、吃药、喝水" maxlength="20"></textarea><span class="absolute bottom-2 right-3 text-[10px] text-on-surface-variant/40" id="charCount">0/20</span></span></label>
+          <div class="flex items-center justify-between py-2">
+            <div class="flex items-center gap-3"><span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">priority_high</span><div><span class="font-label-md text-label-md text-on-surface">重要提醒</span><p class="font-label-sm text-label-sm text-text-secondary">忙碌时也会播报</p></div></div>
+            <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="toggleImportant(this)"><div class="toggle-thumb"></div></div>
+          </div>
+          <button class="ab-btn-primary w-full h-[52px]" onclick="saveReminder()" type="button">保存提醒</button>
+        </div>
+      </div>
+    </section>
 
     <div class="vision-history-overlay" id="visionHistoryOverlay"></div>
     <section class="vision-history-sheet" id="visionHistorySheet" role="dialog" aria-modal="true" aria-labelledby="visionHistoryTitle">
