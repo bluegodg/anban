@@ -25,6 +25,7 @@
 - Data: memory facts 带 `source=manual|dialogue`，手动和自动沉淀共用同一事实库。
 - Runtime: 空 query 返回空，避免 xiaozhi 会话启动时缓存旧资料；每轮非空 query 都读取当前 profile，因此管理员修改后下一轮即可生效。
 - Runtime: `xiaozhiclient.SetRolePrompt` 只允许写风格 prompt；检测到 `ANBAN_CONTEXT` 或陪伴对象/记忆/心智标签时直接拒绝。
+- Runtime: manager 风格层要求称呼严格使用 profile 的“常用称呼”原文，不自行追加“阿姨”“奶奶”等后缀。
 - Runtime: Mind engine 通过装配层读取 profile/memory 摘要，生成 `mindContext` 时显式参考陪伴对象资料和长期记忆。
 
 ## DEPLOYMENT

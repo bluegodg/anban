@@ -234,6 +234,18 @@ func TestBuildPromptWithAllBlocksKeepsPromptWithinBudgetAndTruncatesMindContextF
 	}
 }
 
+func TestBuildPromptWithPreservesCompleteNormalMindContext(t *testing.T) {
+	mindContext := "最近你较挂念老人(concern 偏高)，语气更关切些；关系温度较暖，回答可以更亲近自然；老人近期偏安静，少追问，先轻声陪着；今天聊过/留意过：空闲循环检测到一段沉默；提醒确认结果进入安伴心智；提醒到期，进入安伴心智观察；老人今天还聊到世界杯和养花；陪伴对象：蓝；画像重点：常用称呼：蓝；记忆重点：老人关注世界杯足球赛事。；老人喜欢养花。"
+	if got := len([]rune(mindContext)); got <= maxProfilePromptLineRunes || got > 360 {
+		t.Fatalf("test mind context length = %d, want between line limit and 360", got)
+	}
+
+	prompt := BuildPromptWith(Fields{Name: "蓝", Nickname: "蓝"}, []string{"老人喜欢养花。"}, mindContext)
+	if !strings.Contains(prompt, "记忆重点：老人关注世界杯足球赛事。；老人喜欢养花。") {
+		t.Fatalf("prompt = %q, want complete normal mind context", prompt)
+	}
+}
+
 func TestServiceUpdatePreservesMemoryFactsAndMindContext(t *testing.T) {
 	svc, profileStore := newTestServiceWithStore(t)
 	ctx := context.Background()
@@ -359,5 +371,18 @@ func TestBuildStylePromptGuardsDeviceSettingsUnlessElderAsks(t *testing.T) {
 	want := "非老人明确要求，不要更改设备设置、音量、屏幕主题或字体"
 	if !strings.Contains(prompt, want) {
 		t.Fatalf("prompt = %q, want device settings guard %q", prompt, want)
+	}
+}
+
+func TestBuildStylePromptUsesConfiguredNicknameVerbatim(t *testing.T) {
+	prompt := BuildStylePrompt()
+
+	for _, want := range []string{
+		"优先使用陪伴对象上下文中的常用称呼原文",
+		"不要自行添加“阿姨”“奶奶”等后缀",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want nickname rule %q", prompt, want)
+		}
 	}
 }

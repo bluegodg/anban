@@ -18,6 +18,49 @@ func TestFactExtractionPromptKeepsCorrectedIdentityOutOfOldAliases(t *testing.T)
 	}
 }
 
+func TestFactExtractionPromptKeepsOnlyStablePersonFacts(t *testing.T) {
+	prompt := factExtractionSystemPrompt(20)
+	for _, want := range []string{
+		"稳定、以陪伴对象为中心",
+		"设备故障、权限或功能状态",
+		"助手自己的行为或推测",
+		"一次性任务或临时状态",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt = %q, want memory quality rule %q", prompt, want)
+		}
+	}
+}
+
+func TestParseFactListAcceptsStructuredJSONVariants(t *testing.T) {
+	want := []string{"老人喜欢养花。", "老人觉得播报语速偏快。"}
+	for name, content := range map[string]string{
+		"object array":    `[{"fact":"老人喜欢养花。"},{"text":"老人觉得播报语速偏快。"}]`,
+		"fenced envelope": "```json\n{\"facts\":[{\"fact\":\"老人喜欢养花。\"},{\"content\":\"老人觉得播报语速偏快。\"}]}\n```",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := parseFactList(content); !equalStrings(got, want) {
+				t.Fatalf("parseFactList() = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestCleanFactsRejectsJSONStructureFragments(t *testing.T) {
+	got := cleanFacts([]string{
+		"[",
+		"]",
+		"{",
+		"}",
+		`fact\": \"老人喜欢养花`,
+		"老人喜欢养花。",
+	})
+	want := []string{"老人喜欢养花。"}
+	if !equalStrings(got, want) {
+		t.Fatalf("cleanFacts() = %#v, want %#v", got, want)
+	}
+}
+
 func TestArkClientExtractFactsUsesChatCompletionsWithoutRealNetwork(t *testing.T) {
 	var gotAuth string
 	var gotPath string

@@ -444,6 +444,7 @@ func startMindLoops(
 	if interval <= 0 {
 		interval = 15 * time.Minute
 	}
+	runMindContextSync(profileStore, mindEngine, mindContextSyncer)
 
 	var scheduleNext func()
 	scheduleNext = func() {
@@ -456,6 +457,24 @@ func startMindLoops(
 	}
 	scheduleNext()
 	log.Printf("mind loops enabled: interval=%s", interval)
+}
+
+func runMindContextSync(profileStore *profile.Store, mindEngine mind.Engine, mindContextSyncer mindContextSyncer) {
+	if mindContextSyncer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deviceIDs, err := profileStore.ListDeviceIDs(ctx)
+	if err != nil {
+		log.Printf("mind context 获取设备列表失败: %v", err)
+		return
+	}
+	now := time.Now().UTC()
+	for _, deviceID := range deviceIDs {
+		syncMindContext(ctx, mindEngine, mindContextSyncer, deviceID, now)
+	}
 }
 
 func runMindLoops(profileStore *profile.Store, mindEngine mind.Engine, mindContextSyncer mindContextSyncer) {
@@ -482,21 +501,25 @@ func runMindLoops(profileStore *profile.Store, mindEngine mind.Engine, mindConte
 			log.Printf("mind life update 失败 device=%s: %v", deviceID, err)
 		}
 
-		if mindContextSyncer == nil {
-			continue
-		}
-		mindContext, err := mindEngine.BuildMindContext(ctx, deviceID, now)
-		if err != nil {
-			log.Printf("mind context 生成失败 device=%s: %v", deviceID, err)
-			continue
-		}
-		mindContext = strings.TrimSpace(mindContext)
-		if mindContext == "" {
-			continue
-		}
-		if err := mindContextSyncer.SyncMindContext(ctx, deviceID, mindContext); err != nil {
-			log.Printf("mind context 同步失败 device=%s: %v", deviceID, err)
-		}
+		syncMindContext(ctx, mindEngine, mindContextSyncer, deviceID, now)
+	}
+}
+
+func syncMindContext(ctx context.Context, mindEngine mind.Engine, mindContextSyncer mindContextSyncer, deviceID string, now time.Time) {
+	if mindContextSyncer == nil {
+		return
+	}
+	mindContext, err := mindEngine.BuildMindContext(ctx, deviceID, now)
+	if err != nil {
+		log.Printf("mind context 生成失败 device=%s: %v", deviceID, err)
+		return
+	}
+	mindContext = strings.TrimSpace(mindContext)
+	if mindContext == "" {
+		return
+	}
+	if err := mindContextSyncer.SyncMindContext(ctx, deviceID, mindContext); err != nil {
+		log.Printf("mind context 同步失败 device=%s: %v", deviceID, err)
 	}
 }
 

@@ -220,6 +220,28 @@ func TestRunMindLoopsSkipsEmptyMindContext(t *testing.T) {
 	}
 }
 
+func TestRunMindContextSyncRebuildsContextWithoutRunningMindActions(t *testing.T) {
+	profileStore := newProfileStoreForMainTest(t)
+	ctx := context.Background()
+	if err := profileStore.Upsert(ctx, &profile.Profile{DeviceID: "dev-001", Fields: profile.Fields{Name: "蓝"}}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	engine := &fakeLoopMindEngine{mindContext: "陪伴对象：蓝；记忆重点：老人喜欢养花。"}
+	syncer := &fakeMindContextSyncer{}
+
+	runMindContextSync(profileStore, engine, syncer)
+
+	if engine.tickCalls != 0 || engine.reflectCalls != 0 || engine.lifeCalls != 0 {
+		t.Fatalf("mind action calls tick=%d reflect=%d life=%d, want all 0", engine.tickCalls, engine.reflectCalls, engine.lifeCalls)
+	}
+	if engine.contextCalls != 1 {
+		t.Fatalf("context calls = %d, want 1", engine.contextCalls)
+	}
+	if len(syncer.calls) != 1 || syncer.calls[0].deviceID != "dev-001" || syncer.calls[0].mindContext != engine.mindContext {
+		t.Fatalf("sync calls = %+v, want rebuilt context", syncer.calls)
+	}
+}
+
 func TestRunVisionCaptureMaintenanceFinalizesTimeoutsAndExpiresCaptures(t *testing.T) {
 	now := time.Date(2026, 6, 18, 11, 30, 0, 0, time.UTC)
 	maintainer := &fakeVisionCaptureMaintainer{}

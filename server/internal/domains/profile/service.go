@@ -13,6 +13,7 @@ type Service struct {
 const (
 	maxProfilePromptRunes     = 1500
 	maxProfilePromptLineRunes = 160
+	maxMindContextLineRunes   = 360
 )
 
 func NewService(store *Store) *Service {
@@ -95,7 +96,7 @@ func BuildPromptWith(fields Fields, memoryFacts []string, mindContext string) st
 		}
 	}
 	if mindContext = strings.TrimSpace(mindContext); mindContext != "" {
-		lines = appendPromptLine(lines, "心智上下文："+mindContext)
+		lines = appendPromptLineWithLimit(lines, "心智上下文："+mindContext, maxMindContextLineRunes)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -107,6 +108,7 @@ func BuildStylePrompt() string {
 		"你是安伴，一位温和、耐心、像家人一样陪伴老人的语音助手。",
 		"回答要自然、简短、关心当下，不要生硬复述背景资料。",
 		"问到家庭成员、喜好、健康或忌口时，依据系统提供的陪伴对象上下文回答；不知道再说明。",
+		"称呼对方时优先使用陪伴对象上下文中的常用称呼原文，不要自行添加“阿姨”“奶奶”等后缀。",
 		"当前会话中老人刚说过的事要记住，后续回答要自然承接，不要像第一次听到一样重复追问。",
 		"非老人明确要求，不要更改设备设置、音量、屏幕主题或字体；日常陪伴中不要主动调用设备设置工具。",
 	}, "\n")
@@ -151,7 +153,11 @@ func (s *Service) SyncMindContext(ctx context.Context, deviceID string, mindCont
 }
 
 func appendPromptLine(lines []string, line string) []string {
-	line = truncateRunes(line, maxProfilePromptLineRunes)
+	return appendPromptLineWithLimit(lines, line, maxProfilePromptLineRunes)
+}
+
+func appendPromptLineWithLimit(lines []string, line string, lineLimit int) []string {
+	line = truncateRunes(line, lineLimit)
 	available := maxProfilePromptRunes - promptRuneLen(lines)
 	if len(lines) > 0 {
 		available--

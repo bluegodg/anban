@@ -4,6 +4,30 @@
 
 ## 2026-06-19
 
+### 自动记忆结构化解析与污染清理
+
+- 文件：`server/internal/llm/`、`docs/REALTIME_CHANGELOG.md`
+- 内容：事实解析器新增对 JSON 对象数组、`facts/items/memories` 外层对象和 Markdown 代码围栏的支持；只有输入确实不是 JSON 时才走文本兜底，并过滤 `[ ] { }`、`fact":` 等结构残片。记忆提取 prompt 收紧为稳定、以陪伴对象为中心的长期事实，排除设备故障/权限、助手行为或推测、一次性任务和临时状态。
+- 目的：修复线上自动沉淀把 `[`、`]`、`fact":` 及摄像头失败、音乐权限等内容写入专属记忆并进一步污染 Mind 上下文的问题。
+- 边界：不引入向量库或新进程，不改变管理员手动记忆能力；线上存量记忆先备份再整理，Mind 的旧派生上下文清空后由当前资料与记忆重建。
+- 验证：对象数组、围栏外层对象、结构残片和长期事实规则均先出现预期红灯，补实现后目标测试转绿。线上 `anban.db` 已备份，并按全量 `limit=1000` 审计 39 条事实：最终只保留 7 条稳定人物记忆，结构残片、旧姓名、摄像头/音乐权限及重复噪声均已清除。最终 `go test -count=1 ./...`、`go vet ./...`、`git diff --check` 通过并部署至 `101.34.214.149`；鉴权 provider 返回 7 条记忆，最终 1308 字节上下文的污染检查为 0。
+
+### Mind 启动时重建陪伴上下文
+
+- 文件：`server/cmd/anban/main.go`、`server/cmd/anban/main_test.go`
+- 内容：AnBan 启动时立即为已有设备执行一次只读 `BuildMindContext -> SyncMindContext`，常规 15 分钟循环复用同一同步助手；启动同步不执行 `TickIdle`、`Reflect`、`UpdateLife`，不会因重启触发主动开口或额外心智动作。profile 组装时将心智块单行上限从通用 160 调整为 360，仍受总 1500 字预算约束，避免正常 Mind 上下文末尾的“记忆重点”被截断。
+- 目的：资料/记忆清理或服务重启后无需等待完整循环，即可让当前 profile、专属记忆和既有 Mind 状态重新形成有效上下文。
+- 边界：不改变 Mind 的行为决策频率、不新增网络调用或 xiaozhi 改动；空上下文和生成失败仍安全跳过。
+- 验证：测试先因 `runMindContextSync` 不存在而编译红灯；实现后启动同步测试、正常 Mind 上下文不截断测试及全量测试转绿，`go vet ./...` 通过。部署重启后无需等待 15 分钟，profile 立即得到 176 字心智上下文；provider 同时返回 `陪伴对象：蓝`、`常用称呼：蓝`、专属记忆和完整 `记忆重点`，证明 profile 与 memory 已参与 Mind 并完整投影到设备上下文。
+
+### 陪伴对象旧称呼历史清理
+
+- 文件：`server/internal/domains/profile/`、`docs/capabilities/family-profile-memory-mind.md`
+- 内容：风格层新增“常用称呼原样使用”约束，禁止模型自行追加“阿姨”“奶奶”等后缀；线上审计确认 manager 角色/声纹/config 已无旧姓名，但历史表仍有 39 条“王阿姨/蓝阿姨/蓝奶奶/阿姨”错误称呼或纠错消息，本切片将按设备软删除并保留数据库备份。
+- 目的：解决 profile 已设置“蓝”后，旧对话历史仍把错误称呼带回新会话的问题，确保管理员配置的常用称呼真正生效。
+- 边界：只清理目标设备的错误称呼历史，不删除其他正常对话；不修改 xiaozhi 源码或固件。设备当前离线，真机最终称呼仍待重新上线后验收。
+- 验证：TDD 红灯证明旧风格 prompt 缺少原样称呼规则，补规则后目标测试与全量测试转绿，`go vet ./...` 通过并已部署。线上已备份目标设备 manager 历史和 agent，软删除 39 条错误称呼/纠错消息；manager history API 与 AnBan provider 均不再返回“王秀英/王阿姨/蓝阿姨/蓝奶奶”，provider 返回 `常用称呼：蓝`。manager 内部 `/api/configs` 实际下发结果已确认 `memory_mode=long`、`provider=memos`、新称呼规则存在且无旧称呼。设备仍离线，未把真机语音标记为通过。
+
 ### 家人上下文迁出 manager 风格提示词
 
 - 文件：`server/internal/{openmemory,config,xiaozhiclient}/`、`server/internal/domains/profile/`、`server/cmd/anban/main.go`、`.env.example`、`docs/capabilities/family-profile-memory-mind.md`
