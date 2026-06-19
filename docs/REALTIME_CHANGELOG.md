@@ -4076,3 +4076,4 @@
 - 缓存：Service Worker 缓存版本升级到 `anban-childweb-v7`。
 - 边界：消息页保持专属对话页面；不改 xiaozhi、固件、设备协议或后端接口。
 - 验证：TDD RED/GREEN；`npm test --prefix childweb` 53/53、`npm test --prefix web` 80/80、`node --check childweb/app.js`、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
+- 远端部署：仅上传 `index.html`、`app.js`、`sw.js` 到 `101.34.214.149`，保留服务器 `config.js`、密钥和 APK；旧文件备份在 `/home/ubuntu/anban/deploy-backups/f2d9ba3-childweb`。三份文件本地/远端 SHA-256 一致，`8090/health` 与 `8091` 均返回 200；Playwright 在 375x812 和 430x932 验证无横向溢出、无控制台错误，普通成员编辑入口和记忆管理控件保持隐藏。
