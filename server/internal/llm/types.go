@@ -21,3 +21,9 @@ type FactExtractionRequest struct {
 type FactExtractor interface {
 	ExtractFacts(ctx context.Context, req FactExtractionRequest) ([]string, error)
 }
+
+type PortraitRequest struct {
+	ProfileContext   string
+	MemoryFacts      []string
+	PreviousPortrait string
+}

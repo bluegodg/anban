@@ -222,12 +222,15 @@ test('P6 maps Stitch profile data to backend fields without changing the contrac
     communicationDos: ['多聊家常'],
     communicationDonts: ['不要催促'],
     aiPortrait: '性格温和',
+    aiPortraitMode: 'manual',
   }), {
     name: '妈妈',
     nickname: '妈妈',
     hobbies: ['园艺'],
     schedule: '每天散步\n沟通建议：多聊家常',
-    health: 'AI画像：性格温和\n血压：每日测量',
+    aiPortrait: '性格温和',
+    aiPortraitMode: 'manual',
+    health: '血压：每日测量',
     taboos: ['不要催促'],
   });
 });
@@ -238,7 +241,9 @@ test('P6 maps backend fields back to the Stitch form and keeps local demographic
     name: '爸爸',
     hobbies: ['听戏'],
     schedule: '早上六点起床\n沟通建议：说慢一点',
-    health: 'AI画像：开朗\n膝盖：避免久站',
+    aiPortrait: '开朗',
+    aiPortraitMode: 'auto',
+    health: '膝盖：避免久站',
     taboos: ['不要提旧伤'],
   }, { age: 75, livingSituation: '独居', occupation: '退休工人' });
 
@@ -248,6 +253,25 @@ test('P6 maps backend fields back to the Stitch form and keeps local demographic
   assert.deepEqual(result.communicationDos, ['说慢一点']);
   assert.equal(result.health[0].name, '膝盖');
   assert.equal(result.aiPortrait, '开朗');
+  assert.equal(result.aiPortraitMode, 'auto');
+});
+
+test('P6 still reads a legacy portrait embedded in health', async () => {
+  const { mapFieldsToStitchProfile } = await import('./integration-core.js');
+  const result = mapFieldsToStitchProfile({ health: 'AI画像：旧画像\n血压：每日测量' });
+  assert.equal(result.aiPortrait, '旧画像');
+  assert.equal(result.aiPortraitMode, 'auto');
+  assert.deepEqual(result.health, [{ name: '血压', detail: '每日测量' }]);
+});
+
+test('family portrait editor exposes automatic and manual modes', async () => {
+  const integrationCoreJS = await readFile(new URL('./integration-core.js', import.meta.url), 'utf8');
+  assert.match(indexHTML, /id="editAiPortraitAuto"/);
+  assert.doesNotMatch(indexHTML, /退休前曾是一名优秀教师/);
+  assert.match(indexHTML, /画像会在资料和专属记忆积累后自动形成/);
+  assert.match(appJS, /editAiPortraitAuto/);
+  assert.match(appJS, /aiPortraitMode/);
+  assert.doesNotMatch(integrationCoreJS, /`AI画像：\$\{portrait\}`/);
 });
 
 test('P6 loads and saves profiles through the shared client', () => {
@@ -280,6 +304,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /anban-childweb-v4/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);

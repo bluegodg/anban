@@ -2,22 +2,32 @@ package profile
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"log"
 	"strings"
+	"time"
 )
 
 type Service struct {
-	store *Store
+	store     *Store
+	generator PortraitGenerator
 }
 
 const (
 	maxProfilePromptRunes     = 1500
 	maxProfilePromptLineRunes = 160
 	maxMindContextLineRunes   = 360
+	portraitFingerprintV2     = "ai-portrait-v2"
 )
 
-func NewService(store *Store) *Service {
-	return &Service{store: store}
+func NewService(store *Store, generators ...PortraitGenerator) *Service {
+	service := &Service{store: store}
+	if len(generators) > 0 {
+		service.generator = generators[0]
+	}
+	return service
 }
 
 func (s *Service) Update(ctx context.Context, req UpdateRequest) (Profile, error) {
@@ -26,6 +36,7 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (Profile, error
 		return Profile{}, ErrInvalidInput
 	}
 
+	requestedMode := strings.TrimSpace(req.Fields.AIPortraitMode)
 	fields := normalizeFields(req.Fields)
 	current, err := s.store.Get(ctx, deviceID)
 	if err != nil && !errors.Is(err, ErrNotFound) {
@@ -34,9 +45,23 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (Profile, error
 	if errors.Is(err, ErrNotFound) {
 		current = Profile{DeviceID: deviceID}
 	}
+	previousFields := current.Fields
+	fields = resolvePortraitFields(fields, previousFields, requestedMode != "")
 	current.Fields = fields
 	current.MemoryFacts = trimStrings(current.MemoryFacts)
 	current.MindContext = strings.TrimSpace(current.MindContext)
+	if fields.AIPortraitMode == PortraitModeManual {
+		current.AIPortraitInputHash = ""
+		if fields.AIPortrait != previousFields.AIPortrait || previousFields.AIPortraitMode != PortraitModeManual {
+			now := time.Now().UTC()
+			current.AIPortraitUpdatedAt = &now
+		}
+	} else {
+		if previousFields.AIPortraitMode != PortraitModeAuto {
+			current.AIPortraitInputHash = ""
+		}
+		s.refreshAIPortrait(ctx, &current)
+	}
 	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
 	if err := s.store.Upsert(ctx, &current); err != nil {
 		return Profile{}, err
@@ -85,6 +110,7 @@ func BuildPromptWith(fields Fields, memoryFacts []string, mindContext string) st
 	addLine("孙辈", strings.Join(fields.Grandchildren, "、"))
 	addLine("喜好", strings.Join(fields.Hobbies, "、"))
 	addLine("作息", fields.Schedule)
+	addLine("AI认知画像", fields.AIPortrait)
 	addLine("健康背景", fields.Health)
 	addLine("忌口和禁忌", strings.Join(fields.Taboos, "、"))
 	if facts := trimStrings(memoryFacts); len(facts) > 0 {
@@ -127,8 +153,10 @@ func (s *Service) SyncMemoryFacts(ctx context.Context, deviceID string, facts []
 	if errors.Is(err, ErrNotFound) {
 		current = Profile{DeviceID: deviceID}
 	}
+	current.Fields = normalizeStoredFields(current.Fields)
 	current.MemoryFacts = trimStrings(facts)
 	current.MindContext = strings.TrimSpace(current.MindContext)
+	s.refreshAIPortrait(ctx, &current)
 	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
 	return s.store.Upsert(ctx, &current)
 }
@@ -146,10 +174,66 @@ func (s *Service) SyncMindContext(ctx context.Context, deviceID string, mindCont
 	if errors.Is(err, ErrNotFound) {
 		current = Profile{DeviceID: deviceID}
 	}
+	current.Fields = normalizeStoredFields(current.Fields)
 	current.MemoryFacts = trimStrings(current.MemoryFacts)
 	current.MindContext = strings.TrimSpace(mindContext)
 	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
 	return s.store.Upsert(ctx, &current)
+}
+
+func (s *Service) RefreshAIPortrait(ctx context.Context, deviceID string) (Profile, error) {
+	current, err := s.Get(ctx, deviceID)
+	if err != nil {
+		return Profile{}, err
+	}
+	current.Fields = normalizeStoredFields(current.Fields)
+	s.refreshAIPortrait(ctx, &current)
+	current.Prompt = BuildPromptWith(current.Fields, current.MemoryFacts, current.MindContext)
+	if err := s.store.Upsert(ctx, &current); err != nil {
+		return Profile{}, err
+	}
+	return current, nil
+}
+
+func (s *Service) refreshAIPortrait(ctx context.Context, current *Profile) {
+	if current == nil || s.generator == nil || current.Fields.AIPortraitMode != PortraitModeAuto {
+		return
+	}
+	profileFields := current.Fields
+	profileFields.AIPortrait = ""
+	profileFields.AIPortraitMode = ""
+	profileContext := BuildPromptWith(profileFields, nil, "")
+	facts := trimStrings(current.MemoryFacts)
+	if profileContext == "" && len(facts) == 0 {
+		return
+	}
+	fingerprint := portraitInputFingerprint(profileContext, facts)
+	if current.AIPortraitInputHash == fingerprint && strings.TrimSpace(current.Fields.AIPortrait) != "" {
+		return
+	}
+
+	portrait, err := s.generator.GeneratePortrait(ctx, PortraitInput{
+		Fields:           current.Fields,
+		MemoryFacts:      append([]string(nil), facts...),
+		PreviousPortrait: current.Fields.AIPortrait,
+	})
+	if err != nil {
+		log.Printf("profile AI portrait 生成失败 device=%s: %v", current.DeviceID, err)
+		return
+	}
+	portrait = truncateRunes(strings.TrimSpace(portrait), 360)
+	if portrait == "" {
+		return
+	}
+	current.Fields.AIPortrait = portrait
+	current.AIPortraitInputHash = fingerprint
+	now := time.Now().UTC()
+	current.AIPortraitUpdatedAt = &now
+}
+
+func portraitInputFingerprint(profileContext string, facts []string) string {
+	sum := sha256.Sum256([]byte(portraitFingerprintV2 + "\n" + profileContext + "\n" + strings.Join(facts, "\n")))
+	return fmt.Sprintf("%x", sum[:])
 }
 
 func appendPromptLine(lines []string, line string) []string {
@@ -206,7 +290,71 @@ func normalizeFields(fields Fields) Fields {
 	fields.Schedule = strings.TrimSpace(fields.Schedule)
 	fields.Health = strings.TrimSpace(fields.Health)
 	fields.Taboos = trimStrings(fields.Taboos)
+	fields.AIPortrait = strings.TrimSpace(fields.AIPortrait)
+	fields.AIPortraitMode = normalizePortraitMode(fields.AIPortraitMode)
+	legacyPortrait, health := splitLegacyPortrait(fields.Health)
+	if fields.AIPortrait == "" {
+		fields.AIPortrait = legacyPortrait
+	}
+	fields.Health = health
 	return fields
+}
+
+func normalizeStoredFields(fields Fields) Fields {
+	fields = normalizeFields(fields)
+	if fields.AIPortraitMode == "" {
+		fields.AIPortraitMode = PortraitModeAuto
+	}
+	return fields
+}
+
+func resolvePortraitFields(fields, current Fields, modeExplicit bool) Fields {
+	current = normalizeStoredFields(current)
+	if fields.AIPortraitMode == "" {
+		fields.AIPortraitMode = current.AIPortraitMode
+		if fields.AIPortraitMode == "" {
+			fields.AIPortraitMode = PortraitModeAuto
+		}
+	}
+	if fields.AIPortraitMode == PortraitModeAuto {
+		if current.AIPortrait != "" {
+			fields.AIPortrait = current.AIPortrait
+		}
+	} else if !modeExplicit && fields.AIPortrait == "" {
+		fields.AIPortrait = current.AIPortrait
+	}
+	return fields
+}
+
+func normalizePortraitMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case PortraitModeAuto:
+		return PortraitModeAuto
+	case PortraitModeManual:
+		return PortraitModeManual
+	default:
+		return ""
+	}
+}
+
+func splitLegacyPortrait(health string) (string, string) {
+	var portrait string
+	lines := strings.Split(strings.TrimSpace(health), "\n")
+	healthLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "AI画像：") || strings.HasPrefix(line, "AI认知画像：") {
+			if portrait == "" {
+				portrait = strings.TrimSpace(strings.SplitN(line, "：", 2)[1])
+			}
+			continue
+		}
+		healthLines = append(healthLines, line)
+	}
+	return portrait, strings.Join(healthLines, "\n")
 }
 
 func trimStrings(values []string) []string {

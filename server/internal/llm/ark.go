@@ -39,48 +39,63 @@ func NewArkClient(cfg ArkConfig) *ArkClient {
 }
 
 func (c *ArkClient) ExtractFacts(ctx context.Context, req FactExtractionRequest) ([]string, error) {
-	if c == nil || c.baseURL == "" || c.apiKey == "" || c.model == "" {
-		return nil, fmt.Errorf("llm: ark client is not configured")
-	}
-
-	body := arkChatRequest{
-		Model: c.model,
-		Messages: []arkMessage{
-			{Role: "system", Content: factExtractionSystemPrompt(req.Limit)},
-			{Role: "user", Content: factExtractionUserPrompt(req)},
-		},
-		Temperature: 0.1,
-	}
-	payload, err := json.Marshal(body)
+	content, err := c.chatCompletion(ctx, []arkMessage{
+		{Role: "system", Content: factExtractionSystemPrompt(req.Limit)},
+		{Role: "user", Content: factExtractionUserPrompt(req)},
+	}, 0.1)
 	if err != nil {
 		return nil, err
+	}
+	return parseFactList(content), nil
+}
+
+func (c *ArkClient) GeneratePortrait(ctx context.Context, req PortraitRequest) (string, error) {
+	content, err := c.chatCompletion(ctx, []arkMessage{
+		{Role: "system", Content: portraitSystemPrompt()},
+		{Role: "user", Content: portraitUserPrompt(req)},
+	}, 0.2)
+	if err != nil {
+		return "", err
+	}
+	return cleanPortrait(content), nil
+}
+
+func (c *ArkClient) chatCompletion(ctx context.Context, messages []arkMessage, temperature float64) (string, error) {
+	if c == nil || c.baseURL == "" || c.apiKey == "" || c.model == "" {
+		return "", fmt.Errorf("llm: ark client is not configured")
+	}
+
+	body := arkChatRequest{Model: c.model, Messages: messages, Temperature: temperature}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return "", err
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(payload))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		limited, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("llm: ark status %d: %s", resp.StatusCode, strings.TrimSpace(string(limited)))
+		return "", fmt.Errorf("llm: ark status %d: %s", resp.StatusCode, strings.TrimSpace(string(limited)))
 	}
 
 	var decoded arkChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return nil, err
+		return "", err
 	}
 	if len(decoded.Choices) == 0 {
-		return nil, nil
+		return "", nil
 	}
-	return parseFactList(decoded.Choices[0].Message.Content), nil
+	return decoded.Choices[0].Message.Content, nil
 }
 
 type arkChatRequest struct {
@@ -133,6 +148,70 @@ func factExtractionUserPrompt(req FactExtractionRequest) string {
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+func portraitSystemPrompt() string {
+	return "你是安伴的陪伴对象认知画像整理器。根据管理员资料和稳定长期记忆，提炼 60-180 字的中文画像。必须用第三人称描述陪伴对象，可以写“陪伴对象/老人/她/他”，不要用“你”称呼陪伴对象，避免让下游模型误解成助手自我设定。只写有依据的稳定特征，不得编造身份、经历、关系或健康信息；不要输出医疗诊断，不记录设备故障、一次性任务或助手行为。保留管理员已确认画像中的有效事实，但新证据冲突时以当前资料和记忆为准。只输出画像正文，不加标题、标签、Markdown 或 JSON。"
+}
+
+func portraitUserPrompt(req PortraitRequest) string {
+	var b strings.Builder
+	b.WriteString("管理员资料：\n")
+	if value := strings.TrimSpace(req.ProfileContext); value != "" {
+		b.WriteString(value)
+		b.WriteByte('\n')
+	} else {
+		b.WriteString("暂无\n")
+	}
+	if value := strings.TrimSpace(req.PreviousPortrait); value != "" {
+		b.WriteString("上一版画像：\n")
+		b.WriteString(value)
+		b.WriteByte('\n')
+	}
+	b.WriteString("专属记忆：\n")
+	if len(req.MemoryFacts) == 0 {
+		b.WriteString("暂无\n")
+	} else {
+		for _, fact := range req.MemoryFacts {
+			if fact = strings.TrimSpace(fact); fact != "" {
+				b.WriteString("- ")
+				b.WriteString(fact)
+				b.WriteByte('\n')
+			}
+		}
+	}
+	return b.String()
+}
+
+func cleanPortrait(content string) string {
+	content = stripMarkdownCodeFence(content)
+	content = strings.TrimSpace(strings.Trim(content, "\"'“”"))
+	for _, prefix := range []string{"AI认知画像：", "AI画像：", "认知画像："} {
+		content = strings.TrimSpace(strings.TrimPrefix(content, prefix))
+	}
+	content = normalizePortraitPerson(content)
+	runes := []rune(content)
+	if len(runes) > 360 {
+		content = string(runes[:360])
+	}
+	return content
+}
+
+func normalizePortraitPerson(content string) string {
+	replacements := []struct {
+		old string
+		new string
+	}{
+		{"你名叫", "陪伴对象名叫"},
+		{"你叫", "陪伴对象叫"},
+		{"您的", "其"},
+		{"你的", "其"},
+		{"您", "陪伴对象"},
+	}
+	for _, replacement := range replacements {
+		content = strings.ReplaceAll(content, replacement.old, replacement.new)
+	}
+	return content
 }
 
 func parseFactList(content string) []string {

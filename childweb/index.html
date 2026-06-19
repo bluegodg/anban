@@ -744,10 +744,10 @@
               <div class="flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">psychology</span>
                 <h3 class="font-title-lg text-title-lg text-on-surface">AI 认知画像</h3>
-                <span class="ml-auto font-label-sm text-label-sm text-text-secondary">可编辑画像</span>
+                <span class="ml-auto font-label-sm text-label-sm text-text-secondary" id="aiPortraitModeText">AI 自动更新</span>
               </div>
               <p class="font-body-md text-body-md text-on-surface-variant leading-relaxed" id="aiPortraitText">
-                性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。
+                画像会在资料和专属记忆积累后自动形成。
               </p>
             </div>
           </section>
@@ -1043,7 +1043,11 @@
               <h3 class="font-title-lg text-title-lg text-on-surface">AI 认知画像</h3>
             </div>
             <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
-              <p class="font-label-md text-label-md text-text-secondary mb-3">描述家人的性格特点、生活态度等，AI 将根据此生成关怀建议</p>
+              <label class="flex items-center justify-between gap-4 mb-3" for="editAiPortraitAuto">
+                <span class="font-label-md text-label-md text-on-surface-variant">AI 自动更新</span>
+                <input id="editAiPortraitAuto" type="checkbox"/>
+              </label>
+              <p class="font-label-md text-label-md text-text-secondary mb-3" id="editAiPortraitHelp">开启后，AI 会根据资料和专属记忆持续整理画像</p>
               <textarea class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-4 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all resize-none" id="editAiPortrait" placeholder="例如：性格温和，心思细腻，是全家人..." rows="5"></textarea>
             </div>
           </section>

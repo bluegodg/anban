@@ -22,11 +22,17 @@
 - Surface: `GET/POST/PUT/DELETE /api/memory/facts` 管理分条记忆。
 - Surface: `POST /api/openmem/v1/search/memory` 是 xiaozhi 的受保护上下文读取口。
 - Data: profile 持久化 `fields`、`memoryFacts`、`mindContext`，统一生成不含风格指令的陪伴对象上下文。
+- Data: `fields.aiPortrait` 是独立 AI 认知画像，`fields.aiPortraitMode=auto|manual` 决定更新权；不再把画像编码成 `health` 的 `AI画像：` 文本行。
 - Data: memory facts 带 `source=manual|dialogue`，手动和自动沉淀共用同一事实库。
 - Runtime: 空 query 返回空，避免 xiaozhi 会话启动时缓存旧资料；每轮非空 query 都读取当前 profile，因此管理员修改后下一轮即可生效。
 - Runtime: `xiaozhiclient.SetRolePrompt` 只允许写风格 prompt；检测到 `ANBAN_CONTEXT` 或陪伴对象/记忆/心智标签时直接拒绝。
 - Runtime: manager 风格层要求称呼严格使用 profile 的“常用称呼”原文，不自行追加“阿姨”“奶奶”等后缀。
+- Runtime: `auto` 模式在管理员资料或专属记忆变化后调用已配置的 AnBan LLM 重建画像；输入指纹未变化时不重复调用，生成失败时保留上一版且不阻断资料/记忆保存。`manual` 模式绝不被自动流程覆盖。
+- Runtime: 旧数据中的 `health`/`AI画像：` 会在资料、记忆或 Mind 下一次同步时迁入独立字段并从健康背景移除。
+- Runtime: AI 画像必须以第三人称描述陪伴对象；生成和清洗阶段都避免“你名叫/你的”这类二人称画像进入设备上下文。
+- Runtime: Mind 启动同步只重建心智上下文，不触发画像 LLM；已有 profile 的画像补全由服务启动后的后台刷新负责，刷新后立即再同步 Mind，避免阻塞 `/health` 且避免旧画像留在心智上下文。
 - Runtime: Mind engine 通过装配层读取 profile/memory 摘要，生成 `mindContext` 时显式参考陪伴对象资料和长期记忆。
+- Runtime: AI 认知画像作为高优先级 profile 摘要进入 Mind，并与分条记忆一起参与心智上下文生成。
 
 ## DEPLOYMENT
 
@@ -39,15 +45,14 @@
 ## NON-GOALS
 
 - 不把 xiaozhi 的对话消息反向写入 AnBan provider；自动沉淀仍走既有 history poller。
-- 不在本切片实现 AI 自动生成或自动改写“AI 认知画像”；当前仍以管理员可编辑画像为主。
 - 不在本切片实现向量检索；当前上下文上限仍为 1500 rune，优先保证基础资料完整可用。
+- 不把手动模式的画像交给 AI 改写；管理员重新开启自动更新后才恢复生成。
 
 ## OPEN QUESTIONS
 
-- AI 认知画像后续是否独立成字段，还是继续复用 `health` 文本中的 `AI画像：` 前缀。
 - 自动沉淀事实的冲突处理、过期策略、同义合并规则尚未产品化。
 - 是否需要在子女端展示每条记忆的来源、时间和“由对话自动生成”标记。
 
 ## HANDOFF
 
-本切片先完成严格分层和真机生效验证；下一小步再做 AI 认知画像自动生成/更新，不把两个阶段混在一次改动中。
+部署并核验自动画像生成、子女端自动/手动切换、provider 注入和 Mind 上下文；设备上线后完成姓名、画像和记忆的真机语音验收。

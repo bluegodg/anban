@@ -1812,7 +1812,7 @@ function initWarn() {
 async function initFamily() {
   var defaultProfile = {
     name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
-    aiPortrait: '性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。',
+    aiPortrait: '', aiPortraitMode: 'auto',
     hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
     habits: [
       { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
@@ -1841,7 +1841,8 @@ async function initFamily() {
 
   document.getElementById('profileName').textContent = profile.name || '妈妈';
   document.getElementById('profileSubtitle').innerHTML = (profile.age || 72) + '岁 · ' + (profile.livingSituation || '与爸爸同住') + ' · ' + (profile.occupation || '退休教师');
-  document.getElementById('aiPortraitText').textContent = profile.aiPortrait || defaultProfile.aiPortrait;
+  document.getElementById('aiPortraitText').textContent = profile.aiPortrait || '画像会在资料和专属记忆积累后自动形成。';
+  document.getElementById('aiPortraitModeText').textContent = profile.aiPortraitMode === 'manual' ? '管理员维护' : 'AI 自动更新';
   var isAdmin = !isAccountMode() || (anbanSession.binding && anbanSession.binding.role === 'admin');
 
   var hobbyContainer = document.getElementById('hobbyTags');
@@ -2180,7 +2181,7 @@ async function initFamilyEdit() {
 
   var defaultData = {
     name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
-    aiPortrait: '性格温和，心思细腻，是全家人的定心丸。她热爱生活，即便年岁已高也保持着一颗对新鲜事物好奇的心。退休前曾是一名优秀教师，对待晚辈总是耐心开导，是家族里最受尊敬的长辈。',
+    aiPortrait: '', aiPortraitMode: 'auto',
     hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
     habits: [
       { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
@@ -2211,18 +2212,38 @@ async function initFamilyEdit() {
 
   var data = await loadData();
 
+  function syncPortraitEditor() {
+    var autoToggle = document.getElementById('editAiPortraitAuto');
+    var portraitInput = document.getElementById('editAiPortrait');
+    var help = document.getElementById('editAiPortraitHelp');
+    var isAuto = data.aiPortraitMode !== 'manual';
+    autoToggle.checked = isAuto;
+    portraitInput.disabled = isAuto;
+    portraitInput.style.opacity = isAuto ? '0.65' : '1';
+    help.textContent = isAuto
+      ? '开启后，AI 会根据资料和专属记忆持续整理画像'
+      : '手动模式下，AI 不会覆盖管理员填写的画像';
+  }
+
   function populateForm() {
     document.getElementById('editName').value = data.name || '';
     document.getElementById('editAge').value = data.age || '';
     document.getElementById('editLiving').value = data.livingSituation || '';
     document.getElementById('editOccupation').value = data.occupation || '';
     document.getElementById('editAiPortrait').value = data.aiPortrait || '';
+    syncPortraitEditor();
     renderHealth();
     renderHobbies();
     renderHabits();
     renderDos();
     renderDonts();
   }
+
+  document.getElementById('editAiPortraitAuto').addEventListener('change', function() {
+    data.aiPortraitMode = this.checked ? 'auto' : 'manual';
+    syncPortraitEditor();
+    if (!this.checked) document.getElementById('editAiPortrait').focus();
+  });
 
   function renderHobbies() {
     var container = document.getElementById('hobbyChips');
@@ -2448,6 +2469,7 @@ async function initFamilyEdit() {
     data.livingSituation = document.getElementById('editLiving').value.trim();
     data.occupation = document.getElementById('editOccupation').value.trim();
     data.aiPortrait = document.getElementById('editAiPortrait').value.trim();
+    data.aiPortraitMode = document.getElementById('editAiPortraitAuto').checked ? 'auto' : 'manual';
   }
 
   document.getElementById('saveBtn').addEventListener('click', async function() {

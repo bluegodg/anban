@@ -242,6 +242,78 @@ func TestRunMindContextSyncRebuildsContextWithoutRunningMindActions(t *testing.T
 	}
 }
 
+func TestProfileSummariesIncludeAICognitivePortraitForMind(t *testing.T) {
+	summaries := profileSummaries(profile.Fields{
+		Name:       "蓝",
+		AIPortrait: "重视家人，喜欢养花，交流时偏好温和直接的表达。",
+	})
+	joined := strings.Join(summaries, "\n")
+	if !strings.Contains(joined, "AI认知画像：重视家人，喜欢养花") {
+		t.Fatalf("summaries = %#v, want AI cognitive portrait for Mind", summaries)
+	}
+}
+
+func TestRunAIPortraitRefreshRefreshesExistingProfiles(t *testing.T) {
+	profileStore := newProfileStoreForMainTest(t)
+	ctx := context.Background()
+	if err := profileStore.Upsert(ctx, &profile.Profile{
+		DeviceID: "dev-001",
+		Fields: profile.Fields{
+			Name:           "蓝",
+			Hobbies:        []string{"养花"},
+			AIPortraitMode: profile.PortraitModeAuto,
+		},
+		MemoryFacts: []string{"老人关注世界杯足球赛事。"},
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	generator := &fakeMainPortraitGenerator{result: "喜欢养花，也关注世界杯，交流时适合温和直接。"}
+	service := profile.NewService(profileStore, generator)
+
+	runAIPortraitRefresh(profileStore, service)
+
+	if len(generator.calls) != 1 {
+		t.Fatalf("portrait calls = %d, want 1", len(generator.calls))
+	}
+	saved, err := service.Get(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if saved.Fields.AIPortrait != generator.result {
+		t.Fatalf("portrait = %q, want refreshed portrait", saved.Fields.AIPortrait)
+	}
+}
+
+func TestRunAIPortraitRefreshThenMindSyncRebuildsContext(t *testing.T) {
+	profileStore := newProfileStoreForMainTest(t)
+	ctx := context.Background()
+	if err := profileStore.Upsert(ctx, &profile.Profile{
+		DeviceID: "dev-001",
+		Fields: profile.Fields{
+			Name:           "蓝",
+			AIPortraitMode: profile.PortraitModeAuto,
+		},
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	generator := &fakeMainPortraitGenerator{result: "陪伴对象喜欢养花。"}
+	service := profile.NewService(profileStore, generator)
+	engine := &fakeLoopMindEngine{mindContext: "画像重点：AI认知画像：陪伴对象喜欢养花。"}
+	syncer := &fakeMindContextSyncer{}
+
+	runAIPortraitRefreshThenMindSync(profileStore, service, engine, syncer)
+
+	if len(generator.calls) != 1 {
+		t.Fatalf("portrait calls = %d, want 1", len(generator.calls))
+	}
+	if engine.contextCalls != 1 || len(syncer.calls) != 1 {
+		t.Fatalf("contextCalls=%d syncCalls=%d, want one mind rebuild after portrait refresh", engine.contextCalls, len(syncer.calls))
+	}
+	if syncer.calls[0].mindContext != engine.mindContext {
+		t.Fatalf("sync context = %q, want rebuilt context", syncer.calls[0].mindContext)
+	}
+}
+
 func TestRunVisionCaptureMaintenanceFinalizesTimeoutsAndExpiresCaptures(t *testing.T) {
 	now := time.Date(2026, 6, 18, 11, 30, 0, 0, time.UTC)
 	maintainer := &fakeVisionCaptureMaintainer{}
@@ -321,6 +393,16 @@ func (f *fakeMindContextSyncer) SyncMindContext(_ context.Context, deviceID stri
 		mindContext string
 	}{deviceID: deviceID, mindContext: mindContext})
 	return nil
+}
+
+type fakeMainPortraitGenerator struct {
+	result string
+	calls  []profile.PortraitInput
+}
+
+func (f *fakeMainPortraitGenerator) GeneratePortrait(_ context.Context, input profile.PortraitInput) (string, error) {
+	f.calls = append(f.calls, input)
+	return f.result, nil
 }
 
 type fakeVisionCaptureMaintainer struct {

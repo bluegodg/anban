@@ -121,7 +121,21 @@ func main() {
 	if err := profileStore.AutoMigrate(); err != nil {
 		log.Fatalf("profile 表迁移失败: %v", err)
 	}
-	profileService := profile.NewService(profileStore)
+	var arkClient *llm.ArkClient
+	if cfg.LLM.Enabled() {
+		arkClient = llm.NewArkClient(llm.ArkConfig{
+			BaseURL: cfg.LLM.BaseURL,
+			APIKey:  cfg.LLM.APIKey,
+			Model:   cfg.LLM.Model,
+		})
+	} else {
+		log.Printf("memory distill and AI portrait disabled: ANBAN_LLM_BASE_URL/API_KEY/MODEL 未完整配置，保留管理员手动记忆和画像")
+	}
+	var portraitGenerator profile.PortraitGenerator
+	if arkClient != nil {
+		portraitGenerator = profilePortraitGenerator{client: arkClient}
+	}
+	profileService := profile.NewService(profileStore, portraitGenerator)
 	profileHandler := profile.NewHandler(profileService)
 	timelineService := timeline.NewService(messageService, xc, profileService)
 	timelineHandler := timeline.NewHandler(timelineService)
@@ -131,14 +145,8 @@ func main() {
 		log.Fatalf("memory 表迁移失败: %v", err)
 	}
 	var factExtractor llm.FactExtractor
-	if cfg.LLM.Enabled() {
-		factExtractor = llm.NewArkClient(llm.ArkConfig{
-			BaseURL: cfg.LLM.BaseURL,
-			APIKey:  cfg.LLM.APIKey,
-			Model:   cfg.LLM.Model,
-		})
-	} else {
-		log.Printf("memory distill disabled: ANBAN_LLM_BASE_URL/API_KEY/MODEL 未完整配置，保留管理员手动记忆")
+	if arkClient != nil {
+		factExtractor = arkClient
 	}
 	memoryService := memory.NewService(memoryStore, xc, factExtractor, profileService, memory.Options{})
 	memoryHandler := memory.NewHandler(memoryService)
@@ -202,6 +210,9 @@ func main() {
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
 	startMindLoops(sch, profileStore, mindEngine, profileService, cfg.MindLoopInterval)
 	startMindHistoryPoller(sch, cfg.MindHistoryInterval, profileStore, xc, mindEngine)
+	if portraitGenerator != nil {
+		startAIPortraitRefresh(sch, profileStore, profileService, mindEngine, profileService, 5*time.Second)
+	}
 
 	r := childapi.NewRouter(childapi.Deps{
 		AccessCode:           cfg.AccessCode,
@@ -423,6 +434,7 @@ func profileSummaries(fields profile.Fields) []string {
 			summaries = append(summaries, label+"："+value)
 		}
 	}
+	add("AI认知画像", fields.AIPortrait)
 	add("老人本名", fields.Name)
 	add("常用称呼", fields.Nickname)
 	add("子女", strings.Join(fields.Children, "、"))
@@ -432,6 +444,79 @@ func profileSummaries(fields profile.Fields) []string {
 	add("健康背景", fields.Health)
 	add("忌口和禁忌", strings.Join(fields.Taboos, "、"))
 	return summaries
+}
+
+type portraitLLM interface {
+	GeneratePortrait(ctx context.Context, req llm.PortraitRequest) (string, error)
+}
+
+type profilePortraitGenerator struct {
+	client portraitLLM
+}
+
+func (g profilePortraitGenerator) GeneratePortrait(ctx context.Context, input profile.PortraitInput) (string, error) {
+	fields := input.Fields
+	fields.AIPortrait = ""
+	fields.AIPortraitMode = ""
+	return g.client.GeneratePortrait(ctx, llm.PortraitRequest{
+		ProfileContext:   profile.BuildPrompt(fields),
+		MemoryFacts:      input.MemoryFacts,
+		PreviousPortrait: input.PreviousPortrait,
+	})
+}
+
+type aiPortraitRefresher interface {
+	RefreshAIPortrait(ctx context.Context, deviceID string) (profile.Profile, error)
+}
+
+func startAIPortraitRefresh(
+	sch *scheduler.Scheduler,
+	profileStore *profile.Store,
+	refresher aiPortraitRefresher,
+	mindEngine mind.Engine,
+	mindContextSyncer mindContextSyncer,
+	delay time.Duration,
+) {
+	if refresher == nil {
+		return
+	}
+	if delay <= 0 {
+		delay = 5 * time.Second
+	}
+	if _, err := sch.ScheduleAt(time.Now().Add(delay), func() {
+		runAIPortraitRefreshThenMindSync(profileStore, refresher, mindEngine, mindContextSyncer)
+	}); err != nil {
+		log.Printf("AI portrait refresh 调度失败: %v", err)
+	}
+}
+
+func runAIPortraitRefreshThenMindSync(
+	profileStore *profile.Store,
+	refresher aiPortraitRefresher,
+	mindEngine mind.Engine,
+	mindContextSyncer mindContextSyncer,
+) {
+	runAIPortraitRefresh(profileStore, refresher)
+	runMindContextSync(profileStore, mindEngine, mindContextSyncer)
+}
+
+func runAIPortraitRefresh(profileStore *profile.Store, refresher aiPortraitRefresher) {
+	if refresher == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	deviceIDs, err := profileStore.ListDeviceIDs(ctx)
+	if err != nil {
+		log.Printf("AI portrait refresh 获取设备列表失败: %v", err)
+		return
+	}
+	for _, deviceID := range deviceIDs {
+		if _, err := refresher.RefreshAIPortrait(ctx, deviceID); err != nil {
+			log.Printf("AI portrait refresh 失败 device=%s: %v", deviceID, err)
+		}
+	}
 }
 
 func startMindLoops(

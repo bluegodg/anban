@@ -106,6 +106,58 @@ func TestArkClientExtractFactsUsesChatCompletionsWithoutRealNetwork(t *testing.T
 	}
 }
 
+func TestArkClientGeneratePortraitUsesProfileMemoryAndCleansResponse(t *testing.T) {
+	var gotRequest arkChatRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"```text\\nAI认知画像：重视家人，喜欢养花，交流时偏好温和直接的表达。\\n```\"}}]}"))
+	}))
+	defer server.Close()
+
+	client := NewArkClient(ArkConfig{BaseURL: server.URL, APIKey: "secret", Model: "portrait-model"})
+	portrait, err := client.GeneratePortrait(context.Background(), PortraitRequest{
+		ProfileContext:   "陪伴对象姓名：蓝\n喜好：养花",
+		MemoryFacts:      []string{"老人关注世界杯。"},
+		PreviousPortrait: "喜欢安静。",
+	})
+	if err != nil {
+		t.Fatalf("GeneratePortrait: %v", err)
+	}
+	if portrait != "重视家人，喜欢养花，交流时偏好温和直接的表达。" {
+		t.Fatalf("portrait = %q, want cleaned plain text", portrait)
+	}
+	if len(gotRequest.Messages) != 2 || !strings.Contains(gotRequest.Messages[1].Content, "老人关注世界杯") || !strings.Contains(gotRequest.Messages[1].Content, "喜欢安静") {
+		t.Fatalf("messages = %+v, want profile, memory, and previous portrait", gotRequest.Messages)
+	}
+	for _, want := range []string{"不得编造", "稳定特征", "不要输出医疗诊断"} {
+		if !strings.Contains(gotRequest.Messages[0].Content, want) {
+			t.Fatalf("system prompt = %q, want %q", gotRequest.Messages[0].Content, want)
+		}
+	}
+}
+
+func TestPortraitPromptAndCleanerAvoidSecondPersonAddress(t *testing.T) {
+	prompt := portraitSystemPrompt()
+	for _, want := range []string{"第三人称", "不要用“你”称呼陪伴对象"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("system prompt = %q, want %q", prompt, want)
+		}
+	}
+
+	got := cleanPortrait("AI认知画像：你名叫蓝，常用称呼为蓝，你的兴趣是养花。")
+	for _, bad := range []string{"你名叫", "你的"} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("portrait = %q, want no second-person marker %q", got, bad)
+		}
+	}
+	if !strings.Contains(got, "陪伴对象名叫蓝") || !strings.Contains(got, "其兴趣是养花") {
+		t.Fatalf("portrait = %q, want third-person normalization", got)
+	}
+}
+
 func TestArkClientExtractFactsReturnsStatusError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad key", http.StatusUnauthorized)

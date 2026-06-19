@@ -4,6 +4,21 @@
 
 ## 2026-06-19
 
+### AI 认知画像独立字段与自动更新
+
+- 文件：`server/internal/domains/profile/`、`server/internal/llm/`、`server/cmd/anban/`、`childweb/`、`docs/capabilities/family-profile-memory-mind.md`
+- 内容：profile 新增独立 `aiPortrait`、`aiPortraitMode=auto|manual`、输入指纹和更新时间；自动模式根据管理员资料、上一版画像和分条专属记忆调用既有 AnBan LLM 更新，输入未变化不重复生成，失败保留旧值。手动模式由管理员维护且不会被自动任务覆盖。旧 `health` 中的 `AI画像：` 行兼容迁移到独立字段。设备上下文新增 `AI认知画像`，Mind 的高优先级资料摘要也纳入该画像。`childweb` 家人编辑页新增自动更新复选框，自动模式禁用正文编辑，手动模式恢复编辑；展示页明确标注当前模式，不再显示硬编码演示画像；PWA cache 提升到 `anban-childweb-v4`，确保已安装客户端刷新静态壳。画像生成 prompt 与清洗器强制第三人称，避免生成“你名叫蓝/你的兴趣”这类可能污染助手自我设定的二人称画像；画像指纹升级到 v2，触发线上旧画像刷新。
+- 目的：补齐“AI 根据资料/记忆形成并持续更新认知画像，同时允许管理员接管编辑”的生命周期，让画像既能在家人界面管理，也真正参与设备对话和 Mind 思考。
+- 边界：不修改 xiaozhi 源码或固件，不新增模型/进程；复用自动记忆已配置的 Ark 兼容 LLM。画像生成失败不影响资料与记忆主流程，管理员权限仍由既有 profile 写中间件统一限制。Mind 启动同步不得触发画像 LLM；旧 profile 的首次画像刷新改为服务启动后的后台调度，刷新完成后立即再同步 Mind，避免拖慢 `/health` 且避免旧画像留在心智上下文里。
+- 验证：profile、LLM、Mind 装配和 childweb 测试均先出现功能缺失 RED；实现后的目标 Go 测试和 47 个 childweb smoke tests 已转绿。部署首次发现 `SyncMindContext` 触发画像 LLM 导致 `start.sh` 3 秒健康检查窗口内拒连，补 `TestServiceSyncMindContextDoesNotGeneratePortrait`、后台刷新测试和“刷新后重建 Mind”测试后修复；重新部署后 `start.sh` 直接返回 `anban /health = 200`。2026-06-19 最终复核：`go test -count=1 ./...`、`go vet ./...`、childweb 47/47、`git diff --check` 通过；Playwright 在 390x844 与 1280x900 验证无横向溢出，自动/手动画像切换正确，普通成员的两处编辑入口及记忆管理控件均隐藏；线上 profile 为 `name=蓝`、`aiPortraitMode=auto`，画像 163 字、20 条上下文事实、313 字 Mind 上下文，prompt/OpenMemory 同时包含资料、画像、专属记忆和 Mind，且“王阿姨/王秀英/你名叫/你的”检查均为 false。manager `/api/configs` 实际返回 `memory_mode=long`、`provider=memos`、AnBan provider URL 和纯风格 prompt；设备当前离线，最新真机语音问答仍待上线后验收。
+
+### 家人页初始假画像与 PWA 缓存清理
+
+- 文件：`childweb/index.html`、`childweb/sw.js`、`childweb/smoke.test.mjs`
+- 内容：移除 HTML 初始壳中“退休教师、家族长辈”等硬编码演示画像，改为“画像会在资料和专属记忆积累后自动形成”的中性占位；PWA cache 从 v3 升到 v4，确保旧客户端淘汰缓存的 HTML。
+- 目的：避免接口尚未回填或脚本异常时短暂展示与真实陪伴对象无关的假画像，也避免已安装 PWA 长期保留旧静态壳。
+- 验证：先增加“旧演示句不存在且中性占位存在”和 cache v4 断言并分别观察预期 RED，再修改 HTML/SW 转绿；服务器 SHA-256 与本地一致，线上 HTML 已确认包含中性占位且不含旧演示句。
+
 ### 自动记忆结构化解析与污染清理
 
 - 文件：`server/internal/llm/`、`docs/REALTIME_CHANGELOG.md`

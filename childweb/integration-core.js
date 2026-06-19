@@ -279,6 +279,7 @@ export function mapStitchProfileToFields(profile = {}) {
     })
     .filter(Boolean);
   const portrait = String(profile.aiPortrait || '').trim();
+  const portraitMode = profile.aiPortraitMode === 'manual' ? 'manual' : 'auto';
   const name = String(profile.name || '').trim();
 
   return {
@@ -286,7 +287,9 @@ export function mapStitchProfileToFields(profile = {}) {
     nickname: name,
     hobbies: cleanList(profile.hobbies),
     schedule: [...habits, ...communicationDos].join('\n'),
-    health: [...(portrait ? [`AI画像：${portrait}`] : []), ...healthItems].join('\n'),
+    aiPortrait: portrait,
+    aiPortraitMode: portraitMode,
+    health: healthItems.join('\n'),
     taboos: cleanList(profile.communicationDonts),
   };
 }
@@ -299,19 +302,24 @@ export function mapFieldsToStitchProfile(fields = {}, local = {}) {
   const taboos = fields.taboos ?? fields.Taboos ?? [];
   const scheduleLines = schedule.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const healthLines = healthText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const explicitPortrait = String(fields.aiPortrait ?? fields.AIPortrait ?? '').trim();
+  const legacyPortrait = (healthLines.find((line) => line.startsWith('AI画像：') || line.startsWith('AI认知画像：')) || '')
+    .replace(/^AI(?:认知)?画像：/, '');
+  const portraitMode = String(fields.aiPortraitMode ?? fields.AIPortraitMode ?? '').trim() === 'manual' ? 'manual' : 'auto';
 
   return {
     name: String(name || '').trim(),
     age: Number(local.age) || 0,
     livingSituation: String(local.livingSituation || '').trim(),
     occupation: String(local.occupation || '').trim(),
-    aiPortrait: (healthLines.find((line) => line.startsWith('AI画像：')) || '').replace(/^AI画像：/, ''),
+    aiPortrait: explicitPortrait || legacyPortrait,
+    aiPortraitMode: portraitMode,
     hobbies: cleanList(hobbies),
     habits: scheduleLines
       .filter((line) => !line.startsWith('沟通建议：'))
       .map((text) => ({ icon: 'wb_twilight', text })),
     health: healthLines
-      .filter((line) => !line.startsWith('AI画像：'))
+      .filter((line) => !line.startsWith('AI画像：') && !line.startsWith('AI认知画像：'))
       .map((line) => {
         const separator = line.indexOf('：');
         return separator >= 0

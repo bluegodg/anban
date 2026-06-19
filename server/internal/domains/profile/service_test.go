@@ -187,6 +187,17 @@ func TestBuildPromptWithFieldsOnlyContainsCompanionDataOnly(t *testing.T) {
 	}
 }
 
+func TestBuildPromptWithIncludesAICognitivePortrait(t *testing.T) {
+	prompt := BuildPromptWith(Fields{
+		Name:       "蓝",
+		AIPortrait: "重视家人，也喜欢通过养花保持生活节奏。",
+	}, nil, "")
+
+	if !strings.Contains(prompt, "AI认知画像：重视家人，也喜欢通过养花保持生活节奏。") {
+		t.Fatalf("prompt = %q, want AI cognitive portrait", prompt)
+	}
+}
+
 func TestBuildPromptWithMemoryFactsKeepsPromptWithinPRDBudget(t *testing.T) {
 	longFact := strings.Repeat("最近午饭后会在阳台晒太阳，", 120)
 
@@ -337,6 +348,134 @@ func TestServiceSyncMindContextPreservesFieldsAndMemoryFacts(t *testing.T) {
 	}
 }
 
+func TestServiceSyncMindContextDoesNotGeneratePortrait(t *testing.T) {
+	_, profileStore := newTestServiceWithStore(t)
+	ctx := context.Background()
+	if err := profileStore.Upsert(ctx, &Profile{
+		DeviceID: "dev-001",
+		Fields: Fields{
+			Name:           "蓝",
+			AIPortraitMode: PortraitModeAuto,
+		},
+	}); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	generator := &fakePortraitGenerator{result: "不应在 Mind 同步中生成"}
+	svc := NewService(profileStore, generator)
+
+	if err := svc.SyncMindContext(ctx, "dev-001", "关系温度较暖"); err != nil {
+		t.Fatalf("SyncMindContext: %v", err)
+	}
+	if len(generator.calls) != 0 {
+		t.Fatalf("portrait calls = %d, want 0 so startup Mind sync stays local", len(generator.calls))
+	}
+}
+
+func TestServiceUpdateAutoGeneratesPortraitFromProfileAndMemory(t *testing.T) {
+	_, profileStore := newTestServiceWithStore(t)
+	generator := &fakePortraitGenerator{result: "重视家人，喜欢养花，交流时偏好温和直接的表达。"}
+	svc := NewService(profileStore, generator)
+	ctx := context.Background()
+
+	got, err := svc.Update(ctx, UpdateRequest{
+		DeviceID: "dev-001",
+		Fields: Fields{
+			Name:           "蓝",
+			Nickname:       "蓝",
+			Hobbies:        []string{"养花"},
+			AIPortraitMode: PortraitModeAuto,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if len(generator.calls) != 1 {
+		t.Fatalf("portrait calls = %d, want 1", len(generator.calls))
+	}
+	if generator.calls[0].Fields.Name != "蓝" || len(generator.calls[0].Fields.Hobbies) != 1 {
+		t.Fatalf("portrait input = %+v, want current profile fields", generator.calls[0])
+	}
+	if got.Fields.AIPortrait != generator.result || got.AIPortraitUpdatedAt == nil {
+		t.Fatalf("profile = %+v, want generated portrait and timestamp", got)
+	}
+	if got.AIPortraitInputHash == "" || !strings.Contains(got.Prompt, "AI认知画像："+generator.result) {
+		t.Fatalf("profile = %+v, want portrait fingerprint and device context", got)
+	}
+}
+
+func TestServiceUpdateManualPortraitNeverCallsGenerator(t *testing.T) {
+	_, profileStore := newTestServiceWithStore(t)
+	generator := &fakePortraitGenerator{result: "不应写入"}
+	svc := NewService(profileStore, generator)
+
+	got, err := svc.Update(context.Background(), UpdateRequest{
+		DeviceID: "dev-001",
+		Fields: Fields{
+			Name:           "蓝",
+			AIPortrait:     "管理员确认：性格直爽，喜欢聊足球。",
+			AIPortraitMode: PortraitModeManual,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if len(generator.calls) != 0 {
+		t.Fatalf("portrait calls = %d, want 0 in manual mode", len(generator.calls))
+	}
+	if got.Fields.AIPortrait != "管理员确认：性格直爽，喜欢聊足球。" {
+		t.Fatalf("portrait = %q, want administrator text preserved", got.Fields.AIPortrait)
+	}
+}
+
+func TestServiceSyncMemoryFactsRefreshesAutoPortraitOnlyWhenInputChanges(t *testing.T) {
+	_, profileStore := newTestServiceWithStore(t)
+	generator := &fakePortraitGenerator{result: "初始画像"}
+	svc := NewService(profileStore, generator)
+	ctx := context.Background()
+
+	if _, err := svc.Update(ctx, UpdateRequest{DeviceID: "dev-001", Fields: Fields{Name: "蓝", AIPortraitMode: PortraitModeAuto}}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	generator.result = "喜欢养花，也会关注世界杯。"
+	if err := svc.SyncMemoryFacts(ctx, "dev-001", []string{"老人喜欢养花。", "老人关注世界杯。"}); err != nil {
+		t.Fatalf("SyncMemoryFacts: %v", err)
+	}
+	if err := svc.SyncMemoryFacts(ctx, "dev-001", []string{"老人喜欢养花。", "老人关注世界杯。"}); err != nil {
+		t.Fatalf("SyncMemoryFacts unchanged: %v", err)
+	}
+	if len(generator.calls) != 2 {
+		t.Fatalf("portrait calls = %d, want initial generation plus one changed-memory refresh", len(generator.calls))
+	}
+	if got := generator.calls[1].MemoryFacts; len(got) != 2 || got[0] != "老人喜欢养花。" {
+		t.Fatalf("memory input = %#v, want current memory facts", got)
+	}
+	saved, err := svc.Get(ctx, "dev-001")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if saved.Fields.AIPortrait != generator.result {
+		t.Fatalf("portrait = %q, want refreshed portrait %q", saved.Fields.AIPortrait, generator.result)
+	}
+}
+
+func TestServiceUpdateMigratesLegacyPortraitOutOfHealth(t *testing.T) {
+	svc := newTestService(t)
+
+	got, err := svc.Update(context.Background(), UpdateRequest{
+		DeviceID: "dev-001",
+		Fields: Fields{
+			Name:   "蓝",
+			Health: "AI画像：性格开朗，喜欢与家人聊天。\n血压：每日测量",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.Fields.AIPortrait != "性格开朗，喜欢与家人聊天。" || got.Fields.Health != "血压：每日测量" {
+		t.Fatalf("fields = %+v, want legacy portrait split from health", got.Fields)
+	}
+}
+
 func TestBuildStylePromptGuidesFamilyProfileRecall(t *testing.T) {
 	prompt := BuildStylePrompt()
 
@@ -385,4 +524,15 @@ func TestBuildStylePromptUsesConfiguredNicknameVerbatim(t *testing.T) {
 			t.Fatalf("prompt = %q, want nickname rule %q", prompt, want)
 		}
 	}
+}
+
+type fakePortraitGenerator struct {
+	result string
+	err    error
+	calls  []PortraitInput
+}
+
+func (f *fakePortraitGenerator) GeneratePortrait(_ context.Context, input PortraitInput) (string, error) {
+	f.calls = append(f.calls, input)
+	return f.result, f.err
 }
