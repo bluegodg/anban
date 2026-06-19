@@ -1,0 +1,43 @@
+name: release
+
+# 触发器：当你 push 一个 v 开头的 tag（如 v0.1.1）时跑。
+# 普通 push/PR 不触发，避免每次提交都构建。
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 让本工作流用内置 GITHUB_TOKEN 创建 Release（默认只读，必须显式给写权限）。
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest          # GitHub 临时开的干净 Ubuntu VM（公开仓库免费）
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Go（版本从 server/go.mod 读，和本地一致）
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: 测试门禁（挂了就不发布）
+        working-directory: server
+        run: go test ./...
+
+      - name: 交叉编译 linux/amd64 二进制（与 deploy.sh 一致）
+        working-directory: server
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -trimpath -o anban-linux ./cmd/anban
+
+      - name: 发布到该 tag 的 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: server/anban-linux
+          generate_release_notes: true   # 自动按提交生成发布说明
