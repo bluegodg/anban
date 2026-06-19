@@ -21,3 +21,5 @@ server/.gotmp-go/
 .superpowers/
 # Codex 由本地 Claude 记忆生成的 agent 工作记忆（脱敏，仅本地参考，不入公开库）
 docs/agent-memory.md
+# 可视化工具(show_widget/imagegen)自动输出的图片产物
+output/
