@@ -9,6 +9,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -474,6 +476,74 @@ func TestServiceListCapturesReturnsRecentCapturesForDevice(t *testing.T) {
 	}
 	if list[0].CaptureID != "cap_new" || list[1].CaptureID != "cap_old" {
 		t.Fatalf("list order = %+v, want newest dev-001 first", list)
+	}
+}
+
+func TestServiceDeleteCaptureRemovesImageAndRecord(t *testing.T) {
+	visionStore := newVisionTestStore(t)
+	mediaRoot := t.TempDir()
+	relativePath := filepath.ToSlash(filepath.Join("vision", "device", "2026", "06", "cap_delete.jpg"))
+	absolutePath := filepath.Join(mediaRoot, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(absolutePath), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(absolutePath, []byte("original image"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	capture := Capture{
+		CaptureID:         "cap_delete",
+		DeviceID:          "dev-001",
+		Status:            CaptureStatusSucceeded,
+		ImageRelativePath: relativePath,
+		Presence:          PresenceSomeone,
+		ExpiresAt:         time.Now().UTC().Add(24 * time.Hour),
+	}
+	if err := visionStore.CreateCapture(context.Background(), &capture); err != nil {
+		t.Fatalf("CreateCapture: %v", err)
+	}
+	svc := NewService(&visionClient{})
+	svc.UseStore(visionStore)
+	svc.UseMediaRoot(mediaRoot)
+
+	if err := svc.DeleteCapture(context.Background(), " dev-001 ", " cap_delete "); err != nil {
+		t.Fatalf("DeleteCapture: %v", err)
+	}
+	if _, err := os.Stat(absolutePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("image stat error = %v, want os.ErrNotExist", err)
+	}
+	if _, err := visionStore.GetCapture(context.Background(), "dev-001", "cap_delete"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetCapture error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestServiceDeleteCaptureHandlesMissingFileAndRejectsUnsafeTargets(t *testing.T) {
+	visionStore := newVisionTestStore(t)
+	now := time.Now().UTC()
+	for _, capture := range []Capture{
+		{CaptureID: "cap_missing_file", DeviceID: "dev-001", Status: CaptureStatusSucceeded, ImageRelativePath: "vision/missing.jpg", Presence: PresenceSomeone, ExpiresAt: now.Add(24 * time.Hour)},
+		{CaptureID: "cap_pending", DeviceID: "dev-001", Status: CaptureStatusPending, Presence: PresenceUnknown, ExpiresAt: now.Add(24 * time.Hour)},
+		{CaptureID: "cap_private", DeviceID: "dev-other", Status: CaptureStatusSucceeded, Presence: PresenceSomeone, ExpiresAt: now.Add(24 * time.Hour)},
+	} {
+		capture := capture
+		if err := visionStore.CreateCapture(context.Background(), &capture); err != nil {
+			t.Fatalf("CreateCapture %s: %v", capture.CaptureID, err)
+		}
+	}
+	svc := NewService(&visionClient{})
+	svc.UseStore(visionStore)
+	svc.UseMediaRoot(t.TempDir())
+
+	if err := svc.DeleteCapture(context.Background(), "dev-001", "cap_missing_file"); err != nil {
+		t.Fatalf("DeleteCapture missing file: %v", err)
+	}
+	if _, err := visionStore.GetCapture(context.Background(), "dev-001", "cap_missing_file"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing-file record error = %v, want ErrNotFound", err)
+	}
+	if err := svc.DeleteCapture(context.Background(), "dev-001", "cap_pending"); !errors.Is(err, ErrCaptureInProgress) {
+		t.Fatalf("pending error = %v, want ErrCaptureInProgress", err)
+	}
+	if err := svc.DeleteCapture(context.Background(), "dev-001", "cap_private"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-device error = %v, want ErrNotFound", err)
 	}
 }
 

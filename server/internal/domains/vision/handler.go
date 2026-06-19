@@ -30,6 +30,7 @@ func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.GET("/vision/captures/:captureId", h.getCapture)
 	r.GET("/vision/captures/:captureId/image", h.captureImage)
 	r.POST("/vision/captures/:captureId/reanalyze", h.reanalyzeCapture)
+	r.DELETE("/vision/captures/:captureId", h.deleteCapture)
 }
 
 func (h *Handler) RegisterDeviceRoutes(r gin.IRoutes, ingressToken string) {
@@ -227,6 +228,27 @@ func (h *Handler) reanalyzeCapture(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) deleteCapture(c *gin.Context) {
+	err := h.service.DeleteCapture(c.Request.Context(), requestDeviceID(c), c.Param("captureId"))
+	if errors.Is(err, ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "device_not_bound"})
+		return
+	}
+	if errors.Is(err, ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "capture_not_found"})
+		return
+	}
+	if errors.Is(err, ErrCaptureInProgress) {
+		c.JSON(http.StatusConflict, gin.H{"error": "capture_in_progress"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "capture_delete_failed"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *Handler) capture(c *gin.Context) {

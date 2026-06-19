@@ -24,15 +24,7 @@
   /* Full-screen app shell */
   .phone-frame {width:100vw;height:100dvh;background:#FAF6F0}
   .phone-screen {overflow:hidden;width:100%;height:100%;background:#FAF6F0;position:relative}
-  .status-bar {width:100%;height:54px;flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 28px 8px;background:transparent;position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none;transition:color 0.3s ease}
-  .status-bar.light {color:#fff;background:transparent}
-  .status-bar.dark {color:#1b1c1c;background:#FAF6F0}
-  .spa-section {padding-top:54px}
-  #s-login {padding-top:0}
-  .spa-section > header {top:54px;position:sticky}
-  .status-bar-time {font-size:15px;font-weight:600;color:inherit;letter-spacing:0.02em}
-  .status-bar-icons {display:flex;align-items:center;gap:6px}
-  .status-bar-icons svg {display:block}
+  .spa-section > header {top:0;position:sticky}
   .phone-screen-inner {width:100%;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   /* WeChat-style thin scrollbar */
   ::-webkit-scrollbar {width:3px;height:3px}
@@ -219,13 +211,33 @@
   .vision-result-image-wrap{aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#efe5dc;border:1px solid rgba(139,91,68,.18)}
   .vision-result-image-wrap img{width:100%;height:100%;object-fit:cover;display:block}
   .vision-result-image-wrap.is-empty{display:flex;align-items:center;justify-content:center;color:var(--ab-ink3);font-size:13px}
+  .vision-history-overlay{position:absolute;inset:0;z-index:110;background:rgba(46,31,24,.38);opacity:0;pointer-events:none;transition:opacity .22s ease}
+  .vision-history-overlay.open{opacity:1;pointer-events:auto}
+  .vision-history-sheet{position:absolute;left:0;right:0;bottom:0;z-index:111;height:min(88%,760px);background:var(--ab-bg);border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;box-shadow:0 -18px 50px rgba(54,32,22,.2)}
+  .vision-history-sheet.open{transform:translateY(0)}
+  .vision-history-header{height:68px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--ab-line)}
+  .vision-history-content{flex:1;overflow-y:auto;padding:14px 16px 28px;-webkit-overflow-scrolling:touch}
+  .vision-history-group+.vision-history-group{margin-top:20px}
+  .vision-history-date{font-size:12px;font-weight:800;color:var(--ab-primary);margin:0 0 10px;letter-spacing:0}
+  .vision-history-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+  .vision-history-item{position:relative;min-width:0;background:#fff;border:1px solid var(--ab-line);border-radius:8px;overflow:hidden}
+  .vision-history-open{display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;color:inherit}
+  .vision-history-thumb{aspect-ratio:4/3;background:#eee4dc;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--ab-ink3)}
+  .vision-history-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .vision-history-meta{padding:9px 10px 10px}
+  .vision-history-time{display:block;font-size:12px;font-weight:800;color:var(--ab-ink)}
+  .vision-history-summary{display:block;font-size:11px;color:var(--ab-ink2);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vision-history-menu{position:absolute;top:7px;right:7px;width:30px;height:30px;border:0;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;color:var(--ab-ink);box-shadow:0 2px 8px rgba(45,25,18,.14)}
+  .vision-delete-overlay{position:absolute;inset:0;z-index:124;background:rgba(46,31,24,.45);opacity:0;pointer-events:none;transition:opacity .18s}
+  .vision-delete-overlay.open{opacity:1;pointer-events:auto}
+  .vision-delete-confirm{position:absolute;left:18px;right:18px;top:50%;z-index:125;transform:translateY(-46%) scale(.97);background:#fff;border-radius:12px;padding:20px;opacity:0;pointer-events:none;transition:all .18s;box-shadow:0 20px 60px rgba(45,25,18,.24)}
+  .vision-delete-confirm.open{transform:translateY(-50%) scale(1);opacity:1;pointer-events:auto}
 </style>
 </head>
 <body>
 
 <div class="phone-frame">
   <div class="phone-screen">
-    <div class="status-bar dark" id="globalStatusBar" style="position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none"><span class="status-bar-time">9:41</span><div class="status-bar-icons"><svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="4" width="3" height="8" rx="1" fill="currentColor"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="3" height="11" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg><svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 3C5.5 3 3.2 3.8 1.4 5.2L0 3.8C2.2 2 5 1 8 1s5.8 1 8 2.8L14.6 5.2C12.8 3.8 10.5 3 8 3z" fill="currentColor"/><path d="M8 6.5c-1.7 0-3.2.6-4.4 1.6L2.2 6.7C3.8 5.3 5.8 4.5 8 4.5s4.2.8 5.8 2.2L12.4 8.1C11.2 7.1 9.7 6.5 8 6.5z" fill="currentColor"/><circle cx="8" cy="10.5" r="1.5" fill="currentColor"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0" y="0.5" width="23" height="12" rx="3.5" stroke="currentColor" stroke-width="1" fill="none"/><rect x="24" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/><rect x="2" y="2.5" width="18" height="8" rx="1.5" fill="currentColor"/></svg></div></div>
     <button class="unbound-notice" id="unboundNotice" type="button" onclick="openBindDevice()">
       <span style="display:flex;align-items:center;gap:9px;text-align:left"><span class="material-symbols-outlined" style="color:#a45b28">link_off</span><span><strong style="display:block;color:#5f3524;font-size:13px">请先绑定安伴设备</strong><span style="font-size:11px;color:#9a735f">绑定后解锁状态、留言和提醒</span></span></span>
       <span class="material-symbols-outlined" style="color:#a45b28">chevron_right</span>
@@ -296,9 +308,9 @@
 
       <!-- ============ LOGIN ============ -->
       <section class="spa-section" id="s-login" data-statusbar="light">
-        <div style="position:relative;height:230px;flex-shrink:0;margin-top:-54px;overflow:hidden;background:linear-gradient(160deg,#EE9670,#F4B48F)">
+        <div style="position:relative;height:210px;flex-shrink:0;overflow:hidden;background:linear-gradient(160deg,#EE9670,#F4B48F)">
           <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,#FAF6F0)"></div>
-          <div style="position:relative;text-align:center;padding-top:88px;color:#fff">
+          <div style="position:relative;text-align:center;padding-top:44px;color:#fff">
             <div class="ab-iconbox" style="display:inline-flex;width:54px;height:54px;border-radius:15px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4)"><span class="material-symbols-outlined" style="font-size:26px">nest_eco_leaf</span></div>
             <div style="font-size:25px;font-weight:800;margin-top:12px;letter-spacing:.01em">安伴</div>
             <div style="font-size:12.5px;opacity:.92;margin-top:5px">和家人一起，陪伴老人</div>
@@ -365,53 +377,31 @@
               <span class="ab-tag ab-tag-ok" id="deviceStatusBadge"><span class="ab-dot" id="deviceStatusDot"></span><span id="deviceStatusLabel">在线</span></span>
               <span style="font-size:11px;color:var(--ab-ink3)" id="statusTime">刚刚活跃</span>
             </div>
-            <h2 id="statusTitle" style="font-size:24px;font-weight:800;color:var(--ab-ink);line-height:1.26;letter-spacing:-0.015em">家人今天状态很好</h2>
+            <h2 id="statusTitle" style="font-size:24px;font-weight:800;color:var(--ab-ink);line-height:1.26;letter-spacing:0">家人今天状态很好</h2>
             <p id="statusDesc" style="font-size:13px;color:var(--ab-ink2);margin-top:10px;line-height:1.55">正在加载中...</p>
+            <button type="button" onclick="navigateTo('message')" style="margin-top:13px;padding-top:11px;border:0;border-top:1px solid rgba(154,68,41,.12);background:transparent;width:100%;display:flex;align-items:center;justify-content:space-between;color:var(--ab-ink2);font-size:12px">
+              <span id="latestMessageStatus">正在读取留言状态</span><span class="material-symbols-outlined" style="font-size:17px">chevron_right</span>
+            </button>
           </section>
-          <div style="position:relative;display:flex;gap:10px;margin-bottom:22px">
-            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="flex:1.3;padding:15px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left">
+          <div style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px">
+            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:8px;text-align:left">
               <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:700">问候妈妈</span><span id="greetingStatusText" style="display:block;font-size:11px;color:rgba(255,255,255,.82);margin-top:2px">让安伴主动开口</span></span>
               <span class="material-symbols-outlined" style="font-size:20px;flex-shrink:0">record_voice_over</span>
             </button>
-            <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="flex:1;padding:14px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left">
+            <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:5px;text-align:left">
               <span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">visibility</span>
               <span id="visionLookButtonLabel" style="font-size:14px;font-weight:700;color:#5a3526">看一眼</span>
               <span id="visionStatusText" style="font-size:11px;color:var(--ab-ink2);font-weight:400">看看老人在不在</span>
             </button>
+            <button id="visionHistoryButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:82px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left">
+              <span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">photo_library</span><span style="display:block;font-size:14px;font-weight:700;color:#5a3526;margin-top:7px">原图记录</span></span>
+              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-ink3)">chevron_right</span>
+            </button>
+            <button type="button" class="ab-btn-ghost active:scale-95 transition-all" onclick="navigateTo('message')" style="min-height:82px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left">
+              <span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">chat_bubble</span><span style="display:block;font-size:14px;font-weight:700;color:#5a3526;margin-top:7px">给妈妈留言</span></span>
+              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-ink3)">chevron_right</span>
+            </button>
           </div>
-          <section style="position:relative;margin-bottom:22px">
-            <div class="flex justify-between items-baseline" style="margin-bottom:11px">
-              <span class="ab-label">最近看一眼</span>
-              <span style="font-size:12px;color:#b08a78">原图记录</span>
-            </div>
-            <div id="visionRecentList" style="display:flex;flex-direction:column;gap:9px">
-              <div class="ab-card" style="padding:13px;color:var(--ab-ink3);font-size:13px">暂无拍摄记录</div>
-            </div>
-          </section>
-          
-          <section style="position:relative;margin-bottom:22px">
-            <div class="flex justify-between items-baseline" style="margin-bottom:11px">
-              <span class="ab-label">最近留言</span>
-              <a href="#message" style="font-size:12px;color:#b08a78;text-decoration:none">查看全部</a>
-            </div>
-            <div id="recentMsgList" style="display:flex;flex-direction:column;gap:9px">
-              <div class="ab-card" style="padding:13px;color:var(--ab-ink3);font-size:13px">正在获取最近留言…</div>
-            </div>
-            <div class="ab-dash active:opacity-70" style="padding:12px;text-align:center;color:#b08a78;font-size:13px;font-weight:600;margin-top:9px" onclick="openQuickMsg()">＋ 给妈妈写条留言</div>
-          </section>
-          <section style="position:relative;margin-bottom:8px">
-            <div class="ab-label" style="margin-bottom:11px">环境状态</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="ab-card" style="padding:14px;display:flex;align-items:center;gap:11px;cursor:pointer" onclick="notImplemented('环境状态')">
-                <div class="ab-iconbox" style="width:38px;height:38px;background:#e8f1f7"><span class="material-symbols-outlined" style="color:#4a90c2;font-size:20px">thermostat</span></div>
-                <div><p style="font-size:11px;color:var(--ab-ink3)">温度</p><p id="envTemp" style="font-size:16px;font-weight:800;color:var(--ab-ink)">未实现</p></div>
-              </div>
-              <div class="ab-card" style="padding:14px;display:flex;align-items:center;gap:11px;cursor:pointer" onclick="notImplemented('环境状态')">
-                <div class="ab-iconbox" style="width:38px;height:38px;background:#fbeede"><span class="material-symbols-outlined" style="color:#d99a3a;font-size:20px">humidity_mid</span></div>
-                <div><p style="font-size:11px;color:var(--ab-ink3)">湿度</p><p id="envHumidity" style="font-size:16px;font-weight:800;color:var(--ab-ink)">未实现</p></div>
-              </div>
-            </div>
-          </section>
         </main>
         <!-- Home Bottom Nav -->
         <nav class="ab-navbar sticky bottom-0 z-40 w-full flex-shrink-0">
@@ -1147,6 +1137,34 @@
       </div>
       <button class="ab-btn-primary w-full h-[50px]" id="bindDeviceBtn" onclick="submitDeviceBinding()" type="button">确认绑定</button>
     </div>
+
+    <div class="vision-history-overlay" id="visionHistoryOverlay"></div>
+    <section class="vision-history-sheet" id="visionHistorySheet" role="dialog" aria-modal="true" aria-labelledby="visionHistoryTitle">
+      <div class="vision-history-header">
+        <div>
+          <h3 id="visionHistoryTitle" style="font-size:19px;font-weight:800;color:var(--ab-ink);margin:0">原图记录</h3>
+          <p id="visionHistoryCount" style="font-size:11px;color:var(--ab-ink3);margin:3px 0 0">正在读取记录</p>
+        </div>
+        <button id="visionHistoryClose" class="ab-btn-ghost active:scale-95 transition-all" type="button" title="关闭原图记录" style="width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center">
+          <span class="material-symbols-outlined" style="font-size:20px">close</span>
+        </button>
+      </div>
+      <div class="vision-history-content" id="visionHistoryContent">
+        <div style="padding:48px 0;text-align:center;color:var(--ab-ink3);font-size:13px">正在加载原图记录</div>
+      </div>
+    </section>
+
+    <div class="vision-delete-overlay" id="visionDeleteOverlay"></div>
+    <section class="vision-delete-confirm" id="visionDeleteConfirm" role="alertdialog" aria-modal="true" aria-labelledby="visionDeleteTitle">
+      <div class="flex items-start" style="gap:12px">
+        <div class="ab-iconbox" style="width:40px;height:40px;background:#f9e8e5;color:#a54237"><span class="material-symbols-outlined">delete</span></div>
+        <div style="flex:1;min-width:0"><h3 id="visionDeleteTitle" style="font-size:17px;font-weight:800;color:var(--ab-ink);margin:0">删除这张原图？</h3><p style="font-size:12px;line-height:1.55;color:var(--ab-ink2);margin:6px 0 0">删除后照片和识别记录都无法恢复。</p></div>
+      </div>
+      <div class="flex" style="gap:10px;margin-top:18px">
+        <button id="visionDeleteCancel" type="button" class="ab-btn-ghost" style="flex:1;height:44px">取消</button>
+        <button id="visionDeleteSubmit" type="button" style="flex:1;height:44px;border:0;border-radius:8px;background:#a54237;color:#fff;font-weight:800">删除</button>
+      </div>
+    </section>
 
     <div class="vision-result-overlay" id="visionResultOverlay" onclick="if(event.target===this)closeVisionResult()">
       <div class="vision-result-card ab-glass">

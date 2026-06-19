@@ -4046,3 +4046,13 @@
 - 原图验证：`GET /api/vision/captures/cap_133f50758b91b80a004466d3242c4691/image` 返回 `200 image/jpeg`，`Content-Length=29019`，图片 SHA-256 前缀 `7819909ff3e03cc7`；capture DTO 包含拍摄时间、AI 摘要、`presence=no_one` 和可鉴权 `imageUrl`。
 - 普通语音看图兼容：前一条未标记 multipart 探针已返回 xiaozhi 文本结果且未生成 AnBan capture，本条真机验收只保存带 `[[ANBAN_CAPTURE:...]]` 标记的手动“看一眼”图片。
 - 结论：方案 3.3 的 `childweb -> AnBan look -> xiaozhi manager MCP -> 设备拍照 -> AnBan 代理保存原图 -> xiaozhi VLM -> childweb 鉴权读图` 已端到端可用；未改 xiaozhi 源码或固件。
+
+### 01:44 子女端信息收拢第一批：原图历史、管理员删除与首页精简
+
+- 文件：`server/internal/domains/vision/`、`server/internal/childapi/`、`childweb/`、`web/api/client.js`。
+- 后端：新增 `DELETE /api/vision/captures/:captureId`；删除时先移除原图文件，再按设备和 capture ID 硬删除数据库记录；文件已不存在可继续完成删除，pending 返回 `409 capture_in_progress`，跨设备和不存在记录返回 `404 capture_not_found`。
+- 权限：账号模式仅家庭管理员可删除原图，普通成员返回 `403 admin_required`；旧访问码模式保持管理员等价兼容。
+- 子女端：新增“原图记录”两列可滚动底部弹窗，读取当前保留的最多 100 条记录并过滤无原图项，按今天/昨天/日期分组；缩略图按可视区域懒加载，关闭、切页和删除时释放 Blob URL，异步关闭使用加载代次防止 URL 泄漏。
+- 首页：保留设备在线状态、最近互动和最新留言播报状态；收拢为问候、看一眼、原图记录、留言四个入口；移除最近拍摄长列表、最近留言长列表、虚假环境状态和应用内 9:41/信号/电池状态栏及其 54px 偏移。
+- 边界：不改 xiaozhi、固件、设备协议、视觉留存策略；仍只保存带安伴 capture 标记的手动“看一眼”原图，普通语音看图不入历史。
+- 验证：TDD RED 覆盖删除服务/路由/权限和前端历史交互；`npm test --prefix childweb` 51/51、`node --test web/smoke.test.mjs` 80/80、JS syntax、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
