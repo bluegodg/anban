@@ -627,47 +627,72 @@
         </div>
       </section>
 
-            <!-- ============ FAMILY ============ -->
+      <!-- ============ FAMILY ============ -->
       <section class="spa-section" id="s-family" data-statusbar="dark">
         <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
           <div class="w-10"></div>
-          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">家人</h1>
-          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
-            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">家人</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')" title="设置">
+            <span class="material-symbols-outlined text-on-surface-variant">settings</span>
           </button>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <div class="bg-surface-white rounded-2xl p-5 soft-shadow mb-4">
+            <div class="flex items-center gap-4">
+              <div class="w-14 h-14 rounded-full primary-gradient flex items-center justify-center text-white font-title-lg">安</div>
+              <div class="min-w-0 flex-1">
+                <h2 class="font-headline-md text-headline-md text-on-surface truncate" id="familySummaryName">家人</h2>
+                <p class="font-body-md text-body-md text-text-secondary mt-1" id="familySummarySubtitle">资料尚未完善</p>
+              </div>
+            </div>
+            <p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mt-4 line-clamp-3" id="familySummaryPortrait">画像会在资料和专属记忆积累后自动形成。</p>
+          </div>
+          <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow">
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#family-profile">
+              <div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">psychology</span><div><p class="font-body-lg text-body-lg text-on-surface">完整画像</p><p class="font-label-sm text-label-sm text-text-secondary">兴趣、习惯、健康与沟通建议</p></div></div>
+              <span class="material-symbols-outlined text-outline">chevron_right</span>
+            </a>
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#family-edit">
+              <div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">edit_note</span><div><p class="font-body-lg text-body-lg text-on-surface">编辑资料</p><p class="font-label-sm text-label-sm text-text-secondary">由家庭管理员维护</p></div></div>
+              <span class="material-symbols-outlined text-outline">chevron_right</span>
+            </a>
+            <a class="settings-row flex items-center justify-between p-5" href="#family-memory">
+              <div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">auto_stories</span><div><p class="font-body-lg text-body-lg text-on-surface">记忆库</p><p class="font-label-sm text-label-sm text-text-secondary">查看和管理专属记忆</p></div></div>
+              <span class="material-symbols-outlined text-outline">chevron_right</span>
+            </a>
+          </div>
+        </main>
+        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 nav-link" href="#home" data-nav="home"><span class="material-symbols-outlined mb-1">home</span><span class="font-label-sm text-label-sm">首页</span></a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 nav-link" href="#message" data-nav="message"><span class="material-symbols-outlined mb-1">chat_bubble</span><span class="font-label-sm text-label-sm">消息</span></a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 nav-link" href="#warn" data-nav="warn"><span class="material-symbols-outlined mb-1">notifications</span><span class="font-label-sm text-label-sm">提醒</span></a>
+          <a class="flex flex-col items-center justify-center text-primary w-16 nav-link" href="#family" data-nav="family"><span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">group</span><span class="font-label-sm text-label-sm font-medium">家人</span></a>
+        </nav>
+      </section>
+
+      <!-- ============ FAMILY PROFILE ============ -->
+      <section class="spa-section" id="s-family-profile" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('family')">
+            <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+          </button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">完整画像</h1>
+          <div class="w-10"></div>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
           <section class="mb-section-gap">
             <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
-              <div class="flex items-center gap-4 mb-4">
+              <div class="flex items-center gap-4">
                 <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-container/30 flex-shrink-0">
                   <div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white font-display-lg-mobile text-[14px]">安</div>
                 </div>
-                <div>
-                  <div class="flex items-center gap-2 mb-1">
-                    <h2 class="font-headline-md text-headline-md text-on-surface" id="profileName">妈妈</h2>
-                    <span class="w-2 h-2 rounded-full bg-success"></span>
-                    <span class="font-label-sm text-label-sm text-success">在线</span>
-                  </div>
-                  <p class="font-body-md text-body-md text-text-secondary" id="profileSubtitle">72岁 · 与爸爸同住 · 退休教师</p>
+                <div class="min-w-0 flex-1">
+                  <h2 class="font-headline-md text-headline-md text-on-surface" id="profileName">家人</h2>
+                  <p class="font-body-md text-body-md text-text-secondary mt-1" id="profileSubtitle">资料尚未完善</p>
                 </div>
                 <a class="ml-auto w-10 h-10 rounded-full bg-secondary-container/40 flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform" href="#family-edit">
                   <span class="material-symbols-outlined text-primary text-[20px]">edit</span>
                 </a>
-              </div>
-              <div class="flex gap-3 text-center">
-                <div class="flex-1 bg-background-cream rounded-xl py-3">
-                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">设备状态</p>
-                  <p class="font-title-lg text-title-lg text-success">已连接</p>
-                </div>
-                <div class="flex-1 bg-background-cream rounded-xl py-3">
-                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">最后活跃</p>
-                  <p class="font-title-lg text-title-lg text-on-surface">3分钟前</p>
-                </div>
-                <div class="flex-1 bg-background-cream rounded-xl py-3">
-                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">本周互动</p>
-                  <p class="font-title-lg text-title-lg text-on-surface">12次</p>
-                </div>
               </div>
             </div>
           </section>
@@ -683,7 +708,7 @@
               </p>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="familyMemoryContent">
             <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
               <div class="flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">auto_stories</span>
@@ -709,51 +734,21 @@
               </div>
               <div class="mb-5">
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">兴趣爱好</p>
-                <div class="flex flex-wrap gap-2" id="hobbyTags">
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">园艺</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">广场舞</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">京剧</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">养花</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">做手工</span>
-                </div>
+                <div class="flex flex-wrap gap-2" id="hobbyTags"><span class="font-body-md text-body-md text-text-secondary">暂无记录</span></div>
               </div>
               <div class="mb-5">
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">生活习惯</p>
-                <div class="space-y-2.5" id="habitItems">
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">wb_twilight</span> 晨间 6:30 起床，作息规律</div>
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">local_cafe</span> 饭后必喝一杯龙井，已养成多年习惯</div>
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">music_note</span> 下午固定收听京剧频道</div>
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">directions_walk</span> 晚餐后在小区散步 30 分钟</div>
-                </div>
+                <div class="space-y-2.5" id="habitItems"><div class="font-body-md text-body-md text-text-secondary">暂无记录</div></div>
               </div>
               <div class="border-t border-divider-warm my-4"></div>
               <div class="mb-5">
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">健康须知</p>
-                <div class="bg-secondary-container/50 rounded-xl p-4" id="healthItems">
-                  <div class="flex items-start gap-3 mb-3">
-                    <span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">medication</span>
-                    <div>
-                      <p class="font-body-md text-body-md text-on-secondary-container font-medium">降压药管理</p>
-                      <p class="font-body-md text-body-md text-on-secondary-container/80">每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。</p>
-                    </div>
-                  </div>
-                  <div class="flex items-start gap-3">
-                    <span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">warning</span>
-                    <div>
-                      <p class="font-body-md text-body-md text-on-secondary-container font-medium">注意事项</p>
-                      <p class="font-body-md text-body-md text-on-secondary-container/80">避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。</p>
-                    </div>
-                  </div>
-                </div>
+                <div class="bg-secondary-container/50 rounded-xl p-4 font-body-md text-body-md text-on-secondary-container/80" id="healthItems">暂无记录</div>
               </div>
               <div class="border-t border-divider-warm my-4"></div>
               <div>
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">沟通要点</p>
-                <div class="space-y-3" id="commDos">
-                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span><p class="font-body-md text-body-md text-on-surface-variant">多聊聊她年轻时的教学故事，她会很开心</p></div>
-                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span><p class="font-body-md text-body-md text-on-surface-variant">每周至少视频通话两次，她会很期待</p></div>
-                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0 mt-0.5">cancel</span><p class="font-body-md text-body-md text-on-surface-variant">尽量避免在深夜提及已故的外公，以免引起情绪低落</p></div>
-                </div>
+                <div class="space-y-3 font-body-md text-body-md text-text-secondary" id="commDos">暂无记录</div>
               </div>
             </div>
           </section>
@@ -769,7 +764,6 @@
             </div>
             <span class="material-symbols-outlined text-outline">chevron_right</span>
           </a>
-          <p class="text-center font-label-sm text-label-sm text-text-secondary/60 mb-4"><span id="updateTime">AI 认知画像更新于 6月 8日 14:30</span></p>
         </main>
         <!-- Family Bottom Nav -->
         <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
@@ -795,6 +789,16 @@
         </nav>
       </section>
 
+      <!-- ============ FAMILY MEMORY ============ -->
+      <section class="spa-section" id="s-family-memory" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('family')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">记忆库</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="familyMemoryHost"></main>
+      </section>
+
       <!-- ============ MINE (Settings) ============ -->
       <section class="spa-section" id="s-mine" data-statusbar="dark">
         <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
@@ -805,7 +809,17 @@
           <div class="w-10"></div>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
-          <section class="mb-section-gap">
+          <div class="bg-surface-white rounded-2xl p-5 soft-shadow mb-4">
+            <p class="font-title-lg text-title-lg text-on-surface" id="settingsLandingAccountText">子女账号</p>
+            <p class="font-body-md text-body-md text-text-secondary mt-1" id="settingsLandingBindingText">正在读取设备信息</p>
+          </div>
+          <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow mb-6">
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#settings-account"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">account_circle</span><span class="font-body-lg text-body-lg text-on-surface">账号资料</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#settings-device"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">devices</span><span class="font-body-lg text-body-lg text-on-surface">设备与家庭</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#settings-connection"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">link</span><span class="font-body-lg text-body-lg text-on-surface">连接设置</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+            <a class="settings-row flex items-center justify-between p-5" href="#settings-greeting"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">schedule</span><span class="font-body-lg text-body-lg text-on-surface">主动问候时段</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+          </div>
+          <section class="mb-section-gap" id="settingsAccountContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">我的账号</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-3">
               <div class="flex items-center justify-between pb-2">
@@ -818,7 +832,7 @@
               <button class="ab-btn-primary w-full h-[46px]" onclick="saveAccountProfile()" type="button">保存个人资料</button>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="settingsDeviceContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">设备与家庭</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-3">
               <p class="font-body-md text-body-md text-on-surface" id="bindingSummary">尚未绑定安伴设备</p>
@@ -835,7 +849,7 @@
               </div>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="settingsConnectionContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">连接设置</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4">
               <label class="block"><span class="font-label-md text-label-md text-on-surface-variant">后端地址</span><input class="mt-2 w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="settingsBaseURL" type="url"/></label>
@@ -843,7 +857,7 @@
               <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveConnectionBtn" type="button">保存连接设置</button>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="settingsGreetingContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">主动问候时段</h3>
             <form class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4" id="greetingScheduleForm">
               <div class="grid grid-cols-[1fr_auto] gap-3 items-center">
@@ -878,32 +892,6 @@
               <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveGreetingScheduleBtn" type="submit">保存问候时段</button>
             </form>
           </section>
-          <section class="mb-section-gap">
-            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">通用设置</h3>
-            <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow">
-
-              <button class="settings-row w-full flex items-center justify-between p-5 border-b border-divider-warm" id="clearCacheBtn">
-                <div class="flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">cleaning_services</span>
-                  <span class="font-body-lg text-body-lg text-on-surface">清理缓存</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="font-label-md text-label-md text-text-secondary" id="cacheSize">24.5 MB</span>
-                  <span class="material-symbols-outlined text-outline">chevron_right</span>
-                </div>
-              </button>
-              <button class="settings-row w-full flex items-center justify-between p-5" id="aboutBtn">
-                <div class="flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">info</span>
-                  <span class="font-body-lg text-body-lg text-on-surface">关于安伴</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="font-label-md text-label-md text-text-secondary">v 2.4.0</span>
-                  <span class="material-symbols-outlined text-outline">chevron_right</span>
-                </div>
-              </button>
-            </div>
-          </section>
           <section class="mb-6">
             <button class="w-full bg-surface-white text-danger border border-error-container/20 font-title-lg text-title-lg rounded-2xl py-4 soft-shadow active:scale-[0.98] transition-all flex items-center justify-center gap-2" id="logoutBtn">
               <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">logout</span>
@@ -933,6 +921,24 @@
             <span class="font-label-sm text-label-sm">家人</span>
           </a>
         </nav>
+      </section>
+
+      <!-- ============ SETTINGS DETAIL PAGES ============ -->
+      <section class="spa-section" id="s-settings-account">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">账号资料</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsAccountHost"></main>
+      </section>
+      <section class="spa-section" id="s-settings-device">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">设备与家庭</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsDeviceHost"></main>
+      </section>
+      <section class="spa-section" id="s-settings-connection">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">连接设置</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsConnectionHost"></main>
+      </section>
+      <section class="spa-section" id="s-settings-greeting">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">主动问候时段</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsGreetingHost"></main>
       </section>
 
       <!-- ============ FAMILY EDIT (secondary page, no nav) ============ -->
@@ -965,7 +971,7 @@
               </div>
               <div class="flex flex-col gap-1.5">
                 <label class="font-label-md text-label-md text-on-surface-variant" for="editOccupation">职业</label>
-                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editOccupation" placeholder="例如：退休教师" type="text"/>
+                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editOccupation" placeholder="请输入职业" type="text"/>
               </div>
             </div>
           </section>

@@ -4065,3 +4065,14 @@
 - 导航：新增 `#reminder-list` 专属页面承载全部待执行提醒，保留现有提醒详情和历史页面；直接打开该 hash 时会自行初始化提醒域，不依赖先访问提醒主页。
 - 缓存：Service Worker 缓存版本升级到 `anban-childweb-v6`，确保线上 PWA 获取新页面结构。
 - 验证：TDD RED/GREEN；`npm test --prefix childweb` 52/52、`node --test web/smoke.test.mjs` 80/80、JS syntax、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
+
+### 02:06 子女端信息收拢第三批：家人页与设置页分层
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/sw.js`。
+- 家人页：主页面只保留家人资料和 AI 画像摘要，以及“完整画像 / 编辑资料 / 记忆库”入口；完整画像、管理员编辑和专属记忆分别使用独立路由，普通成员继续隐藏全部编辑入口并只读查看。
+- 设置页：改为账号、设备与家庭、连接设置、主动问候时段四个菜单入口，原有真实表单和接口逻辑迁移到独立页面；删除虚假缓存大小、无来源版本号和对应模拟交互。
+- 数据：删除画像页面和编辑页中的硬编码老人资料、兴趣、习惯、健康和沟通示例；后端无资料时显示明确空态，不再伪装成真实家庭数据。
+- 导航：新增 `#family-profile`、`#family-memory`、`#settings-account`、`#settings-device`、`#settings-connection`、`#settings-greeting`，支持直接打开子路由并自动初始化对应域。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v7`。
+- 边界：消息页保持专属对话页面；不改 xiaozhi、固件、设备协议或后端接口。
+- 验证：TDD RED/GREEN；`npm test --prefix childweb` 53/53、`npm test --prefix web` 80/80、`node --check childweb/app.js`、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。

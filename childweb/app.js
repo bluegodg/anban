@@ -206,13 +206,19 @@ var SPA = {
   currentSection: null,
   initialized: {},
   sectionsWithNav: { home:1, warn:1, message:1, family:1, mine:1 },
-  sectionIds: { login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine', 'family-edit':'s-family-edit', 'reminder-list':'s-reminder-list', history:'s-history', detail:'s-detail' }
+  sectionIds: {
+    login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine',
+    'family-profile':'s-family-profile', 'family-memory':'s-family-memory', 'family-edit':'s-family-edit',
+    'settings-account':'s-settings-account', 'settings-device':'s-settings-device',
+    'settings-connection':'s-settings-connection', 'settings-greeting':'s-settings-greeting',
+    'reminder-list':'s-reminder-list', history:'s-history', detail:'s-detail'
+  }
 };
 
 function navigateTo(name) {
   // Save warn scroll position before navigating to sub-pages (detail, history)
   // Only sub-pages should restore scroll when returning; main pages should reset to top
-  var subPages = ['detail', 'history', 'reminder-list', 'family-edit'];
+  var subPages = ['detail', 'history', 'reminder-list', 'family-profile', 'family-memory', 'family-edit', 'settings-account', 'settings-device', 'settings-connection', 'settings-greeting'];
   if (SPA.currentSection === 'warn' && subPages.indexOf(name) >= 0) {
     var inner = document.getElementById('screenInner');
     if (inner) SPA._warnScrollTop = inner.scrollTop;
@@ -281,7 +287,7 @@ function showSection(name) {
   }
 
   // Hide bottom navs for secondary pages (history, family-edit)
-  var noNavPages = ['history', 'reminder-list', 'family-edit', 'detail'];
+  var noNavPages = ['history', 'reminder-list', 'family-profile', 'family-memory', 'family-edit', 'settings-account', 'settings-device', 'settings-connection', 'settings-greeting', 'detail'];
   var allNavs = document.querySelectorAll('#s-home nav, #s-warn nav, #s-message nav, #s-family nav, #s-mine nav');
   if (noNavPages.indexOf(name) >= 0) {
     for (var n = 0; n < allNavs.length; n++) allNavs[n].style.display = 'none';
@@ -360,7 +366,13 @@ Object.assign(window, {
   initWarn,
   initReminderList,
   initFamily,
+  initFamilyProfile,
+  initFamilyMemory,
   initMine,
+  initSettingsAccount,
+  initSettingsDevice,
+  initSettingsConnection,
+  initSettingsGreeting,
   initFamilyEdit,
 });
 
@@ -545,7 +557,7 @@ function initLogin() {
 
 function applyBindingState() {
   var locked = isAccountMode() && !anbanSession.binding;
-  ['s-home', 's-message', 's-warn', 's-family'].forEach(function(sectionId) {
+  ['s-home', 's-message', 's-warn', 's-family', 's-family-profile', 's-family-memory', 's-family-edit'].forEach(function(sectionId) {
     var section = document.getElementById(sectionId);
     if (!section) return;
     section.classList.toggle('anban-unbound-section', locked);
@@ -628,11 +640,19 @@ function renderAccountSettings() {
   });
   var title = document.getElementById('accountDisplayName');
   if (title) title.textContent = account.displayName || account.nickname || '子女账号';
+  var landingAccount = document.getElementById('settingsLandingAccountText');
+  if (landingAccount) landingAccount.textContent = account.displayName || account.nickname || '子女账号';
   var phone = document.getElementById('accountMaskedPhone');
   if (phone) phone.textContent = account.phone || '';
   var deviceSummary = document.getElementById('bindingSummary');
   if (deviceSummary) {
     deviceSummary.textContent = binding
+      ? (binding.deviceDisplayName || '安伴设备') + ' · ' + (binding.role === 'admin' ? '家庭管理员' : '家庭成员')
+      : '尚未绑定安伴设备';
+  }
+  var landingBinding = document.getElementById('settingsLandingBindingText');
+  if (landingBinding) {
+    landingBinding.textContent = binding
       ? (binding.deviceDisplayName || '安伴设备') + ' · ' + (binding.role === 'admin' ? '家庭管理员' : '家庭成员')
       : '尚未绑定安伴设备';
   }
@@ -2001,22 +2021,16 @@ function initWarn() {
 // ============================
 async function initFamily() {
   var defaultProfile = {
-    name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
+    name: '', age: 0, livingSituation: '', occupation: '',
     aiPortrait: '', aiPortraitMode: 'auto',
-    hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
-    habits: [
-      { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
-      { icon: 'local_cafe', text: '饭后必喝一杯龙井，已养成多年习惯' },
-      { icon: 'music_note', text: '下午固定收听京剧频道' },
-      { icon: 'directions_walk', text: '晚餐后在小区散步 30 分钟' }
-    ],
-    health: [
-      { name: '降压药管理', detail: '每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。' },
-      { name: '注意事项', detail: '避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。' }
-    ],
-    communicationDos: ['多聊聊她年轻时的教学故事，她会很开心', '每周至少视频通话两次，她会很期待'],
-    communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
+    hobbies: [], habits: [], health: [], communicationDos: [], communicationDonts: []
   };
+
+  var memoryContent = document.getElementById('familyMemoryContent');
+  var memoryHost = document.getElementById('familyMemoryHost');
+  if (memoryContent && memoryHost && memoryContent.parentElement !== memoryHost) {
+    memoryHost.appendChild(memoryContent);
+  }
 
   var localStored = localStorage.getItem('anban_family_profile_local');
   var localProfile = localStored ? JSON.parse(localStored) : {};
@@ -2029,38 +2043,49 @@ async function initFamily() {
     profile = legacyStored ? JSON.parse(legacyStored) : { ...defaultProfile, ...localProfile };
   }
 
-  document.getElementById('profileName').textContent = profile.name || '妈妈';
-  document.getElementById('profileSubtitle').innerHTML = (profile.age || 72) + '岁 · ' + (profile.livingSituation || '与爸爸同住') + ' · ' + (profile.occupation || '退休教师');
-  document.getElementById('aiPortraitText').textContent = profile.aiPortrait || '画像会在资料和专属记忆积累后自动形成。';
+  var profileName = profile.name || '家人';
+  var subtitle = [profile.age ? profile.age + '岁' : '', profile.livingSituation || '', profile.occupation || ''].filter(Boolean).join(' · ') || '资料尚未完善';
+  var portrait = profile.aiPortrait || '画像会在资料和专属记忆积累后自动形成。';
+  document.getElementById('profileName').textContent = profileName;
+  document.getElementById('profileSubtitle').textContent = subtitle;
+  document.getElementById('aiPortraitText').textContent = portrait;
   document.getElementById('aiPortraitModeText').textContent = profile.aiPortraitMode === 'manual' ? '管理员维护' : 'AI 自动更新';
+  var summaryName = document.getElementById('familySummaryName');
+  var summarySubtitle = document.getElementById('familySummarySubtitle');
+  var summaryPortrait = document.getElementById('familySummaryPortrait');
+  if (summaryName) summaryName.textContent = profileName;
+  if (summarySubtitle) summarySubtitle.textContent = subtitle;
+  if (summaryPortrait) summaryPortrait.textContent = portrait;
   var isAdmin = !isAccountMode() || (anbanSession.binding && anbanSession.binding.role === 'admin');
 
   var hobbyContainer = document.getElementById('hobbyTags');
   if (hobbyContainer) {
     hobbyContainer.innerHTML = '';
-    (profile.hobbies || defaultProfile.hobbies).forEach(function(h) {
+    (profile.hobbies || []).forEach(function(h) {
       var tag = document.createElement('span');
       tag.className = 'bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md';
       tag.textContent = h;
       hobbyContainer.appendChild(tag);
     });
+    if (!hobbyContainer.children.length) hobbyContainer.innerHTML = '<span class="font-body-md text-body-md text-text-secondary">暂无记录</span>';
   }
 
   var habitContainer = document.getElementById('habitItems');
   if (habitContainer) {
     habitContainer.innerHTML = '';
-    (profile.habits || defaultProfile.habits).forEach(function(h) {
+    (profile.habits || []).forEach(function(h) {
       var item = document.createElement('div');
       item.className = 'flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant';
       item.innerHTML = '<span class="material-symbols-outlined text-primary text-[18px]">' + h.icon + '</span> ' + h.text;
       habitContainer.appendChild(item);
     });
+    if (!habitContainer.children.length) habitContainer.innerHTML = '<div class="font-body-md text-body-md text-text-secondary">暂无记录</div>';
   }
 
   var healthContainer = document.getElementById('healthItems');
   if (healthContainer) {
     healthContainer.innerHTML = '';
-    (profile.health || defaultProfile.health).forEach(function(h, i) {
+    (profile.health || []).forEach(function(h, i) {
       var div = document.createElement('div');
       div.className = 'flex items-start gap-3' + (i > 0 ? ' mt-3' : '');
       var icon = (i === 0) ? 'medication' : 'warning';
@@ -2069,31 +2094,27 @@ async function initFamily() {
         '<p class="font-body-md text-body-md text-on-secondary-container/80">' + h.detail + '</p></div>';
       healthContainer.appendChild(div);
     });
+    if (!healthContainer.children.length) healthContainer.textContent = '暂无记录';
   }
 
   var dosContainer = document.getElementById('commDos');
   if (dosContainer) {
     dosContainer.innerHTML = '';
-    (profile.communicationDos || defaultProfile.communicationDos).forEach(function(d) {
+    (profile.communicationDos || []).forEach(function(d) {
       var item = document.createElement('div');
       item.className = 'flex items-start gap-2.5';
       item.innerHTML = '<span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span>' +
         '<p class="font-body-md text-body-md text-on-surface-variant">' + d + '</p>';
       dosContainer.appendChild(item);
     });
-    (profile.communicationDonts || defaultProfile.communicationDonts).forEach(function(d) {
+    (profile.communicationDonts || []).forEach(function(d) {
       var item = document.createElement('div');
       item.className = 'flex items-start gap-2.5';
       item.innerHTML = '<span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0 mt-0.5">cancel</span>' +
         '<p class="font-body-md text-body-md text-on-surface-variant">' + d + '</p>';
       dosContainer.appendChild(item);
     });
-  }
-
-  var now = new Date();
-  var timeEl = document.getElementById('updateTime');
-  if (timeEl) {
-    timeEl.textContent = 'AI 认知画像更新于 ' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
+    if (!dosContainer.children.length) dosContainer.textContent = '暂无记录';
   }
 
   async function loadMemoryFacts() {
@@ -2194,10 +2215,36 @@ async function initFamily() {
   loadMemoryFacts();
 }
 
+async function ensureFamilyInitialized() {
+  if (SPA.initialized.family) return;
+  SPA.initialized.family = true;
+  await initFamily();
+}
+
+async function initFamilyProfile() {
+  await ensureFamilyInitialized();
+}
+
+async function initFamilyMemory() {
+  await ensureFamilyInitialized();
+}
+
 // ============================
 // initMine
 // ============================
 function initMine() {
+  [
+    ['settingsAccountContent', 'settingsAccountHost'],
+    ['settingsDeviceContent', 'settingsDeviceHost'],
+    ['settingsConnectionContent', 'settingsConnectionHost'],
+    ['settingsGreetingContent', 'settingsGreetingHost'],
+  ].forEach(function(pair) {
+    var content = document.getElementById(pair[0]);
+    var host = document.getElementById(pair[1]);
+    if (!content || !host) return;
+    content.style.display = '';
+    if (content.parentElement !== host) host.appendChild(content);
+  });
   var baseURLInput = document.getElementById('settingsBaseURL');
   var deviceIdInput = document.getElementById('settingsDeviceId');
   var saveConnectionBtn = document.getElementById('saveConnectionBtn');
@@ -2326,25 +2373,6 @@ function initMine() {
     });
   }
 
-  document.getElementById('clearCacheBtn').addEventListener('click', function() {
-    var label = document.getElementById('cacheSize');
-    if (label.textContent !== '0.0 MB') {
-      label.textContent = '清理中...';
-      label.classList.add('text-primary');
-      setTimeout(function() {
-        label.textContent = '0.0 MB';
-        label.classList.remove('text-primary');
-        label.classList.add('text-success');
-      }, 800);
-    }
-  });
-
-
-
-  document.getElementById('aboutBtn').addEventListener('click', function() {
-    showToast('安伴 v2.4.0 — 孝心安伴');
-  });
-
   document.getElementById('logoutBtn').addEventListener('click', async function() {
     if (isAccountMode()) {
       try { await anbanClient.logout(); } catch (error) {}
@@ -2358,6 +2386,17 @@ function initMine() {
   });
 }
 
+function ensureMineInitialized() {
+  if (SPA.initialized.mine) return;
+  SPA.initialized.mine = true;
+  initMine();
+}
+
+function initSettingsAccount() { ensureMineInitialized(); }
+function initSettingsDevice() { ensureMineInitialized(); }
+function initSettingsConnection() { ensureMineInitialized(); }
+function initSettingsGreeting() { ensureMineInitialized(); }
+
 // ============================
 // initFamilyEdit
 // ============================
@@ -2370,21 +2409,9 @@ async function initFamilyEdit() {
   var habitIcons = ['wb_twilight','local_cafe','music_note','directions_walk','self_improvement','menu_book','potted_plant','tv','pets','shopping_bag','exercise','park'];
 
   var defaultData = {
-    name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
+    name: '', age: 0, livingSituation: '', occupation: '',
     aiPortrait: '', aiPortraitMode: 'auto',
-    hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
-    habits: [
-      { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
-      { icon: 'local_cafe', text: '饭后必喝一杯龙井，已养成多年习惯' },
-      { icon: 'music_note', text: '下午固定收听京剧频道' },
-      { icon: 'directions_walk', text: '晚餐后在小区散步 30 分钟' }
-    ],
-    health: [
-      { name: '降压药管理', detail: '每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。' },
-      { name: '注意事项', detail: '避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。' }
-    ],
-    communicationDos: ['多聊聊她年轻时的教学故事，她会很开心', '每周至少视频通话两次，她会很期待'],
-    communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
+    hobbies: [], habits: [], health: [], communicationDos: [], communicationDonts: []
   };
 
   async function loadData() {
@@ -2678,7 +2705,9 @@ async function initFamilyEdit() {
       });
       data = mapFieldsToStitchProfile(savedProfile.fields || fields, localProfile);
       localStorage.setItem('anban_family_profile', JSON.stringify(data));
-      SPA.initialized['family'] = false;
+      SPA.initialized.family = false;
+      SPA.initialized['family-profile'] = false;
+      SPA.initialized['family-memory'] = false;
       showToast('已保存');
     } catch (error) {
       showToast(error.message || '画像保存失败');

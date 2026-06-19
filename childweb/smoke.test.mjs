@@ -316,6 +316,34 @@ test('family page exposes editable memory library through the shared client', ()
   assert.match(appJS, /anbanClient\.deleteMemoryFact\(fact\.factId/);
 });
 
+test('family and settings use compact landing pages with dedicated detail routes', () => {
+  for (const id of [
+    's-family-profile',
+    's-family-memory',
+    's-settings-account',
+    's-settings-device',
+    's-settings-connection',
+    's-settings-greeting',
+  ]) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
+
+  for (const route of [
+    'family-profile',
+    'family-memory',
+    'settings-account',
+    'settings-device',
+    'settings-connection',
+    'settings-greeting',
+  ]) {
+    assert.match(appJS, new RegExp(`'${route}'`));
+  }
+
+  assert.doesNotMatch(indexHTML, /id="clearCacheBtn"|id="cacheSize"|id="aboutBtn"|v 2\.4\.0/);
+  assert.doesNotMatch(indexHTML, /晨间 6:30 起床|饭后必喝一杯龙井|退休教师/);
+  assert.doesNotMatch(appJS, /晨间 6:30 起床|饭后必喝一杯龙井|退休教师/);
+});
+
 test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
   assert.doesNotMatch(indexHTML, /max-width:466px/);
   assert.doesNotMatch(indexHTML, /width:430px;height:932px/);
@@ -331,7 +359,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v6/);
+  assert.match(sw, /anban-childweb-v7/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);
