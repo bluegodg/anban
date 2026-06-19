@@ -19,3 +19,5 @@ server/.gotmp-go/
 .codegraph/
 # brainstorm 可视化 companion 临时文件
 .superpowers/
+# Codex 由本地 Claude 记忆生成的 agent 工作记忆（脱敏，仅本地参考，不入公开库）
+docs/agent-memory.md
