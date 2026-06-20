@@ -232,6 +232,20 @@
   .vision-delete-overlay.open{opacity:1;pointer-events:auto}
   .vision-delete-confirm{position:absolute;left:18px;right:18px;top:50%;z-index:125;transform:translateY(-46%) scale(.97);background:#fff;border-radius:12px;padding:20px;opacity:0;pointer-events:none;transition:all .18s;box-shadow:0 20px 60px rgba(45,25,18,.24)}
   .vision-delete-confirm.open{transform:translateY(-50%) scale(1);opacity:1;pointer-events:auto}
+  .mind-chip-row{display:flex;flex-wrap:wrap;gap:6px}
+  .mind-metric-row{padding:12px 0;border-top:1px solid var(--ab-line)}
+  .mind-metric-row:first-child{border-top:0;padding-top:0}
+  .mind-metric-row strong{font-size:13px;color:var(--ab-ink)}
+  .mind-metric-row span{font-size:12px;color:var(--ab-primary);font-weight:800}
+  .mind-metric-row p{font-size:11px;line-height:1.45;color:var(--ab-ink3);margin:6px 0 0}
+  .mind-meter{height:6px;background:#f1e6de;border-radius:999px;overflow:hidden;margin-top:9px}
+  .mind-meter i{display:block;height:100%;border-radius:999px;background:var(--ab-primary)}
+  .mind-timeline-item{background:#fff;border:1px solid var(--ab-line);border-radius:8px;padding:13px;margin-bottom:10px}
+  .mind-timeline-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:var(--ab-ink3);font-weight:800}
+  .mind-timeline-item p{font-size:14px;line-height:1.55;color:var(--ab-ink);margin:8px 0 0}
+  .mind-decision-line{font-size:12px;line-height:1.45;color:var(--ab-ink2);background:#faf1ea;border-radius:8px;padding:8px 9px;margin-top:9px}
+  .mind-filter{height:34px;padding:0 12px;border:1px solid var(--ab-line2);border-radius:999px;background:#fff;color:var(--ab-ink2);font-size:12px;font-weight:800}
+  .mind-filter.active{background:var(--ab-primary);color:#fff;border-color:var(--ab-primary)}
   .reminder-create-overlay{position:absolute;inset:0;z-index:80;background:rgba(46,31,24,.38);opacity:0;pointer-events:none;transition:opacity .22s}
   .reminder-create-overlay.open{opacity:1;pointer-events:auto}
   .reminder-create-sheet{position:absolute;left:0;right:0;bottom:0;z-index:81;height:min(88%,760px);background:var(--ab-bg);border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;box-shadow:0 -18px 50px rgba(54,32,22,.2)}
@@ -389,6 +403,18 @@
               <span id="latestMessageStatus">正在读取留言状态</span><span class="material-symbols-outlined" style="font-size:17px">chevron_right</span>
             </button>
           </section>
+          <button id="mindEntryCard" type="button" onclick="navigateTo('mind')" class="ab-card active:scale-[0.99] transition-all" style="position:relative;width:100%;padding:16px;margin-bottom:16px;text-align:left;display:block">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <span class="ab-label">安伴此刻</span>
+              <span class="ab-tag ab-tag-cat" id="mindEntryStatus">实时心智</span>
+            </div>
+            <h2 id="mindEntryHeadline" style="font-size:19px;font-weight:800;color:var(--ab-ink);line-height:1.32;margin:12px 0 0">安伴正在熟悉家人的节奏</h2>
+            <p id="mindEntryThought" style="font-size:13px;line-height:1.55;color:var(--ab-ink2);margin:8px 0 0">有新的互动后，这里会出现安伴此刻在意的事</p>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px">
+              <div class="mind-chip-row" id="mindEntryTags"><span class="ab-tag ab-tag-cat">平稳陪伴</span></div>
+              <span id="mindEntryTime" style="font-size:11px;color:var(--ab-ink3);white-space:nowrap">暂无心智记录</span>
+            </div>
+          </button>
           <div style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px">
             <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:8px;text-align:left">
               <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:700">问候妈妈</span><span id="greetingStatusText" style="display:block;font-size:11px;color:rgba(255,255,255,.82);margin-top:2px">让安伴主动开口</span></span>
@@ -428,6 +454,70 @@
             <span class="font-label-sm">家人</span>
           </a>
         </nav>
+      </section>
+
+      <!-- ============ MIND ============ -->
+      <section class="spa-section" id="s-mind" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 20px 10px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('home')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">安伴此刻</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 overflow-y-auto" style="padding:14px 18px 28px">
+          <section class="ab-glass" style="padding:20px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span class="ab-label">当前心境</span><span id="mindDetailUpdatedAt" style="font-size:11px;color:var(--ab-ink3)">暂无心智记录</span></div>
+            <h2 id="mindDetailHeadline" style="font-size:22px;font-weight:800;color:var(--ab-ink);line-height:1.32;margin:14px 0 0">安伴正在熟悉家人的节奏</h2>
+            <p id="mindDetailThought" style="font-size:14px;line-height:1.6;color:var(--ab-ink2);margin:10px 0 0">有新的互动后，这里会出现安伴此刻在意的事</p>
+            <div class="mind-chip-row" id="mindDetailTags" style="margin-top:12px"><span class="ab-tag ab-tag-cat">平稳陪伴</span></div>
+          </section>
+          <section class="ab-card" style="padding:16px;margin-bottom:12px">
+            <span class="ab-label">今天在意什么</span>
+            <p id="mindDetailFocus" style="font-size:14px;line-height:1.6;color:var(--ab-ink);margin:10px 0 0">等待设备产生新的互动</p>
+            <ul id="mindLingeringThoughts" style="font-size:13px;line-height:1.65;color:var(--ab-ink2);margin:10px 0 0;padding-left:18px"></ul>
+          </section>
+          <section class="ab-card" style="padding:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <span class="ab-label">最近选择</span>
+              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-primary)">psychology</span>
+            </div>
+            <div id="mindLatestAction" style="font-size:13px;line-height:1.55;color:var(--ab-ink2);margin-top:10px">安伴还没有做出新的选择</div>
+          </section>
+          <section class="ab-card" style="padding:16px;margin-bottom:12px">
+            <button id="mindMetricsToggle" type="button" style="width:100%;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:space-between;color:var(--ab-ink);font-weight:800">
+              <span>心智指标</span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">expand_more</span>
+            </button>
+            <div id="mindMetricsPanel" style="display:none;margin-top:14px">
+              <div id="mindMetricRows"></div>
+            </div>
+          </section>
+          <section class="ab-card" style="padding:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+              <span class="ab-label">最近念头</span>
+              <button id="mindHistoryLink" type="button" class="ab-btn-ghost" style="height:34px;padding:0 10px;font-size:12px">全部轨迹</button>
+            </div>
+            <div id="mindRecentList"></div>
+          </section>
+        </main>
+      </section>
+
+      <!-- ============ MIND HISTORY ============ -->
+      <section class="spa-section" id="s-mind-history" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 20px 10px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mind')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">心智轨迹</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 overflow-y-auto" style="padding:14px 18px 28px">
+          <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:6px">
+            <button type="button" class="mind-filter active" data-mind-filter="all">全部</button>
+            <button type="button" class="mind-filter" data-mind-filter="thought">念头</button>
+            <button type="button" class="mind-filter" data-mind-filter="action">选择</button>
+            <button type="button" class="mind-filter" data-mind-filter="event">事件</button>
+            <button type="button" class="mind-filter" data-mind-filter="reflection">反思</button>
+          </div>
+          <div id="mindHistoryList"></div>
+          <button id="mindHistoryMore" type="button" class="ab-btn-ghost" style="width:100%;height:44px;margin-top:8px;display:none">加载更多</button>
+        </main>
       </section>
 
       <!-- ============ MESSAGE ============ -->

@@ -90,6 +90,21 @@ export function createAnbanClient({ baseURL = '', accessCode = '', token = '', i
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/timeline${suffix}`, { device: true });
     },
+    getMindSnapshot({ deviceId } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/mind/snapshot${suffix}`, { device: true });
+    },
+    listMindTimeline({ deviceId, kind, limit, cursor } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      setQueryParam(params, 'kind', kind);
+      setQueryParam(params, 'limit', limit);
+      setQueryParam(params, 'cursor', cursor);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/mind/timeline${suffix}`, { device: true });
+    },
     sendMessage(payload) {
       return request('/api/messages', { method: 'POST', body: payload, device: true });
     },

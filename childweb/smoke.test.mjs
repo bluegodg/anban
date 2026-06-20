@@ -359,7 +359,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v7/);
+  assert.match(sw, /anban-childweb-v8/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);
@@ -801,4 +801,138 @@ test('vision capture view explains that an expired image is no longer available'
   assert.equal(view.summary, '图片已按保留策略清理');
   assert.equal(view.showImage, false);
   assert.equal(view.action, null);
+});
+
+test('mind API client reads snapshot and paginated timeline through the authenticated device endpoint', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  const requests = [];
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    token: 'session-token',
+    isBound: true,
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(JSON.stringify({ available: true, items: [], hasMore: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  await client.getMindSnapshot({ deviceId: 'dev-001' });
+  await client.listMindTimeline({ deviceId: 'dev-001', kind: 'action', limit: 20, cursor: 'cursor/1' });
+
+  assert.equal(requests[0].url, 'http://anban.local/api/mind/snapshot?deviceId=dev-001');
+  assert.equal(requests[0].init.headers.Authorization, 'Bearer session-token');
+  assert.equal(requests[1].url, 'http://anban.local/api/mind/timeline?deviceId=dev-001&kind=action&limit=20&cursor=cursor%2F1');
+  assert.equal(requests[1].init.headers.Authorization, 'Bearer session-token');
+});
+
+test('mind snapshot view uses natural language first and hides internal labels', async () => {
+  const { buildMindSnapshotView } = await import('./integration-core.js');
+  const view = buildMindSnapshotView({
+    available: true,
+    updatedAt: '2026-06-20T08:00:00Z',
+    selfState: {
+      warmth: 0.81, concern: 0.72, curiosity: 0.46, playfulness: 0.31,
+      energy: 0.53, quietness: 0.64, patience: 0.70, confidence: 0.66,
+    },
+    lifeState: {
+      todayTheme: '轻轻留意老人状态',
+      careFocus: '最近互动偏少，先轻轻留意',
+      lingeringThoughts: ['晚上问候要轻一点', '晚上问候要轻一点'],
+      relationshipTemperature: 0.77,
+    },
+    latestThought: {
+      content: '妈妈今天说话少，我先保持安静陪着',
+      drive: 'quiet_presence',
+      emotionalTone: 'quiet',
+    },
+    latestAction: {
+      type: 'wait',
+      status: 'deferred',
+      reason: '不打断当前安静状态',
+    },
+  }, new Date('2026-06-20T08:06:30Z'));
+
+  assert.equal(view.available, true);
+  assert.equal(view.headline, '轻轻留意老人状态');
+  assert.equal(view.innerThought, '妈妈今天说话少，我先保持安静陪着');
+  assert.equal(view.careFocus, '最近互动偏少，先轻轻留意');
+  assert.equal(view.updatedAtLabel, '6分钟前');
+  assert.equal(view.isStale, true);
+  assert.ok(view.tags.includes('很温暖'));
+  assert.ok(view.tags.includes('更关切'));
+  assert.deepEqual(view.metricRows.map((item) => item.name), ['亲近感', '关切', '好奇', '轻松感', '活跃度', '安静倾向', '耐心', '判断把握']);
+  assert.equal(view.metricRows[0].percent, 81);
+  assert.equal(view.latestAction.label, '等待');
+  assert.equal(view.latestAction.statusLabel, '已延后');
+  assert.deepEqual(view.lingeringThoughts, ['晚上问候要轻一点']);
+  assert.doesNotMatch(JSON.stringify(view), /quiet_presence|deferred|warmth|concern/);
+});
+
+test('mind snapshot view gives a calm empty state', async () => {
+  const { buildMindSnapshotView } = await import('./integration-core.js');
+  const view = buildMindSnapshotView({ available: false });
+
+  assert.equal(view.available, false);
+  assert.equal(view.headline, '安伴正在熟悉家人的节奏');
+  assert.equal(view.innerThought, '有新的互动后，这里会出现安伴此刻在意的事');
+  assert.deepEqual(view.tags, ['平稳陪伴']);
+});
+
+test('mind timeline view maps history into readable filters without raw payloads', async () => {
+  const { buildMindTimelineItems } = await import('./integration-core.js');
+  const items = buildMindTimelineItems([
+    {
+      kind: 'thought',
+      at: '2026-06-20T08:00:00Z',
+      text: '想先看看妈妈是否需要空间',
+      category: 'quiet_presence',
+      decision: { type: 'wait', status: 'deferred', reason: '先不打断' },
+    },
+    {
+      kind: 'event',
+      at: '2026-06-20T07:55:00Z',
+      text: '妈妈说刚刚在看电视',
+      category: 'elder_spoke',
+    },
+    {
+      kind: 'action',
+      at: '2026-06-20T07:50:00Z',
+      text: '先不打断',
+      category: 'wait',
+    },
+  ], new Date('2026-06-20T08:10:00Z'));
+
+  assert.equal(items[0].kindLabel, '念头');
+  assert.equal(items[0].categoryLabel, '安静陪伴');
+  assert.equal(items[0].decision.label, '等待');
+  assert.equal(items[0].decision.statusLabel, '已延后');
+  assert.equal(items[0].timeLabel, '10分钟前');
+  assert.equal(items[1].kindLabel, '事件');
+  assert.equal(items[1].categoryLabel, '老人说话');
+  assert.equal(items[2].kindLabel, '选择');
+  assert.equal(items[2].categoryLabel, '等待');
+  assert.doesNotMatch(JSON.stringify(items), /quiet_presence|elder_spoke|deferred/);
+});
+
+test('childweb exposes AnBan moment entry, detail page, history page, and polling hooks', () => {
+  assert.match(indexHTML, /id="mindEntryCard"/);
+  assert.match(indexHTML, /安伴此刻/);
+  assert.match(indexHTML, /id="s-mind"/);
+  assert.match(indexHTML, /id="s-mind-history"/);
+  assert.match(appJS, /mind:'s-mind'/);
+  assert.match(appJS, /'mind-history':'s-mind-history'/);
+  assert.match(appJS, /startMindPolling/);
+  assert.match(appJS, /stopMindPolling/);
+  assert.match(appJS, /15000/);
+  assert.match(appJS, /visibilitychange/);
+  assert.match(appJS, /getMindSnapshot/);
+  assert.match(appJS, /listMindTimeline/);
+});
+
+test('PWA cache bumps after adding mind pages', async () => {
+  const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /anban-childweb-v8/);
 });

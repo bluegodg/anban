@@ -99,6 +99,192 @@ export function buildLatestMessageSummary(payload = {}) {
   return { label: '最近留言待播报', tone: 'pending' };
 }
 
+const MIND_METRICS = Object.freeze([
+  Object.freeze({ field: 'warmth', name: '亲近感', description: '安伴表达亲近和柔和的程度' }),
+  Object.freeze({ field: 'concern', name: '关切', description: '对老人状态保持留意的程度' }),
+  Object.freeze({ field: 'curiosity', name: '好奇', description: '主动理解新情况的程度' }),
+  Object.freeze({ field: 'playfulness', name: '轻松感', description: '表达轻松和活泼的倾向' }),
+  Object.freeze({ field: 'energy', name: '活跃度', description: '主动行动和回应的能量' }),
+  Object.freeze({ field: 'quietness', name: '安静倾向', description: '选择低打扰陪伴的倾向' }),
+  Object.freeze({ field: 'patience', name: '耐心', description: '等待和不急于打断的能力' }),
+  Object.freeze({ field: 'confidence', name: '判断把握', description: '对当前判断的确定程度' }),
+]);
+
+export function buildMindSnapshotView(snapshot = {}, now = new Date()) {
+  if (!snapshot || snapshot.available !== true) {
+    return {
+      available: false,
+      headline: '安伴正在熟悉家人的节奏',
+      innerThought: '有新的互动后，这里会出现安伴此刻在意的事',
+      careFocus: '等待设备产生新的互动',
+      updatedAtLabel: '暂无心智记录',
+      isStale: false,
+      tags: ['平稳陪伴'],
+      metricRows: [],
+      latestAction: null,
+      lingeringThoughts: [],
+    };
+  }
+
+  const state = snapshot.selfState || {};
+  const life = snapshot.lifeState || {};
+  const latestThought = snapshot.latestThought || {};
+  const headline = cleanText(life.todayTheme) || fallbackMindHeadline(state);
+  const innerThought = cleanText(latestThought.content) || cleanText(life.careFocus) || '正在安静陪伴';
+  const updatedAtLabel = snapshot.updatedAt ? formatRelativeTime(snapshot.updatedAt, now) : '暂无更新';
+  const updatedAt = new Date(snapshot.updatedAt || '');
+  const isStale = !Number.isNaN(updatedAt.getTime()) && (now.getTime() - updatedAt.getTime()) > 5 * 60 * 1000;
+
+  return {
+    available: true,
+    headline,
+    innerThought,
+    careFocus: cleanText(life.careFocus) || '暂时没有特别需要家人处理的事',
+    updatedAtLabel,
+    isStale,
+    tags: mindTags(state),
+    metricRows: MIND_METRICS.map((metric) => ({
+      name: metric.name,
+      percent: percentValue(state[metric.field]),
+      description: metric.description,
+    })),
+    latestAction: snapshot.latestAction ? publicMindAction(snapshot.latestAction) : null,
+    lingeringThoughts: [...new Set(cleanList(life.lingeringThoughts))],
+  };
+}
+
+export function buildMindTimelineItems(items = [], now = new Date()) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => item && cleanText(item.text))
+    .map((item) => ({
+      kindLabel: mindKindLabel(item.kind),
+      categoryLabel: mindCategoryLabel(item.category),
+      text: cleanText(item.text),
+      timeLabel: formatRelativeTime(item.at, now),
+      decision: item.decision ? publicMindAction(item.decision) : null,
+      reason: cleanText(item.reason),
+      lessons: cleanList(item.lessons),
+      relatedThought: cleanText(item.relatedThought),
+    }));
+}
+
+function fallbackMindHeadline(state = {}) {
+  if (Number(state.concern) >= 0.7) return '安伴正在多留意一些';
+  if (Number(state.quietness) >= 0.7) return '安伴此刻偏向安静陪伴';
+  if (Number(state.energy) >= 0.65) return '安伴此刻比较活跃';
+  return '安伴此刻保持平稳陪伴';
+}
+
+function mindTags(state = {}) {
+  const tags = [];
+  if (Number(state.warmth) >= 0.65) tags.push('很温暖');
+  if (Number(state.concern) >= 0.7) tags.push('更关切');
+  if (Number(state.quietness) >= 0.7) tags.push('偏安静');
+  if (Number(state.playfulness) >= 0.45) tags.push('更轻松');
+  if (Number(state.energy) >= 0.65) tags.push('较活跃');
+  return tags.length ? tags.slice(0, 3) : ['平稳陪伴'];
+}
+
+function publicMindAction(action = {}) {
+  return {
+    label: mindActionTypeLabel(action.type),
+    statusLabel: mindActionStatusLabel(action.status),
+    reason: cleanText(action.reason),
+    text: cleanText(action.text),
+  };
+}
+
+function mindActionTypeLabel(value) {
+  const map = {
+    speak: '开口',
+    wait: '等待',
+    listen: '聆听',
+    call_mcp_tool: '使用工具',
+    send_child_notification: '提醒家人',
+    update_role_prompt: '更新理解',
+    archive_memory: '整理记忆',
+    schedule_recheck: '稍后再看',
+    subtle_expression: '轻表达',
+    silent_state_update: '安静更新',
+  };
+  return map[value] || '一次选择';
+}
+
+function mindActionStatusLabel(value) {
+  const map = {
+    pending: '待执行',
+    executed: '已执行',
+    deferred: '已延后',
+    suppressed: '已安静略过',
+    failed: '未成功',
+  };
+  return map[value] || '状态未知';
+}
+
+function mindKindLabel(value) {
+  const map = {
+    thought: '念头',
+    action: '选择',
+    event: '事件',
+    reflection: '反思',
+  };
+  return map[value] || '记录';
+}
+
+function mindCategoryLabel(value) {
+  const map = {
+    quiet_presence: '安静陪伴',
+    companionship: '陪伴',
+    care: '关切',
+    curiosity: '理解情况',
+    play: '轻松互动',
+    stewardship: '照护安排',
+    family_bridge: '家人连接',
+    elder_spoke: '老人说话',
+    assistant_spoke: '安伴回应',
+    child_message_received: '家人留言',
+    reminder_created: '提醒创建',
+    reminder_due: '提醒到期',
+    reminder_acknowledged: '提醒确认',
+    greeting_requested: '主动问候',
+    presence_seen: '看到有人',
+    presence_absent: '暂未看到人',
+    vision_observation: '看一眼',
+    device_online: '设备在线',
+    device_offline: '设备离线',
+    long_silence: '长时间安静',
+    profile_updated: '资料更新',
+    memory_distilled: '记忆整理',
+    action_executed: '选择回写',
+    feedback_observed: '反馈观察',
+    idle_tick: '心智巡检',
+    reflection_tick: '反思',
+    life_tick: '生活流更新',
+    reflection: '反思整理',
+    speak: '开口',
+    wait: '等待',
+    listen: '聆听',
+    call_mcp_tool: '使用工具',
+    send_child_notification: '提醒家人',
+    update_role_prompt: '更新理解',
+    archive_memory: '整理记忆',
+    schedule_recheck: '稍后再看',
+    subtle_expression: '轻表达',
+    silent_state_update: '安静更新',
+  };
+  return map[value] || '心智记录';
+}
+
+function percentValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, Math.round(number * 100)));
+}
+
+function cleanText(value) {
+  return String(value || '').trim();
+}
+
 export function groupVisionCapturesByDate(captures = [], now = new Date()) {
   const valid = (Array.isArray(captures) ? captures : [])
     .filter((capture) => capture && String(capture.imageUrl || '').trim())

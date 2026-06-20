@@ -27,6 +27,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind/engine"
 	"github.com/bluegodg/anban/server/internal/mind/executors"
 	"github.com/bluegodg/anban/server/internal/mind/promptctx"
+	"github.com/bluegodg/anban/server/internal/mindview"
 	"github.com/bluegodg/anban/server/internal/openmemory"
 	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
@@ -178,6 +179,7 @@ func main() {
 	if err := mindStore.AutoMigrate(); err != nil {
 		log.Fatalf("mind 表迁移失败: %v", err)
 	}
+	mindReadHandler := mindview.NewHandler(mind.NewReadService(mindStore))
 	mindEngine := engine.New(mindStore)
 	mindEngine.UseCompanionContextReader(profileCompanionContextReader{profiles: profileService})
 	configureMindEngine(mindEngine, cfg)
@@ -226,6 +228,7 @@ func main() {
 		ProfileRoutes:        profileHandler,
 		MemoryRoutes:         memoryHandler,
 		VisionRoutes:         visionHandler,
+		MindRoutes:           mindReadHandler,
 		TimelineRoutes:       timelineHandler,
 	})
 	if cfg.MemoryProviderToken != "" {

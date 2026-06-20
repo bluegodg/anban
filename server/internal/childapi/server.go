@@ -22,6 +22,7 @@ type Deps struct {
 	ProfileRoutes        RouteRegistrar
 	MemoryRoutes         RouteRegistrar
 	VisionRoutes         RouteRegistrar
+	MindRoutes           RouteRegistrar
 	AccountService       *account.Service
 	DeviceBindingService *devicebinding.Service
 	TimelineRoutes       RouteRegistrar
@@ -107,6 +108,9 @@ func NewRouter(d Deps) *gin.Engine {
 	}
 	if d.TimelineRoutes != nil {
 		d.TimelineRoutes.RegisterRoutes(deviceAPI)
+	}
+	if d.MindRoutes != nil {
+		d.MindRoutes.RegisterRoutes(deviceAPI)
 	}
 
 	return r

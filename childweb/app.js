@@ -4,6 +4,8 @@ import {
   buildConversationBubbles,
   buildHomeStatus,
   buildLatestMessageSummary,
+  buildMindSnapshotView,
+  buildMindTimelineItems,
   buildReminderScheduleOptions,
   buildVisionCaptureView,
   buildVisionLookProgress,
@@ -33,6 +35,11 @@ var visionHistoryObjectURLs = new Map();
 var visionHistoryObserver = null;
 var visionHistoryLoadGeneration = 0;
 var visionPendingDeleteID = '';
+var mindLastSnapshot = null;
+var mindSnapshotError = '';
+var mindPollingTimer = null;
+var mindTimelineState = { kind: 'all', cursor: '', hasMore: false, loading: false, items: [] };
+var MIND_REFRESH_MS = 15000;
 
 window.anbanRuntime = {
   ApiError,
@@ -208,6 +215,7 @@ var SPA = {
   sectionsWithNav: { home:1, warn:1, message:1, family:1, mine:1 },
   sectionIds: {
     login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine',
+    mind:'s-mind', 'mind-history':'s-mind-history',
     'family-profile':'s-family-profile', 'family-memory':'s-family-memory', 'family-edit':'s-family-edit',
     'settings-account':'s-settings-account', 'settings-device':'s-settings-device',
     'settings-connection':'s-settings-connection', 'settings-greeting':'s-settings-greeting',
@@ -218,7 +226,7 @@ var SPA = {
 function navigateTo(name) {
   // Save warn scroll position before navigating to sub-pages (detail, history)
   // Only sub-pages should restore scroll when returning; main pages should reset to top
-  var subPages = ['detail', 'history', 'reminder-list', 'family-profile', 'family-memory', 'family-edit', 'settings-account', 'settings-device', 'settings-connection', 'settings-greeting'];
+  var subPages = ['detail', 'history', 'reminder-list', 'mind', 'mind-history', 'family-profile', 'family-memory', 'family-edit', 'settings-account', 'settings-device', 'settings-connection', 'settings-greeting'];
   if (SPA.currentSection === 'warn' && subPages.indexOf(name) >= 0) {
     var inner = document.getElementById('screenInner');
     if (inner) SPA._warnScrollTop = inner.scrollTop;
@@ -255,6 +263,7 @@ function showSection(name) {
   // Reset login UI when entering login page
   if (name === 'login') resetLoginUI();
   if (name !== 'home') closeVisionHistory();
+  if (name !== 'home' && name !== 'mind') stopMindPolling();
   if (SPA.currentSection && name !== SPA.currentSection) closeReminderCreateModal();
 
   // Hide current
@@ -303,13 +312,14 @@ function showSection(name) {
 
   // Lazy init
   var initFn = 'init' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-./g, function(x){return x[1].toUpperCase()});
-  var alwaysRefresh = ['history', 'reminder-list', 'detail'];
+  var alwaysRefresh = ['history', 'reminder-list', 'mind-history', 'detail'];
   if ((!SPA.initialized[name] || alwaysRefresh.indexOf(name) >= 0) && typeof window[initFn] === 'function') {
     SPA.initialized[name] = true;
     window[initFn]();
   }
 
   if (name === 'home' && typeof window.refreshHome === 'function') window.refreshHome();
+  if ((name === 'home' || name === 'mind') && typeof window.startMindPolling === 'function') window.startMindPolling();
   if (name === 'message' && typeof window.refreshMessages === 'function') window.refreshMessages();
   if (name === 'warn' && typeof window.refreshReminders === 'function') window.refreshReminders();
 
@@ -360,8 +370,12 @@ Object.assign(window, {
   saveAccountProfile,
   resetDeviceBindingCode,
   unbindCurrentDevice,
+  startMindPolling,
+  stopMindPolling,
   initLogin,
   initHome,
+  initMind,
+  initMindHistory,
   initMessage,
   initWarn,
   initReminderList,
@@ -379,6 +393,16 @@ Object.assign(window, {
 // Hash change handler
 window.addEventListener('hashchange', function() {
   showSection(getRouteFromHash());
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    stopMindPolling();
+    return;
+  }
+  if (SPA.currentSection === 'home' || SPA.currentSection === 'mind') {
+    startMindPolling();
+  }
 });
 
 // Initial load
@@ -557,7 +581,7 @@ function initLogin() {
 
 function applyBindingState() {
   var locked = isAccountMode() && !anbanSession.binding;
-  ['s-home', 's-message', 's-warn', 's-family', 's-family-profile', 's-family-memory', 's-family-edit'].forEach(function(sectionId) {
+  ['s-home', 's-message', 's-warn', 's-mind', 's-mind-history', 's-family', 's-family-profile', 's-family-memory', 's-family-edit'].forEach(function(sectionId) {
     var section = document.getElementById(sectionId);
     if (!section) return;
     section.classList.toggle('anban-unbound-section', locked);
@@ -703,6 +727,271 @@ async function unbindCurrentDevice() {
   } catch (error) {
     showToast(error.message || '设备解绑失败');
   }
+}
+
+function setText(id, value) {
+  var target = document.getElementById(id);
+  if (target) target.textContent = value;
+}
+
+function renderMindTags(id, tags) {
+  var host = document.getElementById(id);
+  if (!host) return;
+  host.innerHTML = '';
+  (tags || []).forEach(function(label) {
+    var tag = document.createElement('span');
+    tag.className = 'ab-tag ab-tag-cat';
+    tag.textContent = label;
+    host.appendChild(tag);
+  });
+}
+
+function renderMindSurfaces() {
+  var view = buildMindSnapshotView(mindLastSnapshot || { available: false });
+  var status = mindSnapshotError ? (mindLastSnapshot ? '暂时无法更新' : '读取失败') : view.updatedAtLabel;
+
+  setText('mindEntryHeadline', view.headline);
+  setText('mindEntryThought', view.innerThought);
+  setText('mindEntryTime', status);
+  setText('mindEntryStatus', view.isStale ? '需要刷新' : (view.available ? '实时心智' : '等待互动'));
+  renderMindTags('mindEntryTags', view.tags);
+
+  setText('mindDetailHeadline', view.headline);
+  setText('mindDetailThought', view.innerThought);
+  setText('mindDetailFocus', view.careFocus);
+  setText('mindDetailUpdatedAt', status);
+  renderMindTags('mindDetailTags', view.tags);
+  renderMindMetrics(view.metricRows);
+  renderMindLatestAction(view.latestAction);
+  renderMindLingeringThoughts(view.lingeringThoughts);
+}
+
+function renderMindMetrics(rows) {
+  var host = document.getElementById('mindMetricRows');
+  if (!host) return;
+  host.innerHTML = '';
+  if (!rows || !rows.length) {
+    var empty = document.createElement('p');
+    empty.style.cssText = 'font-size:13px;color:var(--ab-ink3);margin:0';
+    empty.textContent = '暂无指标';
+    host.appendChild(empty);
+    return;
+  }
+  rows.forEach(function(row) {
+    var item = document.createElement('div');
+    item.className = 'mind-metric-row';
+    item.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px"><strong></strong><span></span></div><div class="mind-meter"><i></i></div><p></p>';
+    item.querySelector('strong').textContent = row.name;
+    item.querySelector('span').textContent = row.percent + '%';
+    item.querySelector('i').style.width = row.percent + '%';
+    item.querySelector('p').textContent = row.description;
+    host.appendChild(item);
+  });
+}
+
+function renderMindLatestAction(action) {
+  var host = document.getElementById('mindLatestAction');
+  if (!host) return;
+  host.innerHTML = '';
+  if (!action) {
+    host.textContent = '安伴还没有做出新的选择';
+    return;
+  }
+  var title = document.createElement('div');
+  title.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
+  var label = document.createElement('strong');
+  label.textContent = action.label;
+  var status = document.createElement('span');
+  status.className = 'ab-tag ab-tag-off';
+  status.textContent = action.statusLabel;
+  title.appendChild(label);
+  title.appendChild(status);
+  host.appendChild(title);
+  if (action.reason) {
+    var reason = document.createElement('p');
+    reason.style.cssText = 'font-size:13px;line-height:1.55;color:var(--ab-ink2);margin:9px 0 0';
+    reason.textContent = action.reason;
+    host.appendChild(reason);
+  }
+}
+
+function renderMindLingeringThoughts(thoughts) {
+  var host = document.getElementById('mindLingeringThoughts');
+  if (!host) return;
+  host.innerHTML = '';
+  if (!thoughts || !thoughts.length) {
+    host.textContent = '没有特别挂念的事项';
+    return;
+  }
+  thoughts.slice(0, 3).forEach(function(text) {
+    var item = document.createElement('li');
+    item.textContent = text;
+    host.appendChild(item);
+  });
+}
+
+async function refreshMindSnapshot() {
+  if (!isDeviceBound()) {
+    mindLastSnapshot = null;
+    mindSnapshotError = '';
+    renderMindSurfaces();
+    return;
+  }
+  try {
+    mindLastSnapshot = await anbanClient.getMindSnapshot({ deviceId: anbanConfig.deviceId });
+    mindSnapshotError = '';
+  } catch (error) {
+    mindSnapshotError = error.message || '心智读取失败';
+  }
+  renderMindSurfaces();
+}
+
+function startMindPolling() {
+  if (document.hidden) return;
+  stopMindPolling();
+  refreshMindSnapshot();
+  mindPollingTimer = setInterval(refreshMindSnapshot, MIND_REFRESH_MS);
+}
+
+function stopMindPolling() {
+  if (mindPollingTimer) {
+    clearInterval(mindPollingTimer);
+    mindPollingTimer = null;
+  }
+}
+
+async function loadMindRecentThoughts() {
+  var host = document.getElementById('mindRecentList');
+  if (!host || !isDeviceBound()) return;
+  host.innerHTML = '<div style="padding:18px 0;color:var(--ab-ink3);font-size:13px">正在读取最近念头</div>';
+  try {
+    var page = await anbanClient.listMindTimeline({ deviceId: anbanConfig.deviceId, kind: 'thought', limit: 5 });
+    renderMindTimelineList(host, buildMindTimelineItems(page.items || []), '暂无最近念头');
+  } catch (error) {
+    host.innerHTML = '<div style="padding:18px 0;color:var(--ab-ink3);font-size:13px">最近念头读取失败</div>';
+  }
+}
+
+function renderMindTimelineList(host, items, emptyText) {
+  host.innerHTML = '';
+  if (!items.length) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'padding:20px 0;color:var(--ab-ink3);font-size:13px;text-align:center';
+    empty.textContent = emptyText;
+    host.appendChild(empty);
+    return;
+  }
+  items.forEach(function(item) {
+    var card = document.createElement('article');
+    card.className = 'mind-timeline-item';
+    var top = document.createElement('div');
+    top.className = 'mind-timeline-top';
+    var left = document.createElement('span');
+    left.textContent = item.kindLabel + ' · ' + item.categoryLabel;
+    var right = document.createElement('time');
+    right.textContent = item.timeLabel;
+    top.appendChild(left);
+    top.appendChild(right);
+    var text = document.createElement('p');
+    text.textContent = item.text;
+    card.appendChild(top);
+    card.appendChild(text);
+    if (item.decision) {
+      var decision = document.createElement('div');
+      decision.className = 'mind-decision-line';
+      decision.textContent = item.decision.label + ' · ' + item.decision.statusLabel + (item.decision.reason ? '：' + item.decision.reason : '');
+      card.appendChild(decision);
+    }
+    if (item.relatedThought) {
+      var related = document.createElement('div');
+      related.className = 'mind-decision-line';
+      related.textContent = '相关念头：' + item.relatedThought;
+      card.appendChild(related);
+    }
+    if (item.lessons && item.lessons.length) {
+      var lesson = document.createElement('div');
+      lesson.className = 'mind-decision-line';
+      lesson.textContent = item.lessons.slice(0, 2).join('；');
+      card.appendChild(lesson);
+    }
+    host.appendChild(card);
+  });
+}
+
+function initMind() {
+  var toggle = document.getElementById('mindMetricsToggle');
+  var panel = document.getElementById('mindMetricsPanel');
+  if (toggle && panel && !toggle.dataset.bound) {
+    toggle.dataset.bound = '1';
+    toggle.addEventListener('click', function() {
+      var open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : '';
+      var icon = toggle.querySelector('.material-symbols-outlined');
+      if (icon) icon.textContent = open ? 'expand_more' : 'expand_less';
+    });
+  }
+  var historyLink = document.getElementById('mindHistoryLink');
+  if (historyLink && !historyLink.dataset.bound) {
+    historyLink.dataset.bound = '1';
+    historyLink.addEventListener('click', function() { navigateTo('mind-history'); });
+  }
+  startMindPolling();
+  loadMindRecentThoughts();
+}
+
+function setMindHistoryKind(kind) {
+  mindTimelineState = { kind: kind, cursor: '', hasMore: false, loading: false, items: [] };
+  loadMindHistoryPage(true);
+}
+
+async function loadMindHistoryPage(reset) {
+  if (mindTimelineState.loading || !isDeviceBound()) return;
+  mindTimelineState.loading = true;
+  var host = document.getElementById('mindHistoryList');
+  var more = document.getElementById('mindHistoryMore');
+  if (reset && host) host.innerHTML = '<div style="padding:24px 0;text-align:center;color:var(--ab-ink3);font-size:13px">正在读取心智轨迹</div>';
+  if (more) more.disabled = true;
+  try {
+    var page = await anbanClient.listMindTimeline({
+      deviceId: anbanConfig.deviceId,
+      kind: mindTimelineState.kind,
+      limit: 20,
+      cursor: reset ? '' : mindTimelineState.cursor,
+    });
+    var nextItems = buildMindTimelineItems(page.items || []);
+    mindTimelineState.items = reset ? nextItems : mindTimelineState.items.concat(nextItems);
+    mindTimelineState.cursor = page.nextCursor || '';
+    mindTimelineState.hasMore = Boolean(page.hasMore);
+    if (host) renderMindTimelineList(host, mindTimelineState.items, '暂无心智轨迹');
+  } catch (error) {
+    if (host) host.innerHTML = '<div style="padding:24px 0;text-align:center;color:var(--ab-ink3);font-size:13px">心智轨迹读取失败</div>';
+  } finally {
+    mindTimelineState.loading = false;
+    if (more) {
+      more.disabled = false;
+      more.style.display = mindTimelineState.hasMore ? '' : 'none';
+    }
+  }
+}
+
+function initMindHistory() {
+  var buttons = document.querySelectorAll('[data-mind-filter]');
+  buttons.forEach(function(button) {
+    if (button.dataset.bound) return;
+    button.dataset.bound = '1';
+    button.addEventListener('click', function() {
+      buttons.forEach(function(item) { item.classList.remove('active'); });
+      button.classList.add('active');
+      setMindHistoryKind(button.dataset.mindFilter || 'all');
+    });
+  });
+  var more = document.getElementById('mindHistoryMore');
+  if (more && !more.dataset.bound) {
+    more.dataset.bound = '1';
+    more.addEventListener('click', function() { loadMindHistoryPage(false); });
+  }
+  var current = document.querySelector('[data-mind-filter].active');
+  setMindHistoryKind((current && current.dataset.mindFilter) || 'all');
 }
 
 // ============================

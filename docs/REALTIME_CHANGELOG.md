@@ -2,6 +2,30 @@
 
 > 目的：记录本轮代码编写中每一批改动的文件、内容、目的、功能和验证方式。后续每次代码改动都要同步更新本文件。
 
+## 2026-06-20
+
+### 子女端“安伴此刻”第一批：Mind 只读投影 API
+
+- 文件：`server/internal/mind/`、`server/internal/mindview/`、`server/internal/childapi/server.go`、`server/cmd/anban/main.go`。
+- 内容：新增 Mind 只读 read model，提供家属端可读的 snapshot 和 timeline 投影；snapshot 返回 `available`、8 项公开心智指标、生活状态、最新念头和对应选择；timeline 支持 `all/thought/action/event/reflection`、`limit` 与不透明 cursor，“全部”把念头和对应选择合并展示，避免同一轮心智重复出现。
+- 权限：通过 `MindRoutes` 注入 childapi 设备鉴权组；账号模式强制使用当前绑定设备，旧访问码模式继续使用 query `deviceId`；所有家庭成员均可只读访问，不新增写操作。
+- 边界：不新增数据库字段或迁移，不改 Mind 决策逻辑、小智、固件或设备协议；公开 JSON 不返回事件 payload、source event、memory id、executorRef、动作 args、人格权重或数据库 ID。时间线按 `time.Time` 的真实时间点排序，避免 +08 与 UTC 字符串排序错误。
+- TDD：先新增 read model 和 mindview 路由测试，RED 阶段分别失败于 `NewReadService/TimelineQuery` 不存在、`MindRoutes/NewHandler` 不存在；最小实现后 `go test ./internal/mind ./internal/mindview ./internal/childapi` 转绿。
+- 验证：`npm test --prefix childweb` 53/53、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。已通过 `deploy.sh` 部署到 `101.34.214.149`；服务器内网验证 `/health`、`/api/mind/snapshot`、`/api/mind/timeline` 均返回 200，snapshot 有 selfState/lifeState，timeline 返回 thought/event/reflection 且 `hasMore=true`，未发现 payload、executorRef、人格权重等内部字段泄漏。
+
+### 子女端“安伴此刻”第二批：首页入口、详情页与完整轨迹
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/integration-core.js`、`childweb/api/client.js`、`web/api/client.js`、`childweb/smoke.test.mjs`、`childweb/sw.js`。
+- 内容：首页设备状态卡下方新增“安伴此刻”入口，展示当前主题、最新内心念头、心境标签和更新时间；新增 `#mind` 详情页，展示当前心境、今天在意什么、最近选择、最近念头和默认折叠的 8 项指标；新增 `#mind-history` 专属页面，支持全部/念头/选择/事件/反思筛选和 cursor 加载更多。
+- 交互：首页和心智详情页可见时立即刷新并每 15 秒轮询 snapshot；离开页面或浏览器隐藏时停止轮询；历史页不轮询，只按筛选和加载更多读取分页。请求失败时保留本次运行内最后一次成功 snapshot 并标记暂时无法更新。
+- 文案：新增 `buildMindSnapshotView` 和 `buildMindTimelineItems`，把内部枚举映射为家属可读中文；页面不展示 `quiet_presence/deferred/warmth` 等原始代码，不暴露 payload、内部 ID 或调试字段。
+- 视觉复核：详情页对生活流挂念内容去重；“选择”筛选将动作类别显示为“开口/等待/聆听”等中文，不再回退为泛化的“心智记录”。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v8`。
+- TDD：先新增 6 条 childweb RED 测试，覆盖 Mind API client、自然语言 snapshot、空态、timeline 映射、DOM/路由/轮询钩子和 cache v8；实现后 `npm test --prefix childweb` 59/59 转绿。
+- 验证：`npm test --prefix childweb` 59/59、`npm test --prefix web` 80/80、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过；补充后端 limit 50 上限和非法 kind/limit 测试。
+- 远端部署：仅上传 `index.html`、`app.js`、`integration-core.js`、`sw.js`、`api/client.js` 到 `101.34.214.149:/home/ubuntu/anban/childweb/`，保留 `config.js`、密钥和 APK；旧文件备份于 `/home/ubuntu/anban/deploy-backups/mind-view-20260620-163721`，本地/远端 SHA-256 一致。
+- 手机验收：Playwright 在 `390x844` 打开线上 `8091`，首页、`#mind`、`#mind-history` 无横向溢出或内容重叠；8 项指标默认折叠并可展开；五类筛选可用，“选择”显示开口/等待，加载更多 20→40。历史页停留 16 秒 snapshot 请求数保持 6，返回详情页后 16 秒 7→8；断网后保留主题并显示“暂时无法更新”，恢复网络后自动恢复相对时间。正常在线流程控制台 0 error、0 warning。
+
 ## 2026-06-19
 
 ### 20:25 真机长记忆身份映射修复
