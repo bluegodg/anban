@@ -318,6 +318,51 @@ func TestHandlerListCapturesUsesBoundDeviceContext(t *testing.T) {
 	}
 }
 
+func TestHandlerDeleteCaptureReturnsExpectedStatuses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	visionStore := newVisionTestStore(t)
+	now := time.Now().UTC()
+	for _, capture := range []Capture{
+		{CaptureID: "cap_delete", DeviceID: "dev-bound", Status: CaptureStatusSucceeded, Presence: PresenceSomeone, ExpiresAt: now.Add(24 * time.Hour)},
+		{CaptureID: "cap_pending", DeviceID: "dev-bound", Status: CaptureStatusPending, Presence: PresenceUnknown, ExpiresAt: now.Add(24 * time.Hour)},
+		{CaptureID: "cap_other", DeviceID: "dev-other", Status: CaptureStatusSucceeded, Presence: PresenceSomeone, ExpiresAt: now.Add(24 * time.Hour)},
+	} {
+		capture := capture
+		if err := visionStore.CreateCapture(context.Background(), &capture); err != nil {
+			t.Fatalf("CreateCapture %s: %v", capture.CaptureID, err)
+		}
+	}
+	svc := NewService(&visionClient{})
+	svc.UseStore(visionStore)
+	svc.UseMediaRoot(t.TempDir())
+	r := gin.New()
+	r.Use(accountDeviceContext("dev-bound"))
+	NewHandler(svc).RegisterRoutes(r.Group("/api"))
+
+	for _, tt := range []struct {
+		captureID string
+		wantCode  int
+		wantError string
+	}{
+		{captureID: "cap_delete", wantCode: http.StatusNoContent},
+		{captureID: "cap_pending", wantCode: http.StatusConflict, wantError: "capture_in_progress"},
+		{captureID: "cap_other", wantCode: http.StatusNotFound, wantError: "capture_not_found"},
+		{captureID: "cap_missing", wantCode: http.StatusNotFound, wantError: "capture_not_found"},
+	} {
+		t.Run(tt.captureID, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodDelete, "/api/vision/captures/"+tt.captureID, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != tt.wantCode {
+				t.Fatalf("DELETE status = %d, want %d; body=%s", w.Code, tt.wantCode, w.Body.String())
+			}
+			if tt.wantError != "" && !strings.Contains(w.Body.String(), tt.wantError) {
+				t.Fatalf("DELETE body = %s, want %s", w.Body.String(), tt.wantError)
+			}
+		})
+	}
+}
+
 func TestHandlerDeviceVisionUploadRequiresIngressTokenAndCompletesCapture(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	forwarder := &fakeVisionForwarder{

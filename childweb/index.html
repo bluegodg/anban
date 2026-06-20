@@ -24,15 +24,7 @@
   /* Full-screen app shell */
   .phone-frame {width:100vw;height:100dvh;background:#FAF6F0}
   .phone-screen {overflow:hidden;width:100%;height:100%;background:#FAF6F0;position:relative}
-  .status-bar {width:100%;height:54px;flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 28px 8px;background:transparent;position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none;transition:color 0.3s ease}
-  .status-bar.light {color:#fff;background:transparent}
-  .status-bar.dark {color:#1b1c1c;background:#FAF6F0}
-  .spa-section {padding-top:54px}
-  #s-login {padding-top:0}
-  .spa-section > header {top:54px;position:sticky}
-  .status-bar-time {font-size:15px;font-weight:600;color:inherit;letter-spacing:0.02em}
-  .status-bar-icons {display:flex;align-items:center;gap:6px}
-  .status-bar-icons svg {display:block}
+  .spa-section > header {top:0;position:sticky}
   .phone-screen-inner {width:100%;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   /* WeChat-style thin scrollbar */
   ::-webkit-scrollbar {width:3px;height:3px}
@@ -219,13 +211,39 @@
   .vision-result-image-wrap{aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#efe5dc;border:1px solid rgba(139,91,68,.18)}
   .vision-result-image-wrap img{width:100%;height:100%;object-fit:cover;display:block}
   .vision-result-image-wrap.is-empty{display:flex;align-items:center;justify-content:center;color:var(--ab-ink3);font-size:13px}
+  .vision-history-overlay{position:absolute;inset:0;z-index:110;background:rgba(46,31,24,.38);opacity:0;pointer-events:none;transition:opacity .22s ease}
+  .vision-history-overlay.open{opacity:1;pointer-events:auto}
+  .vision-history-sheet{position:absolute;left:0;right:0;bottom:0;z-index:111;height:min(88%,760px);background:var(--ab-bg);border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;box-shadow:0 -18px 50px rgba(54,32,22,.2)}
+  .vision-history-sheet.open{transform:translateY(0)}
+  .vision-history-header{height:68px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--ab-line)}
+  .vision-history-content{flex:1;overflow-y:auto;padding:14px 16px 28px;-webkit-overflow-scrolling:touch}
+  .vision-history-group+.vision-history-group{margin-top:20px}
+  .vision-history-date{font-size:12px;font-weight:800;color:var(--ab-primary);margin:0 0 10px;letter-spacing:0}
+  .vision-history-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+  .vision-history-item{position:relative;min-width:0;background:#fff;border:1px solid var(--ab-line);border-radius:8px;overflow:hidden}
+  .vision-history-open{display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;color:inherit}
+  .vision-history-thumb{aspect-ratio:4/3;background:#eee4dc;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--ab-ink3)}
+  .vision-history-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .vision-history-meta{padding:9px 10px 10px}
+  .vision-history-time{display:block;font-size:12px;font-weight:800;color:var(--ab-ink)}
+  .vision-history-summary{display:block;font-size:11px;color:var(--ab-ink2);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vision-history-menu{position:absolute;top:7px;right:7px;width:30px;height:30px;border:0;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;color:var(--ab-ink);box-shadow:0 2px 8px rgba(45,25,18,.14)}
+  .vision-delete-overlay{position:absolute;inset:0;z-index:124;background:rgba(46,31,24,.45);opacity:0;pointer-events:none;transition:opacity .18s}
+  .vision-delete-overlay.open{opacity:1;pointer-events:auto}
+  .vision-delete-confirm{position:absolute;left:18px;right:18px;top:50%;z-index:125;transform:translateY(-46%) scale(.97);background:#fff;border-radius:12px;padding:20px;opacity:0;pointer-events:none;transition:all .18s;box-shadow:0 20px 60px rgba(45,25,18,.24)}
+  .vision-delete-confirm.open{transform:translateY(-50%) scale(1);opacity:1;pointer-events:auto}
+  .reminder-create-overlay{position:absolute;inset:0;z-index:80;background:rgba(46,31,24,.38);opacity:0;pointer-events:none;transition:opacity .22s}
+  .reminder-create-overlay.open{opacity:1;pointer-events:auto}
+  .reminder-create-sheet{position:absolute;left:0;right:0;bottom:0;z-index:81;height:min(88%,760px);background:var(--ab-bg);border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;box-shadow:0 -18px 50px rgba(54,32,22,.2)}
+  .reminder-create-sheet.open{transform:translateY(0)}
+  .reminder-create-header{height:68px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--ab-line)}
+  .reminder-create-body{flex:1;overflow-y:auto;padding:18px 18px 28px;-webkit-overflow-scrolling:touch}
 </style>
 </head>
 <body>
 
 <div class="phone-frame">
   <div class="phone-screen">
-    <div class="status-bar dark" id="globalStatusBar" style="position:absolute;top:0;left:0;right:0;z-index:99;pointer-events:none"><span class="status-bar-time">9:41</span><div class="status-bar-icons"><svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="4" width="3" height="8" rx="1" fill="currentColor"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="3" height="11" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg><svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 3C5.5 3 3.2 3.8 1.4 5.2L0 3.8C2.2 2 5 1 8 1s5.8 1 8 2.8L14.6 5.2C12.8 3.8 10.5 3 8 3z" fill="currentColor"/><path d="M8 6.5c-1.7 0-3.2.6-4.4 1.6L2.2 6.7C3.8 5.3 5.8 4.5 8 4.5s4.2.8 5.8 2.2L12.4 8.1C11.2 7.1 9.7 6.5 8 6.5z" fill="currentColor"/><circle cx="8" cy="10.5" r="1.5" fill="currentColor"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0" y="0.5" width="23" height="12" rx="3.5" stroke="currentColor" stroke-width="1" fill="none"/><rect x="24" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.4"/><rect x="2" y="2.5" width="18" height="8" rx="1.5" fill="currentColor"/></svg></div></div>
     <button class="unbound-notice" id="unboundNotice" type="button" onclick="openBindDevice()">
       <span style="display:flex;align-items:center;gap:9px;text-align:left"><span class="material-symbols-outlined" style="color:#a45b28">link_off</span><span><strong style="display:block;color:#5f3524;font-size:13px">请先绑定安伴设备</strong><span style="font-size:11px;color:#9a735f">绑定后解锁状态、留言和提醒</span></span></span>
       <span class="material-symbols-outlined" style="color:#a45b28">chevron_right</span>
@@ -296,9 +314,9 @@
 
       <!-- ============ LOGIN ============ -->
       <section class="spa-section" id="s-login" data-statusbar="light">
-        <div style="position:relative;height:230px;flex-shrink:0;margin-top:-54px;overflow:hidden;background:linear-gradient(160deg,#EE9670,#F4B48F)">
+        <div style="position:relative;height:210px;flex-shrink:0;overflow:hidden;background:linear-gradient(160deg,#EE9670,#F4B48F)">
           <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,#FAF6F0)"></div>
-          <div style="position:relative;text-align:center;padding-top:88px;color:#fff">
+          <div style="position:relative;text-align:center;padding-top:44px;color:#fff">
             <div class="ab-iconbox" style="display:inline-flex;width:54px;height:54px;border-radius:15px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4)"><span class="material-symbols-outlined" style="font-size:26px">nest_eco_leaf</span></div>
             <div style="font-size:25px;font-weight:800;margin-top:12px;letter-spacing:.01em">安伴</div>
             <div style="font-size:12.5px;opacity:.92;margin-top:5px">和家人一起，陪伴老人</div>
@@ -365,53 +383,31 @@
               <span class="ab-tag ab-tag-ok" id="deviceStatusBadge"><span class="ab-dot" id="deviceStatusDot"></span><span id="deviceStatusLabel">在线</span></span>
               <span style="font-size:11px;color:var(--ab-ink3)" id="statusTime">刚刚活跃</span>
             </div>
-            <h2 id="statusTitle" style="font-size:24px;font-weight:800;color:var(--ab-ink);line-height:1.26;letter-spacing:-0.015em">家人今天状态很好</h2>
+            <h2 id="statusTitle" style="font-size:24px;font-weight:800;color:var(--ab-ink);line-height:1.26;letter-spacing:0">家人今天状态很好</h2>
             <p id="statusDesc" style="font-size:13px;color:var(--ab-ink2);margin-top:10px;line-height:1.55">正在加载中...</p>
+            <button type="button" onclick="navigateTo('message')" style="margin-top:13px;padding-top:11px;border:0;border-top:1px solid rgba(154,68,41,.12);background:transparent;width:100%;display:flex;align-items:center;justify-content:space-between;color:var(--ab-ink2);font-size:12px">
+              <span id="latestMessageStatus">正在读取留言状态</span><span class="material-symbols-outlined" style="font-size:17px">chevron_right</span>
+            </button>
           </section>
-          <div style="position:relative;display:flex;gap:10px;margin-bottom:22px">
-            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="flex:1.3;padding:15px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left">
+          <div style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px">
+            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:8px;text-align:left">
               <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:700">问候妈妈</span><span id="greetingStatusText" style="display:block;font-size:11px;color:rgba(255,255,255,.82);margin-top:2px">让安伴主动开口</span></span>
               <span class="material-symbols-outlined" style="font-size:20px;flex-shrink:0">record_voice_over</span>
             </button>
-            <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="flex:1;padding:14px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left">
+            <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:5px;text-align:left">
               <span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">visibility</span>
               <span id="visionLookButtonLabel" style="font-size:14px;font-weight:700;color:#5a3526">看一眼</span>
               <span id="visionStatusText" style="font-size:11px;color:var(--ab-ink2);font-weight:400">看看老人在不在</span>
             </button>
+            <button id="visionHistoryButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:82px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left">
+              <span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">photo_library</span><span style="display:block;font-size:14px;font-weight:700;color:#5a3526;margin-top:7px">原图记录</span></span>
+              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-ink3)">chevron_right</span>
+            </button>
+            <button type="button" class="ab-btn-ghost active:scale-95 transition-all" onclick="navigateTo('message')" style="min-height:82px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left">
+              <span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">chat_bubble</span><span style="display:block;font-size:14px;font-weight:700;color:#5a3526;margin-top:7px">给妈妈留言</span></span>
+              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-ink3)">chevron_right</span>
+            </button>
           </div>
-          <section style="position:relative;margin-bottom:22px">
-            <div class="flex justify-between items-baseline" style="margin-bottom:11px">
-              <span class="ab-label">最近看一眼</span>
-              <span style="font-size:12px;color:#b08a78">原图记录</span>
-            </div>
-            <div id="visionRecentList" style="display:flex;flex-direction:column;gap:9px">
-              <div class="ab-card" style="padding:13px;color:var(--ab-ink3);font-size:13px">暂无拍摄记录</div>
-            </div>
-          </section>
-          
-          <section style="position:relative;margin-bottom:22px">
-            <div class="flex justify-between items-baseline" style="margin-bottom:11px">
-              <span class="ab-label">最近留言</span>
-              <a href="#message" style="font-size:12px;color:#b08a78;text-decoration:none">查看全部</a>
-            </div>
-            <div id="recentMsgList" style="display:flex;flex-direction:column;gap:9px">
-              <div class="ab-card" style="padding:13px;color:var(--ab-ink3);font-size:13px">正在获取最近留言…</div>
-            </div>
-            <div class="ab-dash active:opacity-70" style="padding:12px;text-align:center;color:#b08a78;font-size:13px;font-weight:600;margin-top:9px" onclick="openQuickMsg()">＋ 给妈妈写条留言</div>
-          </section>
-          <section style="position:relative;margin-bottom:8px">
-            <div class="ab-label" style="margin-bottom:11px">环境状态</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="ab-card" style="padding:14px;display:flex;align-items:center;gap:11px;cursor:pointer" onclick="notImplemented('环境状态')">
-                <div class="ab-iconbox" style="width:38px;height:38px;background:#e8f1f7"><span class="material-symbols-outlined" style="color:#4a90c2;font-size:20px">thermostat</span></div>
-                <div><p style="font-size:11px;color:var(--ab-ink3)">温度</p><p id="envTemp" style="font-size:16px;font-weight:800;color:var(--ab-ink)">未实现</p></div>
-              </div>
-              <div class="ab-card" style="padding:14px;display:flex;align-items:center;gap:11px;cursor:pointer" onclick="notImplemented('环境状态')">
-                <div class="ab-iconbox" style="width:38px;height:38px;background:#fbeede"><span class="material-symbols-outlined" style="color:#d99a3a;font-size:20px">humidity_mid</span></div>
-                <div><p style="font-size:11px;color:var(--ab-ink3)">湿度</p><p id="envHumidity" style="font-size:16px;font-weight:800;color:var(--ab-ink)">未实现</p></div>
-              </div>
-            </div>
-          </section>
         </main>
         <!-- Home Bottom Nav -->
         <nav class="ab-navbar sticky bottom-0 z-40 w-full flex-shrink-0">
@@ -473,91 +469,15 @@
           </button>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
-          <section class="mb-section-gap">
-            <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
-              <div class="flex items-center gap-2 mb-6">
-                <span class="material-symbols-outlined text-primary">add_circle</span>
-                <h3 class="font-title-lg text-title-lg text-on-surface">创建新提醒</h3>
-              </div>
-              <div class="space-y-4 mb-6">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-on-surface-variant">schedule</span>
-                    <span class="font-label-md text-label-md text-on-surface">时间</span>
-                  </div>
-                  <div class="relative">
-                    <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openTimePickerModal()">
-                      <span class="font-bold text-body-lg text-body-lg" id="timeDisplay">08:30</span>
-                      <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
-                    </button>
-                    
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-on-surface-variant">wb_sunny</span>
-                    <span class="font-label-md text-label-md text-on-surface">频率</span>
-                  </div>
-                  <div class="relative">
-                    <button class="flex items-center gap-2 bg-background-cream px-4 py-2 rounded-xl border border-divider-warm active:scale-95 transition-transform" onclick="openFreqPickerModal()">
-                      <span class="font-label-md text-label-md" id="freqDisplay">仅一次</span>
-                      <span class="material-symbols-outlined text-on-surface-variant text-[18px]">expand_more</span>
-                    </button>
-
-                  </div>
-                </div>
-                <div class="flex flex-col gap-2">
-                  <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-on-surface-variant">description</span>
-                    <span class="font-label-md text-label-md text-on-surface">提醒内容</span>
-                  </div>
-                  <div class="relative">
-                    <textarea class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 text-[15px] leading-[22px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container resize-none transition-all h-24" id="reminderContent" placeholder="例如：吃早饭、吃降压药、喝水等" maxlength="20"></textarea>
-                    <span class="absolute bottom-2 right-3 text-[10px] text-on-surface-variant/40" id="charCount">0/20</span>
-                  </div>
-                </div>
-
-              </div>
-              <div class="flex items-center justify-between py-2">
-                <div class="flex items-center gap-3">
-                  <span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">priority_high</span>
-                  <div>
-                    <span class="font-label-md text-label-md text-on-surface">重要提醒</span>
-                    <p class="font-label-sm text-label-sm text-text-secondary">开启后老人忙碌时也会强制播报</p>
-                  </div>
-                </div>
-                <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="toggleImportant(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <button class="primary-gradient w-full h-[52px] rounded-xl text-white font-title-lg text-title-lg flex items-center justify-center active:scale-95 transition-all shadow-[0_4px_20px_rgba(247,140,107,0.3)]" onclick="saveReminder()">保存提醒</button>
-            </div>
+          <section id="nextReminderSummary" class="ab-glass" style="padding:20px;margin-bottom:16px">
+            <div class="flex items-center justify-between"><span class="ab-label">下一条提醒</span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">notifications_active</span></div>
+            <h2 id="nextReminderTitle" style="font-size:21px;font-weight:800;color:var(--ab-ink);margin-top:16px">正在读取提醒</h2>
+            <p id="nextReminderMeta" style="font-size:13px;color:var(--ab-ink2);margin-top:7px">请稍候</p>
           </section>
-          <section>
-            <div class="flex justify-between items-end mb-4">
-              <h3 class="font-title-lg text-title-lg text-on-surface">我的提醒</h3>
-              <a class="font-label-sm text-label-sm text-primary flex items-center gap-1 active:opacity-60" onclick="navigateTo('history')">历史提醒<span class="material-symbols-outlined text-[16px]">chevron_right</span></a>
-            </div>
-            <div class="space-y-card-gap" id="reminderList">
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="1" data-name="吃降压药" data-time="08:30" data-freq="每天" data-note="饭后半小时服用" data-icon="medication" data-iconcolor="warning">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">medication</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">吃降压药</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span><span class="bg-warning/20 text-warning text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5"><span class="material-symbols-outlined" style="font-size:12px;font-variation-settings:'FILL' 1">priority_high</span>重要</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">08:30</p><p class="font-label-sm text-label-sm text-text-secondary">备注：饭后半小时服用</p></div></div>
-                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="0" data-name="喝水" data-time="10:00" data-freq="每天" data-note="保持身体水分" data-icon="water_drop" data-iconcolor="tertiary">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-tertiary-container/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-tertiary">water_drop</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">喝水</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">10:00</p><p class="font-label-sm text-label-sm text-text-secondary">备注：保持身体水分</p></div></div>
-                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between" data-important="0" data-name="吃午饭" data-time="12:00" data-freq="每天" data-note="营养均衡，按时吃饭" data-icon="restaurant" data-iconcolor="on-secondary-container">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-secondary-container/30 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-secondary-container">restaurant</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">吃午饭</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">12:00</p><p class="font-label-sm text-label-sm text-text-secondary">备注：营养均衡，按时吃饭</p></div></div>
-                <div class="toggle-track on flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-              <div class="bg-surface-white rounded-2xl p-5 soft-shadow flex items-center justify-between reminder-paused" data-important="0" data-name="睡觉" data-time="21:30" data-freq="每天" data-note="早点休息，养成好习惯" data-icon="bedtime" data-iconcolor="on-surface-variant">
-                <div class="flex gap-4 cursor-pointer active:opacity-80 transition-opacity" onclick="openDetail(this.parentElement)"><div class="w-12 h-12 rounded-full bg-on-surface-variant/10 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-surface-variant">bedtime</span></div>
-                <div><div class="flex items-center gap-2 mb-1"><h4 class="font-bold text-body-lg text-body-lg text-on-surface">睡觉</h4><span class="bg-primary-container/20 text-on-primary-container text-[10px] px-2 py-0.5 rounded-full font-bold">每天</span></div><p class="font-bold text-title-lg text-title-lg text-on-surface mb-1">21:30</p><p class="font-label-sm text-label-sm text-text-secondary">备注：早点休息，养成好习惯</p></div></div>
-                <div class="toggle-track off flex-shrink-0" onclick="event.stopPropagation();handleToggle(this)"><div class="toggle-thumb"></div></div>
-              </div>
-            </div>
+          <section style="display:flex;flex-direction:column;gap:10px">
+            <button id="openReminderCreateButton" type="button" class="ab-btn-primary" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">add_alarm</span>新建提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
+            <button id="openReminderListButton" type="button" class="ab-btn-ghost" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">list_alt</span>全部提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
+            <button id="openReminderHistoryButton" type="button" class="ab-btn-ghost" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">history</span>历史提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
           </section>
         </main>
         <!-- Warn Bottom Nav -->
@@ -582,6 +502,18 @@
             <span class="font-label-sm text-label-sm">家人</span>
           </a>
         </nav>
+      </section>
+
+      <!-- ============ REMINDER LIST ============ -->
+      <section class="spa-section" id="s-reminder-list">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('warn')" type="button"><span class="material-symbols-outlined">arrow_back</span></button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">全部提醒</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="openReminderCreateModal()" type="button" title="新建提醒"><span class="material-symbols-outlined">add</span></button>
+        </header>
+        <main class="flex-1 px-page-margin pt-4 pb-6">
+          <div class="space-y-card-gap" id="reminderList"><div class="bg-surface-white rounded-xl p-6 text-center text-text-secondary">正在加载提醒</div></div>
+        </main>
       </section>
 
       <!-- ============ HISTORY (Reminders History) ============ -->
@@ -695,47 +627,72 @@
         </div>
       </section>
 
-            <!-- ============ FAMILY ============ -->
+      <!-- ============ FAMILY ============ -->
       <section class="spa-section" id="s-family" data-statusbar="dark">
         <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
           <div class="w-10"></div>
-          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">家人</h1>
-          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
-            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">家人</h1>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')" title="设置">
+            <span class="material-symbols-outlined text-on-surface-variant">settings</span>
           </button>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-4">
+          <div class="bg-surface-white rounded-2xl p-5 soft-shadow mb-4">
+            <div class="flex items-center gap-4">
+              <div class="w-14 h-14 rounded-full primary-gradient flex items-center justify-center text-white font-title-lg">安</div>
+              <div class="min-w-0 flex-1">
+                <h2 class="font-headline-md text-headline-md text-on-surface truncate" id="familySummaryName">家人</h2>
+                <p class="font-body-md text-body-md text-text-secondary mt-1" id="familySummarySubtitle">资料尚未完善</p>
+              </div>
+            </div>
+            <p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mt-4 line-clamp-3" id="familySummaryPortrait">画像会在资料和专属记忆积累后自动形成。</p>
+          </div>
+          <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow">
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#family-profile">
+              <div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">psychology</span><div><p class="font-body-lg text-body-lg text-on-surface">完整画像</p><p class="font-label-sm text-label-sm text-text-secondary">兴趣、习惯、健康与沟通建议</p></div></div>
+              <span class="material-symbols-outlined text-outline">chevron_right</span>
+            </a>
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#family-edit">
+              <div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">edit_note</span><div><p class="font-body-lg text-body-lg text-on-surface">编辑资料</p><p class="font-label-sm text-label-sm text-text-secondary">由家庭管理员维护</p></div></div>
+              <span class="material-symbols-outlined text-outline">chevron_right</span>
+            </a>
+            <a class="settings-row flex items-center justify-between p-5" href="#family-memory">
+              <div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">auto_stories</span><div><p class="font-body-lg text-body-lg text-on-surface">记忆库</p><p class="font-label-sm text-label-sm text-text-secondary">查看和管理专属记忆</p></div></div>
+              <span class="material-symbols-outlined text-outline">chevron_right</span>
+            </a>
+          </div>
+        </main>
+        <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 nav-link" href="#home" data-nav="home"><span class="material-symbols-outlined mb-1">home</span><span class="font-label-sm text-label-sm">首页</span></a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 nav-link" href="#message" data-nav="message"><span class="material-symbols-outlined mb-1">chat_bubble</span><span class="font-label-sm text-label-sm">消息</span></a>
+          <a class="flex flex-col items-center justify-center text-on-secondary-fixed-variant/60 w-16 nav-link" href="#warn" data-nav="warn"><span class="material-symbols-outlined mb-1">notifications</span><span class="font-label-sm text-label-sm">提醒</span></a>
+          <a class="flex flex-col items-center justify-center text-primary w-16 nav-link" href="#family" data-nav="family"><span class="material-symbols-outlined mb-1" style="font-variation-settings:'FILL' 1">group</span><span class="font-label-sm text-label-sm font-medium">家人</span></a>
+        </nav>
+      </section>
+
+      <!-- ============ FAMILY PROFILE ============ -->
+      <section class="spa-section" id="s-family-profile" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('family')">
+            <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+          </button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">完整画像</h1>
+          <div class="w-10"></div>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
           <section class="mb-section-gap">
             <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
-              <div class="flex items-center gap-4 mb-4">
+              <div class="flex items-center gap-4">
                 <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-container/30 flex-shrink-0">
                   <div class="w-full h-full rounded-full primary-gradient flex items-center justify-center text-white font-display-lg-mobile text-[14px]">安</div>
                 </div>
-                <div>
-                  <div class="flex items-center gap-2 mb-1">
-                    <h2 class="font-headline-md text-headline-md text-on-surface" id="profileName">妈妈</h2>
-                    <span class="w-2 h-2 rounded-full bg-success"></span>
-                    <span class="font-label-sm text-label-sm text-success">在线</span>
-                  </div>
-                  <p class="font-body-md text-body-md text-text-secondary" id="profileSubtitle">72岁 · 与爸爸同住 · 退休教师</p>
+                <div class="min-w-0 flex-1">
+                  <h2 class="font-headline-md text-headline-md text-on-surface" id="profileName">家人</h2>
+                  <p class="font-body-md text-body-md text-text-secondary mt-1" id="profileSubtitle">资料尚未完善</p>
                 </div>
                 <a class="ml-auto w-10 h-10 rounded-full bg-secondary-container/40 flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform" href="#family-edit">
                   <span class="material-symbols-outlined text-primary text-[20px]">edit</span>
                 </a>
-              </div>
-              <div class="flex gap-3 text-center">
-                <div class="flex-1 bg-background-cream rounded-xl py-3">
-                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">设备状态</p>
-                  <p class="font-title-lg text-title-lg text-success">已连接</p>
-                </div>
-                <div class="flex-1 bg-background-cream rounded-xl py-3">
-                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">最后活跃</p>
-                  <p class="font-title-lg text-title-lg text-on-surface">3分钟前</p>
-                </div>
-                <div class="flex-1 bg-background-cream rounded-xl py-3">
-                  <p class="font-label-sm text-label-sm text-text-secondary mb-0.5">本周互动</p>
-                  <p class="font-title-lg text-title-lg text-on-surface">12次</p>
-                </div>
               </div>
             </div>
           </section>
@@ -751,7 +708,7 @@
               </p>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="familyMemoryContent">
             <div class="bg-surface-white rounded-2xl p-6 soft-shadow">
               <div class="flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">auto_stories</span>
@@ -777,51 +734,21 @@
               </div>
               <div class="mb-5">
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">兴趣爱好</p>
-                <div class="flex flex-wrap gap-2" id="hobbyTags">
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">园艺</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">广场舞</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">京剧</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">养花</span>
-                  <span class="bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md">做手工</span>
-                </div>
+                <div class="flex flex-wrap gap-2" id="hobbyTags"><span class="font-body-md text-body-md text-text-secondary">暂无记录</span></div>
               </div>
               <div class="mb-5">
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">生活习惯</p>
-                <div class="space-y-2.5" id="habitItems">
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">wb_twilight</span> 晨间 6:30 起床，作息规律</div>
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">local_cafe</span> 饭后必喝一杯龙井，已养成多年习惯</div>
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">music_note</span> 下午固定收听京剧频道</div>
-                  <div class="flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[18px]">directions_walk</span> 晚餐后在小区散步 30 分钟</div>
-                </div>
+                <div class="space-y-2.5" id="habitItems"><div class="font-body-md text-body-md text-text-secondary">暂无记录</div></div>
               </div>
               <div class="border-t border-divider-warm my-4"></div>
               <div class="mb-5">
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">健康须知</p>
-                <div class="bg-secondary-container/50 rounded-xl p-4" id="healthItems">
-                  <div class="flex items-start gap-3 mb-3">
-                    <span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">medication</span>
-                    <div>
-                      <p class="font-body-md text-body-md text-on-secondary-container font-medium">降压药管理</p>
-                      <p class="font-body-md text-body-md text-on-secondary-container/80">每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。</p>
-                    </div>
-                  </div>
-                  <div class="flex items-start gap-3">
-                    <span class="material-symbols-outlined text-on-secondary-container text-[20px] flex-shrink-0 mt-0.5">warning</span>
-                    <div>
-                      <p class="font-body-md text-body-md text-on-secondary-container font-medium">注意事项</p>
-                      <p class="font-body-md text-body-md text-on-secondary-container/80">避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。</p>
-                    </div>
-                  </div>
-                </div>
+                <div class="bg-secondary-container/50 rounded-xl p-4 font-body-md text-body-md text-on-secondary-container/80" id="healthItems">暂无记录</div>
               </div>
               <div class="border-t border-divider-warm my-4"></div>
               <div>
                 <p class="font-label-md text-label-md text-text-secondary mb-2 uppercase tracking-wider">沟通要点</p>
-                <div class="space-y-3" id="commDos">
-                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span><p class="font-body-md text-body-md text-on-surface-variant">多聊聊她年轻时的教学故事，她会很开心</p></div>
-                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span><p class="font-body-md text-body-md text-on-surface-variant">每周至少视频通话两次，她会很期待</p></div>
-                  <div class="flex items-start gap-2.5"><span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0 mt-0.5">cancel</span><p class="font-body-md text-body-md text-on-surface-variant">尽量避免在深夜提及已故的外公，以免引起情绪低落</p></div>
-                </div>
+                <div class="space-y-3 font-body-md text-body-md text-text-secondary" id="commDos">暂无记录</div>
               </div>
             </div>
           </section>
@@ -837,7 +764,6 @@
             </div>
             <span class="material-symbols-outlined text-outline">chevron_right</span>
           </a>
-          <p class="text-center font-label-sm text-label-sm text-text-secondary/60 mb-4"><span id="updateTime">AI 认知画像更新于 6月 8日 14:30</span></p>
         </main>
         <!-- Family Bottom Nav -->
         <nav class="sticky bottom-0 z-40 w-full flex justify-around items-center px-6 pb-6 pt-3 bg-surface-white shadow-[0_-8px_30px_rgba(0,0,0,0.03)] flex-shrink-0">
@@ -863,6 +789,16 @@
         </nav>
       </section>
 
+      <!-- ============ FAMILY MEMORY ============ -->
+      <section class="spa-section" id="s-family-memory" data-statusbar="dark">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('family')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button>
+          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">记忆库</h1>
+          <div class="w-10"></div>
+        </header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="familyMemoryHost"></main>
+      </section>
+
       <!-- ============ MINE (Settings) ============ -->
       <section class="spa-section" id="s-mine" data-statusbar="dark">
         <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
@@ -873,7 +809,17 @@
           <div class="w-10"></div>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
-          <section class="mb-section-gap">
+          <div class="bg-surface-white rounded-2xl p-5 soft-shadow mb-4">
+            <p class="font-title-lg text-title-lg text-on-surface" id="settingsLandingAccountText">子女账号</p>
+            <p class="font-body-md text-body-md text-text-secondary mt-1" id="settingsLandingBindingText">正在读取设备信息</p>
+          </div>
+          <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow mb-6">
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#settings-account"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">account_circle</span><span class="font-body-lg text-body-lg text-on-surface">账号资料</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#settings-device"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">devices</span><span class="font-body-lg text-body-lg text-on-surface">设备与家庭</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+            <a class="settings-row flex items-center justify-between p-5 border-b border-divider-warm" href="#settings-connection"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">link</span><span class="font-body-lg text-body-lg text-on-surface">连接设置</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+            <a class="settings-row flex items-center justify-between p-5" href="#settings-greeting"><div class="flex items-center gap-4"><span class="material-symbols-outlined text-primary">schedule</span><span class="font-body-lg text-body-lg text-on-surface">主动问候时段</span></div><span class="material-symbols-outlined text-outline">chevron_right</span></a>
+          </div>
+          <section class="mb-section-gap" id="settingsAccountContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">我的账号</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-3">
               <div class="flex items-center justify-between pb-2">
@@ -886,7 +832,7 @@
               <button class="ab-btn-primary w-full h-[46px]" onclick="saveAccountProfile()" type="button">保存个人资料</button>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="settingsDeviceContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">设备与家庭</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-3">
               <p class="font-body-md text-body-md text-on-surface" id="bindingSummary">尚未绑定安伴设备</p>
@@ -903,7 +849,7 @@
               </div>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="settingsConnectionContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">连接设置</h3>
             <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4">
               <label class="block"><span class="font-label-md text-label-md text-on-surface-variant">后端地址</span><input class="mt-2 w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" id="settingsBaseURL" type="url"/></label>
@@ -911,7 +857,7 @@
               <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveConnectionBtn" type="button">保存连接设置</button>
             </div>
           </section>
-          <section class="mb-section-gap">
+          <section class="mb-section-gap" id="settingsGreetingContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">主动问候时段</h3>
             <form class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4" id="greetingScheduleForm">
               <div class="grid grid-cols-[1fr_auto] gap-3 items-center">
@@ -946,32 +892,6 @@
               <button class="primary-gradient w-full h-[48px] rounded-xl text-white font-label-md text-label-md active:scale-95 transition-all" id="saveGreetingScheduleBtn" type="submit">保存问候时段</button>
             </form>
           </section>
-          <section class="mb-section-gap">
-            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">通用设置</h3>
-            <div class="bg-surface-white rounded-2xl overflow-hidden soft-shadow">
-
-              <button class="settings-row w-full flex items-center justify-between p-5 border-b border-divider-warm" id="clearCacheBtn">
-                <div class="flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">cleaning_services</span>
-                  <span class="font-body-lg text-body-lg text-on-surface">清理缓存</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="font-label-md text-label-md text-text-secondary" id="cacheSize">24.5 MB</span>
-                  <span class="material-symbols-outlined text-outline">chevron_right</span>
-                </div>
-              </button>
-              <button class="settings-row w-full flex items-center justify-between p-5" id="aboutBtn">
-                <div class="flex items-center gap-4">
-                  <span class="material-symbols-outlined text-primary">info</span>
-                  <span class="font-body-lg text-body-lg text-on-surface">关于安伴</span>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="font-label-md text-label-md text-text-secondary">v 2.4.0</span>
-                  <span class="material-symbols-outlined text-outline">chevron_right</span>
-                </div>
-              </button>
-            </div>
-          </section>
           <section class="mb-6">
             <button class="w-full bg-surface-white text-danger border border-error-container/20 font-title-lg text-title-lg rounded-2xl py-4 soft-shadow active:scale-[0.98] transition-all flex items-center justify-center gap-2" id="logoutBtn">
               <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">logout</span>
@@ -1001,6 +921,24 @@
             <span class="font-label-sm text-label-sm">家人</span>
           </a>
         </nav>
+      </section>
+
+      <!-- ============ SETTINGS DETAIL PAGES ============ -->
+      <section class="spa-section" id="s-settings-account">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">账号资料</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsAccountHost"></main>
+      </section>
+      <section class="spa-section" id="s-settings-device">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">设备与家庭</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsDeviceHost"></main>
+      </section>
+      <section class="spa-section" id="s-settings-connection">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">连接设置</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsConnectionHost"></main>
+      </section>
+      <section class="spa-section" id="s-settings-greeting">
+        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px"><button class="w-10 h-10 flex items-center justify-center" onclick="navigateTo('mine')"><span class="material-symbols-outlined text-on-surface-variant">arrow_back</span></button><h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">主动问候时段</h1><div class="w-10"></div></header>
+        <main class="flex-1 px-page-margin pt-3 pb-6" id="settingsGreetingHost"></main>
       </section>
 
       <!-- ============ FAMILY EDIT (secondary page, no nav) ============ -->
@@ -1033,7 +971,7 @@
               </div>
               <div class="flex flex-col gap-1.5">
                 <label class="font-label-md text-label-md text-on-surface-variant" for="editOccupation">职业</label>
-                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editOccupation" placeholder="例如：退休教师" type="text"/>
+                <input class="w-full bg-background-cream border border-divider-warm rounded-xl px-4 py-3 font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary-container transition-all" id="editOccupation" placeholder="请输入职业" type="text"/>
               </div>
             </div>
           </section>
@@ -1147,6 +1085,60 @@
       </div>
       <button class="ab-btn-primary w-full h-[50px]" id="bindDeviceBtn" onclick="submitDeviceBinding()" type="button">确认绑定</button>
     </div>
+
+    <div class="reminder-create-overlay" id="reminderCreateOverlay"></div>
+    <section class="reminder-create-sheet" id="reminderCreateSheet" role="dialog" aria-modal="true" aria-labelledby="reminderCreateTitle">
+      <div class="reminder-create-header">
+        <h3 id="reminderCreateTitle" style="font-size:19px;font-weight:800;color:var(--ab-ink);margin:0">新建提醒</h3>
+        <button id="reminderCreateClose" class="ab-btn-ghost" type="button" title="关闭新建提醒" style="width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="reminder-create-body">
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">schedule</span><span class="font-label-md text-label-md text-on-surface">时间</span></div>
+            <button class="flex items-center gap-2 bg-surface-white px-4 py-2 rounded-xl border border-divider-warm" onclick="openTimePickerModal()" type="button"><span class="font-bold text-body-lg" id="timeDisplay">08:30</span><span class="material-symbols-outlined text-[18px]">expand_more</span></button>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">event_repeat</span><span class="font-label-md text-label-md text-on-surface">频率</span></div>
+            <button class="flex items-center gap-2 bg-surface-white px-4 py-2 rounded-xl border border-divider-warm" onclick="openFreqPickerModal()" type="button"><span class="font-label-md" id="freqDisplay">仅一次</span><span class="material-symbols-outlined text-[18px]">expand_more</span></button>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:8px"><span class="font-label-md text-label-md text-on-surface">提醒内容</span><span class="relative"><textarea class="w-full bg-surface-white border border-divider-warm rounded-xl px-4 py-3 text-[15px] leading-[22px] resize-none h-28" id="reminderContent" placeholder="例如：吃早饭、吃药、喝水" maxlength="20"></textarea><span class="absolute bottom-2 right-3 text-[10px] text-on-surface-variant/40" id="charCount">0/20</span></span></label>
+          <div class="flex items-center justify-between py-2">
+            <div class="flex items-center gap-3"><span class="material-symbols-outlined text-warning" style="font-variation-settings:'FILL' 1">priority_high</span><div><span class="font-label-md text-label-md text-on-surface">重要提醒</span><p class="font-label-sm text-label-sm text-text-secondary">忙碌时也会播报</p></div></div>
+            <div class="toggle-track off flex-shrink-0" id="importantToggle" onclick="toggleImportant(this)"><div class="toggle-thumb"></div></div>
+          </div>
+          <button class="ab-btn-primary w-full h-[52px]" onclick="saveReminder()" type="button">保存提醒</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="vision-history-overlay" id="visionHistoryOverlay"></div>
+    <section class="vision-history-sheet" id="visionHistorySheet" role="dialog" aria-modal="true" aria-labelledby="visionHistoryTitle">
+      <div class="vision-history-header">
+        <div>
+          <h3 id="visionHistoryTitle" style="font-size:19px;font-weight:800;color:var(--ab-ink);margin:0">原图记录</h3>
+          <p id="visionHistoryCount" style="font-size:11px;color:var(--ab-ink3);margin:3px 0 0">正在读取记录</p>
+        </div>
+        <button id="visionHistoryClose" class="ab-btn-ghost active:scale-95 transition-all" type="button" title="关闭原图记录" style="width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center">
+          <span class="material-symbols-outlined" style="font-size:20px">close</span>
+        </button>
+      </div>
+      <div class="vision-history-content" id="visionHistoryContent">
+        <div style="padding:48px 0;text-align:center;color:var(--ab-ink3);font-size:13px">正在加载原图记录</div>
+      </div>
+    </section>
+
+    <div class="vision-delete-overlay" id="visionDeleteOverlay"></div>
+    <section class="vision-delete-confirm" id="visionDeleteConfirm" role="alertdialog" aria-modal="true" aria-labelledby="visionDeleteTitle">
+      <div class="flex items-start" style="gap:12px">
+        <div class="ab-iconbox" style="width:40px;height:40px;background:#f9e8e5;color:#a54237"><span class="material-symbols-outlined">delete</span></div>
+        <div style="flex:1;min-width:0"><h3 id="visionDeleteTitle" style="font-size:17px;font-weight:800;color:var(--ab-ink);margin:0">删除这张原图？</h3><p style="font-size:12px;line-height:1.55;color:var(--ab-ink2);margin:6px 0 0">删除后照片和识别记录都无法恢复。</p></div>
+      </div>
+      <div class="flex" style="gap:10px;margin-top:18px">
+        <button id="visionDeleteCancel" type="button" class="ab-btn-ghost" style="flex:1;height:44px">取消</button>
+        <button id="visionDeleteSubmit" type="button" style="flex:1;height:44px;border:0;border-radius:8px;background:#a54237;color:#fff;font-weight:800">删除</button>
+      </div>
+    </section>
 
     <div class="vision-result-overlay" id="visionResultOverlay" onclick="if(event.target===this)closeVisionResult()">
       <div class="vision-result-card ab-glass">

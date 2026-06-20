@@ -118,9 +118,10 @@ test('P3 normalizes recent backend history newest first', async () => {
   ]);
 });
 
-test('P3 home loads status and history through the shared client', () => {
+test('P3 home loads compact status and latest message state through the shared client', () => {
   assert.match(appJS, /anbanClient\.getStatus\(\{ deviceId: anbanConfig\.deviceId \}\)/);
-  assert.match(appJS, /anbanClient\.getHistory\(\{ deviceId: anbanConfig\.deviceId, limit: 10 \}\)/);
+  assert.match(appJS, /anbanClient\.listMessages\(\{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.doesNotMatch(appJS, /anbanClient\.getHistory\(\{ deviceId: anbanConfig\.deviceId, limit: 10 \}\)/);
 });
 
 test('P4 merges backend conversation history and child messages into bubbles', async () => {
@@ -212,6 +213,32 @@ test('W1.2 childweb sends recurrence and important reminder fields', () => {
   assert.match(appJS, /important: isImportant/);
 });
 
+test('reminder information architecture uses a create sheet and dedicated list page', () => {
+  for (const id of [
+    'nextReminderSummary',
+    'openReminderCreateButton',
+    'openReminderListButton',
+    'openReminderHistoryButton',
+    'reminderCreateOverlay',
+    'reminderCreateSheet',
+    'reminderCreateClose',
+    's-reminder-list',
+    'reminderList',
+  ]) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
+  for (const sample of ['饭后半小时服用', '保持身体水分', '营养均衡，按时吃饭', '早点休息，养成好习惯']) {
+    assert.doesNotMatch(indexHTML, new RegExp(sample));
+  }
+  assert.match(appJS, /'reminder-list':'s-reminder-list'/);
+  assert.match(appJS, /function initReminderList\(\)/);
+  assert.match(appJS, /if \(!SPA\.initialized\.warn\)[\s\S]*initWarn\(\)/);
+  assert.match(appJS, /function openReminderCreateModal\(\)/);
+  assert.match(appJS, /function closeReminderCreateModal\(\)/);
+  assert.match(appJS, /renderNextReminder\(reminders\)/);
+  assert.match(appJS, /closeReminderCreateModal\(\);[\s\S]*await loadSavedReminders\(\)/);
+});
+
 test('P6 maps Stitch profile data to backend fields without changing the contract', async () => {
   const { mapStitchProfileToFields } = await import('./integration-core.js');
   assert.deepEqual(mapStitchProfileToFields({
@@ -289,6 +316,34 @@ test('family page exposes editable memory library through the shared client', ()
   assert.match(appJS, /anbanClient\.deleteMemoryFact\(fact\.factId/);
 });
 
+test('family and settings use compact landing pages with dedicated detail routes', () => {
+  for (const id of [
+    's-family-profile',
+    's-family-memory',
+    's-settings-account',
+    's-settings-device',
+    's-settings-connection',
+    's-settings-greeting',
+  ]) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
+
+  for (const route of [
+    'family-profile',
+    'family-memory',
+    'settings-account',
+    'settings-device',
+    'settings-connection',
+    'settings-greeting',
+  ]) {
+    assert.match(appJS, new RegExp(`'${route}'`));
+  }
+
+  assert.doesNotMatch(indexHTML, /id="clearCacheBtn"|id="cacheSize"|id="aboutBtn"|v 2\.4\.0/);
+  assert.doesNotMatch(indexHTML, /晨间 6:30 起床|饭后必喝一杯龙井|退休教师/);
+  assert.doesNotMatch(appJS, /晨间 6:30 起床|饭后必喝一杯龙井|退休教师/);
+});
+
 test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
   assert.doesNotMatch(indexHTML, /max-width:466px/);
   assert.doesNotMatch(indexHTML, /width:430px;height:932px/);
@@ -304,7 +359,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v4/);
+  assert.match(sw, /anban-childweb-v7/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);
@@ -333,9 +388,11 @@ test('P8 removes message and reminder mock storage paths', () => {
 });
 
 test('P8 routes every visible unsupported entry through notImplemented', () => {
-  for (const feature of ['使用帮助', '联系客服', '环境状态']) {
+  for (const feature of ['使用帮助', '联系客服']) {
     assert.match(indexHTML, new RegExp(`notImplemented\\('${feature}'\\)`));
   }
+
+  assert.doesNotMatch(indexHTML, /环境状态|envTemp|envHumidity/);
   assert.match(appJS, /window\.editDetailTime = function\(\) \{\s*return notImplemented\('编辑提醒'\);/);
 });
 
@@ -457,7 +514,17 @@ test('W1.4 childweb exposes the manual look action through the original-image fl
   assert.match(indexHTML, /id="visionLookButton"/);
   assert.match(indexHTML, /看一眼/);
   assert.match(indexHTML, /id="visionStatusText"/);
-  assert.match(indexHTML, /id="visionRecentList"/);
+  for (const id of [
+    'visionHistoryButton',
+    'visionHistoryOverlay',
+    'visionHistorySheet',
+    'visionHistoryClose',
+    'visionHistoryCount',
+    'visionHistoryContent',
+    'visionDeleteConfirm',
+  ]) {
+    assert.match(indexHTML, new RegExp(`id="${id}"`));
+  }
   for (const id of [
     'visionResultOverlay',
     'visionResultImage',
@@ -473,10 +540,25 @@ test('W1.4 childweb exposes the manual look action through the original-image fl
   }
   assert.match(appJS, /anbanClient\.lookVision\(\{ deviceId: anbanConfig\.deviceId \}\)/);
   assert.match(appJS, /anbanClient\.getVisionCaptureImage\(capture\.captureId, \{ deviceId: anbanConfig\.deviceId \}\)/);
-  assert.match(appJS, /anbanClient\.listVisionCaptures\(\{ deviceId: anbanConfig\.deviceId, limit: 3 \}\)/);
+  assert.match(appJS, /anbanClient\.listVisionCaptures\(\{ deviceId: anbanConfig\.deviceId, limit: 100 \}\)/);
+  assert.match(appJS, /groupVisionCapturesByDate\(captures\)/);
+  assert.match(appJS, /new IntersectionObserver/);
+  assert.match(appJS, /anbanClient\.deleteVisionCapture\(captureId, \{ deviceId: anbanConfig\.deviceId \}\)/);
+  assert.match(appJS, /anbanSession\.binding\.role === 'admin'/);
   assert.match(appJS, /URL\.createObjectURL\(blob\)/);
   assert.match(appJS, /URL\.revokeObjectURL\(visionImageObjectURL\)/);
+  assert.match(appJS, /URL\.revokeObjectURL\(url\)/);
+  assert.match(appJS, /generation !== visionHistoryLoadGeneration/);
   assert.doesNotMatch(appJS, /anbanClient\.checkVisionPresence\(\{ deviceId: anbanConfig\.deviceId, tool: VISION_CAPTURE_TOOL \}\)/);
+});
+
+test('first information-architecture slice removes the fake status bar and inline home lists', () => {
+  assert.doesNotMatch(indexHTML, /globalStatusBar|status-bar-time|status-bar-icons/);
+  assert.doesNotMatch(indexHTML, /\.spa-section\s*\{padding-top:54px\}/);
+  assert.doesNotMatch(indexHTML, /\.spa-section\s*>\s*header\s*\{top:54px/);
+  assert.doesNotMatch(indexHTML, /id="visionRecentList"|id="recentMsgList"/);
+  assert.doesNotMatch(appJS, /updateStatusBarTime|renderVisionRecent|renderRecentHistory/);
+  assert.match(indexHTML, /id="latestMessageStatus"/);
 });
 
 test('vision API starts a manual look through the authenticated device endpoint', async () => {
@@ -576,6 +658,52 @@ test('vision API reanalyzes a saved partial capture', async () => {
   assert.equal(request.init.method, 'POST');
   assert.equal(request.init.headers.Authorization, 'Bearer session-token');
   assert.equal(capture.status, 'succeeded');
+});
+
+test('vision API deletes a capture through the authenticated device endpoint', async () => {
+  const { createAnbanClient } = await import('./api/client.js');
+  let request;
+  const client = createAnbanClient({
+    baseURL: 'http://anban.local',
+    token: 'session-token',
+    isBound: true,
+    fetchImpl: async (url, init) => {
+      request = { url, init };
+      return new Response(null, { status: 204 });
+    },
+  });
+
+  await client.deleteVisionCapture('cap/delete', { deviceId: 'dev-001' });
+
+  assert.equal(request.url, 'http://anban.local/api/vision/captures/cap%2Fdelete?deviceId=dev-001');
+  assert.equal(request.init.method, 'DELETE');
+  assert.equal(request.init.headers.Authorization, 'Bearer session-token');
+});
+
+test('vision history keeps retained originals and groups newest captures by day', async () => {
+  const { groupVisionCapturesByDate } = await import('./integration-core.js');
+  const groups = groupVisionCapturesByDate([
+    { captureId: 'expired', status: 'expired', capturedAt: '2026-06-17T09:00:00Z' },
+    { captureId: 'yesterday', imageUrl: '/yesterday', capturedAt: '2026-06-19T10:00:00Z' },
+    { captureId: 'today-old', imageUrl: '/today-old', capturedAt: '2026-06-20T01:00:00Z' },
+    { captureId: 'today-new', imageUrl: '/today-new', capturedAt: '2026-06-20T08:00:00Z' },
+    { captureId: 'older', imageUrl: '/older', capturedAt: '2026-06-10T08:00:00Z' },
+  ], new Date('2026-06-20T12:00:00Z'));
+
+  assert.deepEqual(groups.map((group) => [group.label, group.items.map((item) => item.captureId)]), [
+    ['今天', ['today-new', 'today-old']],
+    ['昨天', ['yesterday']],
+    ['2026/06/10', ['older']],
+  ]);
+});
+
+test('home message summary exposes the latest delivery state without an inline message list', async () => {
+  const { buildLatestMessageSummary } = await import('./integration-core.js');
+  assert.deepEqual(buildLatestMessageSummary({ messages: [
+    { messageId: 'old', status: 'played', queuedAt: '2026-06-20T08:00:00Z' },
+    { messageId: 'new', status: 'pending', queuedAt: '2026-06-20T09:00:00Z' },
+  ] }), { label: '最近留言待播报', tone: 'pending' });
+  assert.deepEqual(buildLatestMessageSummary({ messages: [] }), { label: '暂无留言', tone: 'muted' });
 });
 
 test('vision capture view presents a successful observation with image and presence', async () => {

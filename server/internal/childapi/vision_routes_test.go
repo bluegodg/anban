@@ -98,4 +98,7 @@ func (visionRoutesStub) RegisterRoutes(r gin.IRoutes) {
 	r.POST("/vision/check-presence", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"checkId": "stub-check-presence"})
 	})
+	r.DELETE("/vision/captures/:captureId", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 }

@@ -52,6 +52,7 @@ func newAccountBindingRouter(t *testing.T) *gin.Engine {
 		DeviceBindingService: bindingService,
 		MessageRoutes:        messageContextEchoRoutes{},
 		ProfileRoutes:        profileContextEchoRoutes{},
+		VisionRoutes:         visionRoutesStub{},
 	})
 }
 
@@ -160,6 +161,36 @@ func TestMemberCannotWriteProfileOrMemoryButAccessCodeStillCan(t *testing.T) {
 	r.ServeHTTP(compat, req)
 	if compat.Code != http.StatusOK {
 		t.Fatalf("access code profile status=%d body=%s", compat.Code, compat.Body.String())
+	}
+}
+
+func TestOnlyAdminOrLegacyAccessCodeCanDeleteVisionCapture(t *testing.T) {
+	r := newAccountBindingRouter(t)
+	memberToken := registerAndBind(t, r, "13800000030", "member-delete", "member")
+
+	member := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/vision/captures/cap-private", nil)
+	req.Header.Set("Authorization", "Bearer "+memberToken)
+	r.ServeHTTP(member, req)
+	if member.Code != http.StatusForbidden || !strings.Contains(member.Body.String(), "admin_required") {
+		t.Fatalf("member delete status=%d body=%s", member.Code, member.Body.String())
+	}
+
+	adminToken := registerAndBind(t, r, "13800000031", "admin-delete", "admin")
+	admin := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/vision/captures/cap-private", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	r.ServeHTTP(admin, req)
+	if admin.Code != http.StatusNoContent {
+		t.Fatalf("admin delete status=%d body=%s", admin.Code, admin.Body.String())
+	}
+
+	compat := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/vision/captures/cap-private", nil)
+	req.Header.Set("X-Access-Code", "demo")
+	r.ServeHTTP(compat, req)
+	if compat.Code != http.StatusNoContent {
+		t.Fatalf("access-code delete status=%d body=%s", compat.Code, compat.Body.String())
 	}
 }
 

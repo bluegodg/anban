@@ -47,6 +47,19 @@ func (s *Store) GetCapture(ctx context.Context, deviceID, captureID string) (Cap
 	return capture, nil
 }
 
+func (s *Store) DeleteCapture(ctx context.Context, deviceID, captureID string) error {
+	result := s.db.WithContext(ctx).
+		Where("device_id = ? AND capture_id = ?", deviceID, captureID).
+		Delete(&Capture{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) FindPendingCapture(ctx context.Context, deviceID string) (Capture, error) {
 	var capture Capture
 	err := s.db.WithContext(ctx).

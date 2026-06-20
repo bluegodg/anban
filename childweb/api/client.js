@@ -128,6 +128,12 @@ export function createAnbanClient({ baseURL = '', accessCode = '', token = '', i
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/vision/captures/${encodePathSegment(captureId)}/reanalyze${suffix}`, { method: 'POST', device: true });
     },
+    deleteVisionCapture(captureId, { deviceId } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/vision/captures/${encodePathSegment(captureId)}${suffix}`, { method: 'DELETE', device: true });
+    },
     checkVisionPresence(payload) {
       return request('/api/vision/check-presence', { method: 'POST', body: payload, device: true });
     },

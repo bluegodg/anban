@@ -3,17 +3,18 @@ import { loadConfig, saveConfig } from './config.js';
 import {
   buildConversationBubbles,
   buildHomeStatus,
+  buildLatestMessageSummary,
   buildReminderScheduleOptions,
   buildVisionCaptureView,
   buildVisionLookProgress,
   formatGreetingTriggerResult,
   formatLoginError,
   formatRelativeTime,
+  groupVisionCapturesByDate,
   mapFieldsToStitchProfile,
   mapStitchProfileToFields,
   nextOccurrenceUTC,
   normalizeGreetingSlots,
-  normalizeHistoryMessages,
 } from './integration-core.js';
 import { notImplemented as notifyNotImplemented } from './not-implemented.js';
 
@@ -27,6 +28,11 @@ var anbanSession = {
 var anbanClient = createRuntimeClient();
 var visionImageObjectURL = '';
 var visionCurrentCapture = null;
+var visionHistoryCaptures = [];
+var visionHistoryObjectURLs = new Map();
+var visionHistoryObserver = null;
+var visionHistoryLoadGeneration = 0;
+var visionPendingDeleteID = '';
 
 window.anbanRuntime = {
   ApiError,
@@ -40,7 +46,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-window.addEventListener('pagehide', releaseVisionImageObjectURL);
+window.addEventListener('pagehide', function() {
+  releaseVisionImageObjectURL();
+  releaseVisionHistoryObjectURLs();
+});
 
 function releaseVisionImageObjectURL() {
   if (!visionImageObjectURL) return;
@@ -62,6 +71,56 @@ function closeVisionResult() {
   if (wrap) wrap.classList.add('is-empty');
   releaseVisionImageObjectURL();
   visionCurrentCapture = null;
+}
+
+function releaseVisionHistoryObjectURLs() {
+  visionHistoryLoadGeneration += 1;
+  if (visionHistoryObserver) {
+    visionHistoryObserver.disconnect();
+    visionHistoryObserver = null;
+  }
+  visionHistoryObjectURLs.forEach(function(url) {
+    URL.revokeObjectURL(url);
+  });
+  visionHistoryObjectURLs.clear();
+}
+
+function closeVisionDeleteConfirm() {
+  var overlay = document.getElementById('visionDeleteOverlay');
+  var confirm = document.getElementById('visionDeleteConfirm');
+  if (overlay) overlay.classList.remove('open');
+  if (confirm) confirm.classList.remove('open');
+  visionPendingDeleteID = '';
+}
+
+function closeVisionHistory() {
+  var overlay = document.getElementById('visionHistoryOverlay');
+  var sheet = document.getElementById('visionHistorySheet');
+  if (overlay) overlay.classList.remove('open');
+  if (sheet) sheet.classList.remove('open');
+  closeVisionDeleteConfirm();
+  releaseVisionHistoryObjectURLs();
+}
+
+function openReminderCreateModal() {
+  if (!ensureDeviceBound()) return;
+  document.getElementById('reminderCreateOverlay').classList.add('open');
+  document.getElementById('reminderCreateSheet').classList.add('open');
+}
+
+function closeReminderCreateModal() {
+  document.getElementById('reminderCreateOverlay').classList.remove('open');
+  document.getElementById('reminderCreateSheet').classList.remove('open');
+  if (typeof window.closeTimePickerModal === 'function') window.closeTimePickerModal();
+  if (typeof window.closeFreqPickerModal === 'function') window.closeFreqPickerModal();
+}
+
+function initReminderList() {
+  if (!SPA.initialized.warn) {
+    SPA.initialized.warn = true;
+    initWarn();
+  }
+  if (typeof window.refreshReminders === 'function') window.refreshReminders();
 }
 
 function updateAnbanConfig(patch) {
@@ -147,13 +206,19 @@ var SPA = {
   currentSection: null,
   initialized: {},
   sectionsWithNav: { home:1, warn:1, message:1, family:1, mine:1 },
-  sectionIds: { login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine', 'family-edit':'s-family-edit', history:'s-history', detail:'s-detail' }
+  sectionIds: {
+    login:'s-login', home:'s-home', warn:'s-warn', message:'s-message', family:'s-family', mine:'s-mine',
+    'family-profile':'s-family-profile', 'family-memory':'s-family-memory', 'family-edit':'s-family-edit',
+    'settings-account':'s-settings-account', 'settings-device':'s-settings-device',
+    'settings-connection':'s-settings-connection', 'settings-greeting':'s-settings-greeting',
+    'reminder-list':'s-reminder-list', history:'s-history', detail:'s-detail'
+  }
 };
 
 function navigateTo(name) {
   // Save warn scroll position before navigating to sub-pages (detail, history)
   // Only sub-pages should restore scroll when returning; main pages should reset to top
-  var subPages = ['detail', 'history', 'family-edit'];
+  var subPages = ['detail', 'history', 'reminder-list', 'family-profile', 'family-memory', 'family-edit', 'settings-account', 'settings-device', 'settings-connection', 'settings-greeting'];
   if (SPA.currentSection === 'warn' && subPages.indexOf(name) >= 0) {
     var inner = document.getElementById('screenInner');
     if (inner) SPA._warnScrollTop = inner.scrollTop;
@@ -189,6 +254,8 @@ function resetLoginUI() {
 function showSection(name) {
   // Reset login UI when entering login page
   if (name === 'login') resetLoginUI();
+  if (name !== 'home') closeVisionHistory();
+  if (SPA.currentSection && name !== SPA.currentSection) closeReminderCreateModal();
 
   // Hide current
   if (SPA.currentSection) {
@@ -220,7 +287,7 @@ function showSection(name) {
   }
 
   // Hide bottom navs for secondary pages (history, family-edit)
-  var noNavPages = ['history', 'family-edit', 'detail'];
+  var noNavPages = ['history', 'reminder-list', 'family-profile', 'family-memory', 'family-edit', 'settings-account', 'settings-device', 'settings-connection', 'settings-greeting', 'detail'];
   var allNavs = document.querySelectorAll('#s-home nav, #s-warn nav, #s-message nav, #s-family nav, #s-mine nav');
   if (noNavPages.indexOf(name) >= 0) {
     for (var n = 0; n < allNavs.length; n++) allNavs[n].style.display = 'none';
@@ -234,16 +301,9 @@ function showSection(name) {
     }
   }
 
-  // Update status bar color
-  var sb = document.getElementById('globalStatusBar');
-  if (sb) {
-    if (name === 'login') { sb.className = 'status-bar light'; }
-    else { sb.className = 'status-bar dark'; }
-  }
-
   // Lazy init
   var initFn = 'init' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-./g, function(x){return x[1].toUpperCase()});
-  var alwaysRefresh = ['history', 'detail'];
+  var alwaysRefresh = ['history', 'reminder-list', 'detail'];
   if ((!SPA.initialized[name] || alwaysRefresh.indexOf(name) >= 0) && typeof window[initFn] === 'function') {
     SPA.initialized[name] = true;
     window[initFn]();
@@ -291,6 +351,9 @@ Object.assign(window, {
   notImplemented,
   showToast,
   closeVisionResult,
+  closeVisionHistory,
+  openReminderCreateModal,
+  closeReminderCreateModal,
   openBindDevice,
   closeBindDevice,
   submitDeviceBinding,
@@ -301,8 +364,15 @@ Object.assign(window, {
   initHome,
   initMessage,
   initWarn,
+  initReminderList,
   initFamily,
+  initFamilyProfile,
+  initFamilyMemory,
   initMine,
+  initSettingsAccount,
+  initSettingsDevice,
+  initSettingsConnection,
+  initSettingsGreeting,
   initFamilyEdit,
 });
 
@@ -323,21 +393,6 @@ if (initialRoute === 'login') {
 }
 showSection(initialRoute);
 applyBindingState();
-
-// Update status bar time to real time
-function updateStatusBarTime() {
-  var now = new Date();
-  var h = now.getHours();
-  var m = now.getMinutes();
-  var timeStr = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
-  var sb = document.getElementById('globalStatusBar');
-  if (sb) {
-    var timeEl = sb.querySelector('.status-bar-time');
-    if (timeEl) timeEl.textContent = timeStr;
-  }
-}
-updateStatusBarTime();
-setInterval(updateStatusBarTime, 10000);
 
 // ============================
 // Shared Toast
@@ -502,7 +557,7 @@ function initLogin() {
 
 function applyBindingState() {
   var locked = isAccountMode() && !anbanSession.binding;
-  ['s-home', 's-message', 's-warn', 's-family'].forEach(function(sectionId) {
+  ['s-home', 's-message', 's-warn', 's-family', 's-family-profile', 's-family-memory', 's-family-edit'].forEach(function(sectionId) {
     var section = document.getElementById(sectionId);
     if (!section) return;
     section.classList.toggle('anban-unbound-section', locked);
@@ -585,11 +640,19 @@ function renderAccountSettings() {
   });
   var title = document.getElementById('accountDisplayName');
   if (title) title.textContent = account.displayName || account.nickname || '子女账号';
+  var landingAccount = document.getElementById('settingsLandingAccountText');
+  if (landingAccount) landingAccount.textContent = account.displayName || account.nickname || '子女账号';
   var phone = document.getElementById('accountMaskedPhone');
   if (phone) phone.textContent = account.phone || '';
   var deviceSummary = document.getElementById('bindingSummary');
   if (deviceSummary) {
     deviceSummary.textContent = binding
+      ? (binding.deviceDisplayName || '安伴设备') + ' · ' + (binding.role === 'admin' ? '家庭管理员' : '家庭成员')
+      : '尚未绑定安伴设备';
+  }
+  var landingBinding = document.getElementById('settingsLandingBindingText');
+  if (landingBinding) {
+    landingBinding.textContent = binding
       ? (binding.deviceDisplayName || '安伴设备') + ' · ' + (binding.role === 'admin' ? '家庭管理员' : '家庭成员')
       : '尚未绑定安伴设备';
   }
@@ -663,31 +726,12 @@ function initHome() {
     if (updated) updated.textContent = view.updatedAt;
   }
 
-  function renderRecentHistory(payload) {
-    var list = document.getElementById('recentMsgList');
-    if (!list) return;
-    list.innerHTML = '';
-
-    var messages = normalizeHistoryMessages(payload, 2);
-    if (!messages.length) {
-      var empty = document.createElement('div');
-      empty.className = 'ab-card';
-      empty.style.cssText = 'padding:18px;text-align:center;color:var(--ab-ink3);font-size:13px';
-      empty.textContent = '暂无最近对话';
-      list.appendChild(empty);
-    }
-
-    messages.forEach(function(item) {
-      var card = document.createElement('div');
-      card.className = 'ab-card';
-      card.style.cssText = 'padding:13px;display:flex;gap:12px;align-items:center';
-      card.innerHTML = '<div class="ab-iconbox material-symbols-outlined" style="width:36px;height:36px;background:#f7ece4;color:var(--ab-primary);font-size:18px"></div><div style="flex:1;min-width:0"><div class="flex justify-between items-center" style="gap:8px"><span class="font-label-md" style="font-size:13.5px;font-weight:600;color:var(--ab-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><span class="font-label-sm ab-tag ab-tag-cat" style="flex-shrink:0"></span></div><p style="font-size:11.5px;color:var(--ab-ink3);margin-top:3px"></p></div>';
-      card.querySelector('.material-symbols-outlined').textContent = item.role === 'user' ? 'person' : 'spatial_audio';
-      card.querySelector('.font-label-md').textContent = item.text;
-      card.querySelector('.font-label-sm').textContent = item.role === 'user' ? '家人' : '安伴';
-      card.querySelector('p').textContent = formatRelativeTime(item.at);
-      list.appendChild(card);
-    });
+  function renderLatestMessageStatus(payload) {
+    var target = document.getElementById('latestMessageStatus');
+    if (!target) return;
+    var view = buildLatestMessageSummary(payload);
+    target.textContent = view.label;
+    target.style.color = view.tone === 'success' ? 'var(--ab-ok)' : view.tone === 'danger' ? '#a54237' : 'var(--ab-ink2)';
   }
 
   function setVisionProgress(stage) {
@@ -710,40 +754,129 @@ function initHome() {
     return 'ab-tag';
   }
 
-  function renderVisionRecent(captures) {
-    var list = document.getElementById('visionRecentList');
-    if (!list) return;
-    var items = Array.isArray(captures) ? captures.slice(0, 3) : [];
-    list.innerHTML = '';
-    if (!items.length) {
-      var empty = document.createElement('div');
-      empty.className = 'ab-card';
-      empty.style.cssText = 'padding:13px;color:var(--ab-ink3);font-size:13px';
-      empty.textContent = '暂无拍摄记录';
-      list.appendChild(empty);
+  function renderVisionHistory(captures) {
+    var content = document.getElementById('visionHistoryContent');
+    var count = document.getElementById('visionHistoryCount');
+    if (!content || !count) return;
+    releaseVisionHistoryObjectURLs();
+    var groups = groupVisionCapturesByDate(captures);
+    var total = groups.reduce(function(sum, group) { return sum + group.items.length; }, 0);
+    count.textContent = total ? '共 ' + total + ' 张，按拍摄时间倒序' : '当前没有可查看的原图';
+    content.innerHTML = '';
+    if (!total) {
+      content.innerHTML = '<div style="padding:54px 10px;text-align:center;color:var(--ab-ink3)"><span class="material-symbols-outlined" style="font-size:42px">photo_library</span><p style="font-size:13px;margin-top:8px">暂无原图记录</p></div>';
       return;
     }
-    items.forEach(function(capture) {
-      var view = buildVisionCaptureView(capture);
-      var row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'ab-card active:scale-95 transition-all';
-      row.style.cssText = 'padding:12px;display:flex;align-items:center;gap:10px;text-align:left';
-      row.innerHTML = '<span class="material-symbols-outlined" style="font-size:19px;color:var(--ab-primary)">photo_camera</span><span style="flex:1;min-width:0"><span class="font-label-md" style="display:block;font-size:13px;font-weight:700;color:var(--ab-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><span class="font-label-sm" style="display:block;font-size:11px;color:var(--ab-ink3);margin-top:2px"></span></span><span class="ab-tag" style="flex-shrink:0"></span>';
-      row.querySelector('.font-label-md').textContent = view.summary;
-      row.querySelector('.font-label-sm').textContent = view.capturedAtLabel;
-      var tag = row.querySelector('.ab-tag');
-      tag.className = visionToneClass(view.statusTone);
-      tag.textContent = view.statusLabel;
-      row.addEventListener('click', async function() {
-        try {
-          await showVisionCapture(capture);
-        } catch (error) {
-          showToast(error.message || '图片加载失败');
+
+    groups.forEach(function(group) {
+      var section = document.createElement('section');
+      section.className = 'vision-history-group';
+      var title = document.createElement('h4');
+      title.className = 'vision-history-date';
+      title.textContent = group.label;
+      var grid = document.createElement('div');
+      grid.className = 'vision-history-grid';
+      group.items.forEach(function(capture) {
+        var view = buildVisionCaptureView(capture);
+        var item = document.createElement('article');
+        item.className = 'vision-history-item';
+        var open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'vision-history-open';
+        open.innerHTML = '<span class="vision-history-thumb"><span class="material-symbols-outlined">image</span><img alt="看一眼拍摄原图" loading="lazy" style="display:none"></span><span class="vision-history-meta"><span class="vision-history-time"></span><span class="vision-history-summary"></span></span>';
+        open.querySelector('.vision-history-time').textContent = captureTimeLabel(capture.capturedAt);
+        open.querySelector('.vision-history-summary').textContent = view.summary;
+        var image = open.querySelector('img');
+        image.dataset.captureId = capture.captureId;
+        open.addEventListener('click', async function() {
+          try {
+            await showVisionCapture(capture);
+          } catch (error) {
+            showToast(error.message || '图片加载失败');
+          }
+        });
+        item.appendChild(open);
+        if (canDeleteVisionCapture()) {
+          var menu = document.createElement('button');
+          menu.type = 'button';
+          menu.className = 'vision-history-menu';
+          menu.title = '删除原图';
+          menu.innerHTML = '<span class="material-symbols-outlined" style="font-size:19px">more_vert</span>';
+          menu.addEventListener('click', function(event) {
+            event.stopPropagation();
+            openVisionDeleteConfirm(capture.captureId);
+          });
+          item.appendChild(menu);
         }
+        grid.appendChild(item);
       });
-      list.appendChild(row);
+      section.appendChild(title);
+      section.appendChild(grid);
+      content.appendChild(section);
     });
+    observeVisionHistoryImages();
+  }
+
+  function captureTimeLabel(value) {
+    var date = new Date(value || 0);
+    if (Number.isNaN(date.getTime())) return '时间未知';
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function canDeleteVisionCapture() {
+    return !isAccountMode() || Boolean(anbanSession.binding && anbanSession.binding.role === 'admin');
+  }
+
+  function observeVisionHistoryImages() {
+    var content = document.getElementById('visionHistoryContent');
+    var images = Array.from(content ? content.querySelectorAll('img[data-capture-id]') : []);
+    if (!images.length) return;
+    if (!('IntersectionObserver' in window)) {
+      images.forEach(loadVisionHistoryThumbnail);
+      return;
+    }
+    visionHistoryObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        visionHistoryObserver.unobserve(entry.target);
+        loadVisionHistoryThumbnail(entry.target);
+      });
+    }, { root: content, rootMargin: '140px 0px' });
+    images.forEach(function(image) { visionHistoryObserver.observe(image); });
+  }
+
+  async function loadVisionHistoryThumbnail(image) {
+    if (!image || image.dataset.loaded === '1') return;
+    image.dataset.loaded = '1';
+    var capture = visionHistoryCaptures.find(function(item) { return item.captureId === image.dataset.captureId; });
+    if (!capture) return;
+    var generation = visionHistoryLoadGeneration;
+    try {
+      var blob = await anbanClient.getVisionCaptureImage(capture.captureId, { deviceId: anbanConfig.deviceId });
+      if (generation !== visionHistoryLoadGeneration) return;
+      var url = URL.createObjectURL(blob);
+      visionHistoryObjectURLs.set(capture.captureId, url);
+      image.src = url;
+      image.style.display = '';
+      var icon = image.previousElementSibling;
+      if (icon) icon.style.display = 'none';
+    } catch (error) {
+      image.dataset.failed = '1';
+    }
+  }
+
+  function openVisionDeleteConfirm(captureId) {
+    visionPendingDeleteID = captureId;
+    document.getElementById('visionDeleteOverlay').classList.add('open');
+    document.getElementById('visionDeleteConfirm').classList.add('open');
+  }
+
+  async function loadVisionHistory() {
+    var content = document.getElementById('visionHistoryContent');
+    if (content) content.innerHTML = '<div style="padding:48px 0;text-align:center;color:var(--ab-ink3);font-size:13px">正在加载原图记录</div>';
+    var captures = await anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 100 });
+    visionHistoryCaptures = Array.isArray(captures) ? captures : [];
+    renderVisionHistory(visionHistoryCaptures);
   }
 
   function renderVisionResult(capture, imageURL) {
@@ -840,14 +973,16 @@ function initHome() {
 
   async function refreshVisionCaptures() {
     if (!isDeviceBound()) {
-      renderVisionRecent([]);
+      visionHistoryCaptures = [];
       return;
     }
     try {
-      var captures = await anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 3 });
-      renderVisionRecent(captures);
+      var captures = await anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 100 });
+      visionHistoryCaptures = Array.isArray(captures) ? captures : [];
+      var sheet = document.getElementById('visionHistorySheet');
+      if (sheet && sheet.classList.contains('open')) renderVisionHistory(visionHistoryCaptures);
     } catch (error) {
-      renderVisionRecent([]);
+      visionHistoryCaptures = [];
     }
   }
 
@@ -902,14 +1037,12 @@ function initHome() {
       renderHomeStatus({ online: false });
       document.getElementById('statusTitle').textContent = '请先绑定安伴设备';
       document.getElementById('statusDesc').textContent = '绑定后即可查看老人状态与最近对话';
-      renderRecentHistory({ messages: [] });
-      renderVisionRecent([]);
+      renderLatestMessageStatus({ messages: [] });
       return;
     }
     var results = await Promise.allSettled([
       anbanClient.getStatus({ deviceId: anbanConfig.deviceId }),
-      anbanClient.getHistory({ deviceId: anbanConfig.deviceId, limit: 10 }),
-      anbanClient.listVisionCaptures({ deviceId: anbanConfig.deviceId, limit: 3 }),
+      anbanClient.listMessages({ deviceId: anbanConfig.deviceId }),
     ]);
 
     if (results[0].status === 'fulfilled') {
@@ -921,15 +1054,9 @@ function initHome() {
     }
 
     if (results[1].status === 'fulfilled') {
-      renderRecentHistory(results[1].value);
+      renderLatestMessageStatus(results[1].value);
     } else {
-      renderRecentHistory({ messages: [] });
-    }
-
-    if (results[2].status === 'fulfilled') {
-      renderVisionRecent(results[2].value);
-    } else {
-      renderVisionRecent([]);
+      renderLatestMessageStatus({ messages: [] });
     }
   };
 
@@ -959,6 +1086,55 @@ function initHome() {
   var visionButton = document.getElementById('visionLookButton');
   if (visionButton) {
     visionButton.addEventListener('click', startVisionLook);
+  }
+
+  var visionHistoryButton = document.getElementById('visionHistoryButton');
+  var visionHistoryOverlay = document.getElementById('visionHistoryOverlay');
+  var visionHistoryClose = document.getElementById('visionHistoryClose');
+  if (visionHistoryButton) {
+    visionHistoryButton.addEventListener('click', async function() {
+      if (!ensureDeviceBound()) return;
+      visionHistoryOverlay.classList.add('open');
+      document.getElementById('visionHistorySheet').classList.add('open');
+      try {
+        await loadVisionHistory();
+      } catch (error) {
+        document.getElementById('visionHistoryCount').textContent = '原图记录加载失败';
+        document.getElementById('visionHistoryContent').innerHTML = '<div style="padding:48px 10px;text-align:center;color:var(--ab-ink3);font-size:13px">请稍后重新打开原图记录</div>';
+        showToast(error.message || '原图记录加载失败');
+      }
+    });
+  }
+  if (visionHistoryOverlay) visionHistoryOverlay.addEventListener('click', closeVisionHistory);
+  if (visionHistoryClose) visionHistoryClose.addEventListener('click', closeVisionHistory);
+
+  var deleteOverlay = document.getElementById('visionDeleteOverlay');
+  var deleteCancel = document.getElementById('visionDeleteCancel');
+  var deleteSubmit = document.getElementById('visionDeleteSubmit');
+  if (deleteOverlay) deleteOverlay.addEventListener('click', closeVisionDeleteConfirm);
+  if (deleteCancel) deleteCancel.addEventListener('click', closeVisionDeleteConfirm);
+  if (deleteSubmit) {
+    deleteSubmit.addEventListener('click', async function() {
+      var captureId = visionPendingDeleteID;
+      if (!captureId) return;
+      deleteSubmit.disabled = true;
+      deleteSubmit.textContent = '删除中';
+      try {
+        await anbanClient.deleteVisionCapture(captureId, { deviceId: anbanConfig.deviceId });
+        if (visionCurrentCapture && visionCurrentCapture.captureId === captureId) closeVisionResult();
+        visionHistoryCaptures = visionHistoryCaptures.filter(function(capture) { return capture.captureId !== captureId; });
+        closeVisionDeleteConfirm();
+        renderVisionHistory(visionHistoryCaptures);
+        showToast('原图记录已删除');
+      } catch (error) {
+        if (error && error.status === 403) showToast('只有家庭管理员可以删除原图记录');
+        else if (error && error.status === 409) showToast('照片仍在拍摄中，暂时不能删除');
+        else showToast(error.message || '原图删除失败');
+      } finally {
+        deleteSubmit.disabled = false;
+        deleteSubmit.textContent = '删除';
+      }
+    });
   }
 
   // Quick Msg Modal
@@ -1722,6 +1898,7 @@ function initWarn() {
       input.setAttribute('placeholder', '例如：吃早饭、吃降压药、喝水等');
       if (counter) counter.textContent = '0/20';
       showToast('提醒已保存');
+      closeReminderCreateModal();
       await loadSavedReminders();
     } catch (error) {
       showToast(error.message || '提醒保存失败');
@@ -1768,11 +1945,32 @@ function initWarn() {
     return '仅一次';
   }
 
+  function renderNextReminder(reminders) {
+    var title = document.getElementById('nextReminderTitle');
+    var meta = document.getElementById('nextReminderMeta');
+    if (!title || !meta) return;
+    var items = Array.isArray(reminders) ? reminders.slice() : [];
+    items.sort(function(left, right) {
+      return new Date(left.scheduledAt || 0).getTime() - new Date(right.scheduledAt || 0).getTime();
+    });
+    var next = items[0];
+    if (!next) {
+      title.textContent = '暂无待执行提醒';
+      meta.textContent = '可以新建一条关怀提醒';
+      return;
+    }
+    var scheduled = new Date(next.scheduledAt);
+    var when = Number.isNaN(scheduled.getTime()) ? '时间待确认' : scheduled.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    title.textContent = next.content || next.text || '提醒';
+    meta.textContent = when + ' · ' + reminderFrequencyLabel(next);
+  }
+
   async function loadSavedReminders() {
     var list = document.getElementById('reminderList');
     try {
       var payload = await anbanClient.listReminders({ deviceId: anbanConfig.deviceId, status: 'scheduled' });
       var reminders = payload.reminders || [];
+      renderNextReminder(reminders);
       list.innerHTML = '';
       if (!reminders.length) {
         var empty = document.createElement('div');
@@ -1784,6 +1982,7 @@ function initWarn() {
         list.appendChild(createReminderCard(reminders[i]));
       }
     } catch (error) {
+      renderNextReminder([]);
       list.innerHTML = '<div class="bg-surface-white rounded-2xl p-6 text-center text-text-secondary">提醒加载失败</div>';
     }
   }
@@ -1803,6 +2002,17 @@ function initWarn() {
     for (var j = 0; j < mItems.length; j++) { mItems[j].classList.toggle('selected', parseInt(mItems[j].textContent) === m); }
   };
 
+  var createButton = document.getElementById('openReminderCreateButton');
+  var listButton = document.getElementById('openReminderListButton');
+  var historyButton = document.getElementById('openReminderHistoryButton');
+  var createOverlay = document.getElementById('reminderCreateOverlay');
+  var createClose = document.getElementById('reminderCreateClose');
+  if (createButton) createButton.addEventListener('click', openReminderCreateModal);
+  if (listButton) listButton.addEventListener('click', function() { navigateTo('reminder-list'); });
+  if (historyButton) historyButton.addEventListener('click', function() { navigateTo('history'); });
+  if (createOverlay) createOverlay.addEventListener('click', closeReminderCreateModal);
+  if (createClose) createClose.addEventListener('click', closeReminderCreateModal);
+
   buildTimePicker();
 }
 
@@ -1811,22 +2021,16 @@ function initWarn() {
 // ============================
 async function initFamily() {
   var defaultProfile = {
-    name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
+    name: '', age: 0, livingSituation: '', occupation: '',
     aiPortrait: '', aiPortraitMode: 'auto',
-    hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
-    habits: [
-      { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
-      { icon: 'local_cafe', text: '饭后必喝一杯龙井，已养成多年习惯' },
-      { icon: 'music_note', text: '下午固定收听京剧频道' },
-      { icon: 'directions_walk', text: '晚餐后在小区散步 30 分钟' }
-    ],
-    health: [
-      { name: '降压药管理', detail: '每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。' },
-      { name: '注意事项', detail: '避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。' }
-    ],
-    communicationDos: ['多聊聊她年轻时的教学故事，她会很开心', '每周至少视频通话两次，她会很期待'],
-    communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
+    hobbies: [], habits: [], health: [], communicationDos: [], communicationDonts: []
   };
+
+  var memoryContent = document.getElementById('familyMemoryContent');
+  var memoryHost = document.getElementById('familyMemoryHost');
+  if (memoryContent && memoryHost && memoryContent.parentElement !== memoryHost) {
+    memoryHost.appendChild(memoryContent);
+  }
 
   var localStored = localStorage.getItem('anban_family_profile_local');
   var localProfile = localStored ? JSON.parse(localStored) : {};
@@ -1839,38 +2043,49 @@ async function initFamily() {
     profile = legacyStored ? JSON.parse(legacyStored) : { ...defaultProfile, ...localProfile };
   }
 
-  document.getElementById('profileName').textContent = profile.name || '妈妈';
-  document.getElementById('profileSubtitle').innerHTML = (profile.age || 72) + '岁 · ' + (profile.livingSituation || '与爸爸同住') + ' · ' + (profile.occupation || '退休教师');
-  document.getElementById('aiPortraitText').textContent = profile.aiPortrait || '画像会在资料和专属记忆积累后自动形成。';
+  var profileName = profile.name || '家人';
+  var subtitle = [profile.age ? profile.age + '岁' : '', profile.livingSituation || '', profile.occupation || ''].filter(Boolean).join(' · ') || '资料尚未完善';
+  var portrait = profile.aiPortrait || '画像会在资料和专属记忆积累后自动形成。';
+  document.getElementById('profileName').textContent = profileName;
+  document.getElementById('profileSubtitle').textContent = subtitle;
+  document.getElementById('aiPortraitText').textContent = portrait;
   document.getElementById('aiPortraitModeText').textContent = profile.aiPortraitMode === 'manual' ? '管理员维护' : 'AI 自动更新';
+  var summaryName = document.getElementById('familySummaryName');
+  var summarySubtitle = document.getElementById('familySummarySubtitle');
+  var summaryPortrait = document.getElementById('familySummaryPortrait');
+  if (summaryName) summaryName.textContent = profileName;
+  if (summarySubtitle) summarySubtitle.textContent = subtitle;
+  if (summaryPortrait) summaryPortrait.textContent = portrait;
   var isAdmin = !isAccountMode() || (anbanSession.binding && anbanSession.binding.role === 'admin');
 
   var hobbyContainer = document.getElementById('hobbyTags');
   if (hobbyContainer) {
     hobbyContainer.innerHTML = '';
-    (profile.hobbies || defaultProfile.hobbies).forEach(function(h) {
+    (profile.hobbies || []).forEach(function(h) {
       var tag = document.createElement('span');
       tag.className = 'bg-secondary-container/40 text-on-secondary-container px-3 py-1.5 rounded-full font-body-md text-body-md';
       tag.textContent = h;
       hobbyContainer.appendChild(tag);
     });
+    if (!hobbyContainer.children.length) hobbyContainer.innerHTML = '<span class="font-body-md text-body-md text-text-secondary">暂无记录</span>';
   }
 
   var habitContainer = document.getElementById('habitItems');
   if (habitContainer) {
     habitContainer.innerHTML = '';
-    (profile.habits || defaultProfile.habits).forEach(function(h) {
+    (profile.habits || []).forEach(function(h) {
       var item = document.createElement('div');
       item.className = 'flex items-center gap-2.5 text-body-md text-body-md text-on-surface-variant';
       item.innerHTML = '<span class="material-symbols-outlined text-primary text-[18px]">' + h.icon + '</span> ' + h.text;
       habitContainer.appendChild(item);
     });
+    if (!habitContainer.children.length) habitContainer.innerHTML = '<div class="font-body-md text-body-md text-text-secondary">暂无记录</div>';
   }
 
   var healthContainer = document.getElementById('healthItems');
   if (healthContainer) {
     healthContainer.innerHTML = '';
-    (profile.health || defaultProfile.health).forEach(function(h, i) {
+    (profile.health || []).forEach(function(h, i) {
       var div = document.createElement('div');
       div.className = 'flex items-start gap-3' + (i > 0 ? ' mt-3' : '');
       var icon = (i === 0) ? 'medication' : 'warning';
@@ -1879,31 +2094,27 @@ async function initFamily() {
         '<p class="font-body-md text-body-md text-on-secondary-container/80">' + h.detail + '</p></div>';
       healthContainer.appendChild(div);
     });
+    if (!healthContainer.children.length) healthContainer.textContent = '暂无记录';
   }
 
   var dosContainer = document.getElementById('commDos');
   if (dosContainer) {
     dosContainer.innerHTML = '';
-    (profile.communicationDos || defaultProfile.communicationDos).forEach(function(d) {
+    (profile.communicationDos || []).forEach(function(d) {
       var item = document.createElement('div');
       item.className = 'flex items-start gap-2.5';
       item.innerHTML = '<span class="material-symbols-outlined text-success text-[18px] flex-shrink-0 mt-0.5">check_circle</span>' +
         '<p class="font-body-md text-body-md text-on-surface-variant">' + d + '</p>';
       dosContainer.appendChild(item);
     });
-    (profile.communicationDonts || defaultProfile.communicationDonts).forEach(function(d) {
+    (profile.communicationDonts || []).forEach(function(d) {
       var item = document.createElement('div');
       item.className = 'flex items-start gap-2.5';
       item.innerHTML = '<span class="material-symbols-outlined text-danger text-[18px] flex-shrink-0 mt-0.5">cancel</span>' +
         '<p class="font-body-md text-body-md text-on-surface-variant">' + d + '</p>';
       dosContainer.appendChild(item);
     });
-  }
-
-  var now = new Date();
-  var timeEl = document.getElementById('updateTime');
-  if (timeEl) {
-    timeEl.textContent = 'AI 认知画像更新于 ' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
+    if (!dosContainer.children.length) dosContainer.textContent = '暂无记录';
   }
 
   async function loadMemoryFacts() {
@@ -2004,10 +2215,36 @@ async function initFamily() {
   loadMemoryFacts();
 }
 
+async function ensureFamilyInitialized() {
+  if (SPA.initialized.family) return;
+  SPA.initialized.family = true;
+  await initFamily();
+}
+
+async function initFamilyProfile() {
+  await ensureFamilyInitialized();
+}
+
+async function initFamilyMemory() {
+  await ensureFamilyInitialized();
+}
+
 // ============================
 // initMine
 // ============================
 function initMine() {
+  [
+    ['settingsAccountContent', 'settingsAccountHost'],
+    ['settingsDeviceContent', 'settingsDeviceHost'],
+    ['settingsConnectionContent', 'settingsConnectionHost'],
+    ['settingsGreetingContent', 'settingsGreetingHost'],
+  ].forEach(function(pair) {
+    var content = document.getElementById(pair[0]);
+    var host = document.getElementById(pair[1]);
+    if (!content || !host) return;
+    content.style.display = '';
+    if (content.parentElement !== host) host.appendChild(content);
+  });
   var baseURLInput = document.getElementById('settingsBaseURL');
   var deviceIdInput = document.getElementById('settingsDeviceId');
   var saveConnectionBtn = document.getElementById('saveConnectionBtn');
@@ -2136,25 +2373,6 @@ function initMine() {
     });
   }
 
-  document.getElementById('clearCacheBtn').addEventListener('click', function() {
-    var label = document.getElementById('cacheSize');
-    if (label.textContent !== '0.0 MB') {
-      label.textContent = '清理中...';
-      label.classList.add('text-primary');
-      setTimeout(function() {
-        label.textContent = '0.0 MB';
-        label.classList.remove('text-primary');
-        label.classList.add('text-success');
-      }, 800);
-    }
-  });
-
-
-
-  document.getElementById('aboutBtn').addEventListener('click', function() {
-    showToast('安伴 v2.4.0 — 孝心安伴');
-  });
-
   document.getElementById('logoutBtn').addEventListener('click', async function() {
     if (isAccountMode()) {
       try { await anbanClient.logout(); } catch (error) {}
@@ -2168,6 +2386,17 @@ function initMine() {
   });
 }
 
+function ensureMineInitialized() {
+  if (SPA.initialized.mine) return;
+  SPA.initialized.mine = true;
+  initMine();
+}
+
+function initSettingsAccount() { ensureMineInitialized(); }
+function initSettingsDevice() { ensureMineInitialized(); }
+function initSettingsConnection() { ensureMineInitialized(); }
+function initSettingsGreeting() { ensureMineInitialized(); }
+
 // ============================
 // initFamilyEdit
 // ============================
@@ -2180,21 +2409,9 @@ async function initFamilyEdit() {
   var habitIcons = ['wb_twilight','local_cafe','music_note','directions_walk','self_improvement','menu_book','potted_plant','tv','pets','shopping_bag','exercise','park'];
 
   var defaultData = {
-    name: '妈妈', age: 72, livingSituation: '与爸爸同住', occupation: '退休教师',
+    name: '', age: 0, livingSituation: '', occupation: '',
     aiPortrait: '', aiPortraitMode: 'auto',
-    hobbies: ['园艺', '广场舞', '京剧', '养花', '做手工'],
-    habits: [
-      { icon: 'wb_twilight', text: '晨间 6:30 起床，作息规律' },
-      { icon: 'local_cafe', text: '饭后必喝一杯龙井，已养成多年习惯' },
-      { icon: 'music_note', text: '下午固定收听京剧频道' },
-      { icon: 'directions_walk', text: '晚餐后在小区散步 30 分钟' }
-    ],
-    health: [
-      { name: '降压药管理', detail: '每日 08:30 服用，饭后半小时温水送服。早晚各测一次血压并记录。' },
-      { name: '注意事项', detail: '避免高盐饮食，保持情绪稳定。如血压超过 150/95 需及时联系医生。' }
-    ],
-    communicationDos: ['多聊聊她年轻时的教学故事，她会很开心', '每周至少视频通话两次，她会很期待'],
-    communicationDonts: ['尽量避免在深夜提及已故的外公，以免引起情绪低落']
+    hobbies: [], habits: [], health: [], communicationDos: [], communicationDonts: []
   };
 
   async function loadData() {
@@ -2488,7 +2705,9 @@ async function initFamilyEdit() {
       });
       data = mapFieldsToStitchProfile(savedProfile.fields || fields, localProfile);
       localStorage.setItem('anban_family_profile', JSON.stringify(data));
-      SPA.initialized['family'] = false;
+      SPA.initialized.family = false;
+      SPA.initialized['family-profile'] = false;
+      SPA.initialized['family-memory'] = false;
       showToast('已保存');
     } catch (error) {
       showToast(error.message || '画像保存失败');

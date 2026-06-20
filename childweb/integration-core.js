@@ -86,6 +86,59 @@ export function formatVisionPresenceResult(result = {}) {
   };
 }
 
+export function buildLatestMessageSummary(payload = {}) {
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const latest = messages.slice().sort((left, right) => {
+    const leftAt = new Date(left?.queuedAt || left?.playedAt || 0).getTime();
+    const rightAt = new Date(right?.queuedAt || right?.playedAt || 0).getTime();
+    return (Number.isNaN(rightAt) ? 0 : rightAt) - (Number.isNaN(leftAt) ? 0 : leftAt);
+  })[0];
+  if (!latest) return { label: '暂无留言', tone: 'muted' };
+  if (latest.status === 'played') return { label: '最近留言已播报', tone: 'success' };
+  if (latest.status === 'failed') return { label: '最近留言发送失败', tone: 'danger' };
+  return { label: '最近留言待播报', tone: 'pending' };
+}
+
+export function groupVisionCapturesByDate(captures = [], now = new Date()) {
+  const valid = (Array.isArray(captures) ? captures : [])
+    .filter((capture) => capture && String(capture.imageUrl || '').trim())
+    .slice()
+    .sort((left, right) => captureTimestamp(right) - captureTimestamp(left));
+  const todayKey = localDateKey(now);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = localDateKey(yesterday);
+  const groups = [];
+  const byKey = new Map();
+
+  valid.forEach((capture) => {
+    const capturedAt = new Date(capture.capturedAt || 0);
+    const key = Number.isNaN(capturedAt.getTime()) ? 'unknown' : localDateKey(capturedAt);
+    if (!byKey.has(key)) {
+      const group = {
+        key,
+        label: key === todayKey ? '今天' : key === yesterdayKey ? '昨天' : key === 'unknown' ? '日期未知' : key.replaceAll('-', '/'),
+        items: [],
+      };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    byKey.get(key).items.push(capture);
+  });
+  return groups;
+}
+
+function captureTimestamp(capture) {
+  const value = new Date(capture?.capturedAt || 0).getTime();
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function localDateKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+
 export function buildVisionCaptureView(capture = {}) {
   const analysis = capture.analysis || {};
   const status = String(capture.status || 'pending').trim();

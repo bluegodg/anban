@@ -219,7 +219,11 @@ func RequireAdminForProfileWrites() gin.HandlerFunc {
 		if c.GetString(sharedtypes.GinContextAuthMode) == "account" &&
 			isAdminOnlyWritePath(c.Request.Method, c.Request.URL.Path) &&
 			c.GetString(sharedtypes.GinContextDeviceRole) != string(devicebinding.RoleAdmin) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin_required", "message": "只有家庭管理员可以编辑家人资料和记忆"})
+			message := "只有家庭管理员可以编辑家人资料和记忆"
+			if isVisionCaptureDeletePath(c.Request.Method, c.Request.URL.Path) {
+				message = "只有家庭管理员可以删除原图记录"
+			}
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin_required", "message": message})
 			return
 		}
 		c.Next()
@@ -233,5 +237,9 @@ func isAdminOnlyWritePath(method, path string) bool {
 	if path == "/api/profile" {
 		return true
 	}
-	return path == "/api/memory/facts" || strings.HasPrefix(path, "/api/memory/facts/")
+	return path == "/api/memory/facts" || strings.HasPrefix(path, "/api/memory/facts/") || isVisionCaptureDeletePath(method, path)
+}
+
+func isVisionCaptureDeletePath(method, path string) bool {
+	return method == http.MethodDelete && strings.HasPrefix(path, "/api/vision/captures/")
 }

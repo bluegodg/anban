@@ -4046,3 +4046,34 @@
 - 原图验证：`GET /api/vision/captures/cap_133f50758b91b80a004466d3242c4691/image` 返回 `200 image/jpeg`，`Content-Length=29019`，图片 SHA-256 前缀 `7819909ff3e03cc7`；capture DTO 包含拍摄时间、AI 摘要、`presence=no_one` 和可鉴权 `imageUrl`。
 - 普通语音看图兼容：前一条未标记 multipart 探针已返回 xiaozhi 文本结果且未生成 AnBan capture，本条真机验收只保存带 `[[ANBAN_CAPTURE:...]]` 标记的手动“看一眼”图片。
 - 结论：方案 3.3 的 `childweb -> AnBan look -> xiaozhi manager MCP -> 设备拍照 -> AnBan 代理保存原图 -> xiaozhi VLM -> childweb 鉴权读图` 已端到端可用；未改 xiaozhi 源码或固件。
+
+### 01:44 子女端信息收拢第一批：原图历史、管理员删除与首页精简
+
+- 文件：`server/internal/domains/vision/`、`server/internal/childapi/`、`childweb/`、`web/api/client.js`。
+- 后端：新增 `DELETE /api/vision/captures/:captureId`；删除时先移除原图文件，再按设备和 capture ID 硬删除数据库记录；文件已不存在可继续完成删除，pending 返回 `409 capture_in_progress`，跨设备和不存在记录返回 `404 capture_not_found`。
+- 权限：账号模式仅家庭管理员可删除原图，普通成员返回 `403 admin_required`；旧访问码模式保持管理员等价兼容。
+- 子女端：新增“原图记录”两列可滚动底部弹窗，读取当前保留的最多 100 条记录并过滤无原图项，按今天/昨天/日期分组；缩略图按可视区域懒加载，关闭、切页和删除时释放 Blob URL，异步关闭使用加载代次防止 URL 泄漏。
+- 首页：保留设备在线状态、最近互动和最新留言播报状态；收拢为问候、看一眼、原图记录、留言四个入口；移除最近拍摄长列表、最近留言长列表、虚假环境状态和应用内 9:41/信号/电池状态栏及其 54px 偏移。
+- 边界：不改 xiaozhi、固件、设备协议、视觉留存策略；仍只保存带安伴 capture 标记的手动“看一眼”原图，普通语音看图不入历史。
+- 验证：TDD RED 覆盖删除服务/路由/权限和前端历史交互；`npm test --prefix childweb` 51/51、`node --test web/smoke.test.mjs` 80/80、JS syntax、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
+
+### 01:57 子女端信息收拢第二批：提醒首页、创建弹窗与专属列表
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/sw.js`。
+- 页面：提醒主页面只保留下一条待执行提醒摘要，以及“新建提醒 / 全部提醒 / 历史提醒”三个明确入口；移除内联长表单和四条静态示例提醒。
+- 交互：新建提醒表单迁移到可上下滑动的底部弹窗，继续复用现有时间、频率、自定义日期和重要提醒能力；保存成功后自动关闭弹窗并刷新摘要和列表。
+- 导航：新增 `#reminder-list` 专属页面承载全部待执行提醒，保留现有提醒详情和历史页面；直接打开该 hash 时会自行初始化提醒域，不依赖先访问提醒主页。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v6`，确保线上 PWA 获取新页面结构。
+- 验证：TDD RED/GREEN；`npm test --prefix childweb` 52/52、`node --test web/smoke.test.mjs` 80/80、JS syntax、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
+
+### 02:06 子女端信息收拢第三批：家人页与设置页分层
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/sw.js`。
+- 家人页：主页面只保留家人资料和 AI 画像摘要，以及“完整画像 / 编辑资料 / 记忆库”入口；完整画像、管理员编辑和专属记忆分别使用独立路由，普通成员继续隐藏全部编辑入口并只读查看。
+- 设置页：改为账号、设备与家庭、连接设置、主动问候时段四个菜单入口，原有真实表单和接口逻辑迁移到独立页面；删除虚假缓存大小、无来源版本号和对应模拟交互。
+- 数据：删除画像页面和编辑页中的硬编码老人资料、兴趣、习惯、健康和沟通示例；后端无资料时显示明确空态，不再伪装成真实家庭数据。
+- 导航：新增 `#family-profile`、`#family-memory`、`#settings-account`、`#settings-device`、`#settings-connection`、`#settings-greeting`，支持直接打开子路由并自动初始化对应域。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v7`。
+- 边界：消息页保持专属对话页面；不改 xiaozhi、固件、设备协议或后端接口。
+- 验证：TDD RED/GREEN；`npm test --prefix childweb` 53/53、`npm test --prefix web` 80/80、`node --check childweb/app.js`、`git diff --check`、`go build ./...`、`go vet ./...`、`go test -count=1 ./...` 全部通过。
+- 远端部署：仅上传 `index.html`、`app.js`、`sw.js` 到 `101.34.214.149`，保留服务器 `config.js`、密钥和 APK；旧文件备份在 `/home/ubuntu/anban/deploy-backups/f2d9ba3-childweb`。三份文件本地/远端 SHA-256 一致，`8090/health` 与 `8091` 均返回 200；Playwright 在 375x812 和 430x932 验证无横向溢出、无控制台错误，普通成员编辑入口和记忆管理控件保持隐藏。

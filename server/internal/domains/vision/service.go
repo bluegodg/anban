@@ -350,6 +350,34 @@ func (s *Service) ListCaptures(ctx context.Context, req CaptureListRequest) ([]C
 	return out, nil
 }
 
+func (s *Service) DeleteCapture(ctx context.Context, deviceID, captureID string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	captureID = strings.TrimSpace(captureID)
+	if deviceID == "" || captureID == "" {
+		return ErrInvalidInput
+	}
+	if s.store == nil {
+		return ErrStoreUnavailable
+	}
+	capture, err := s.store.GetCapture(ctx, deviceID, captureID)
+	if err != nil {
+		return err
+	}
+	if capture.Status == CaptureStatusPending {
+		return ErrCaptureInProgress
+	}
+	if capture.ImageRelativePath != "" {
+		if s.mediaRoot == "" {
+			return ErrStoreUnavailable
+		}
+		path := filepath.Join(s.mediaRoot, filepath.FromSlash(capture.ImageRelativePath))
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return s.store.DeleteCapture(ctx, deviceID, captureID)
+}
+
 func (s *Service) FinalizeTimedOutCaptures(ctx context.Context, now time.Time) (int, error) {
 	if s.store == nil {
 		return 0, ErrStoreUnavailable
