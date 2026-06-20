@@ -18,7 +18,9 @@ else
 fi
 
 echo "[1/2] 下载 release 二进制（$TAG）：$URL"
-curl -fL --retry 3 -o "$DIR/anban.new" "$URL"
+# --http1.1：GitHub release 资产走 HTTP/2 偶发 "stream not closed cleanly (PROTOCOL_ERROR)"，强制 1.1 规避。
+# -sS：静默但保留错误信息（避免进度条刷屏）。
+curl -fL --http1.1 -sS --retry 3 -o "$DIR/anban.new" "$URL"
 chmod +x "$DIR/anban.new"
 
 echo "[2/2] 复用 start.sh：换二进制 + 载 anban.env + 重启 + 健康检查"
