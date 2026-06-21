@@ -1814,6 +1814,45 @@ function resetMessageVoiceInput() {
   setMessageVoiceListening(false);
 }
 
+function getNativeSpeechPlugin() {
+  var capacitor = window.Capacitor;
+  if (!capacitor || !capacitor.Plugins) return null;
+  var plugin = capacitor.Plugins.AnBanSpeech;
+  return plugin && typeof plugin.start === 'function' ? plugin : null;
+}
+
+function isLocalSpeechOrigin() {
+  var hostname = window.location && window.location.hostname ? window.location.hostname : '';
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+}
+
+function shouldBlockWebSpeechForInsecureContext() {
+  return window.isSecureContext === false && !isLocalSpeechOrigin();
+}
+
+function startNativeMessageVoiceInput(messageInput, nativeSpeech) {
+  messageVoiceListening = true;
+  setMessageVoiceListening(true);
+  showToast('正在听…');
+
+  nativeSpeech.start({ language: 'zh-CN' }).then(function(result) {
+    var transcript = result && result.text ? String(result.text).trim() : '';
+    if (!transcript) {
+      showToast('未识别到内容');
+      return;
+    }
+    messageInput.value = appendVoiceTranscript(messageInput.value, transcript);
+    messageInput.focus();
+    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    showToast('已填入文字');
+  }).catch(function(error) {
+    var message = error && error.message ? error.message : '语音输入失败，请再试一次';
+    showToast(message);
+  }).then(function() {
+    resetMessageVoiceInput();
+  });
+}
+
 function toggleMessageVoiceInput() {
   if (messageVoiceListening) {
     if (messageVoiceRecognition) {
@@ -1828,6 +1867,15 @@ function toggleMessageVoiceInput() {
 
   var messageInput = document.getElementById('messageInput');
   if (!messageInput) return;
+  var nativeSpeech = getNativeSpeechPlugin();
+  if (nativeSpeech) {
+    startNativeMessageVoiceInput(messageInput, nativeSpeech);
+    return;
+  }
+  if (shouldBlockWebSpeechForInsecureContext()) {
+    showToast('当前网页地址不是 HTTPS，浏览器不能打开语音输入');
+    return;
+  }
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     showToast('当前浏览器不支持语音输入');
@@ -1860,7 +1908,7 @@ function toggleMessageVoiceInput() {
   recognition.onerror = function(event) {
     messageVoiceErrorShown = true;
     if (event && (event.error === 'not-allowed' || event.error === 'service-not-allowed')) {
-      showToast('请允许麦克风权限后再试');
+      showToast('麦克风权限被浏览器拒绝，请在系统或浏览器设置中打开');
       return;
     }
     if (event && event.error === 'no-speech') {

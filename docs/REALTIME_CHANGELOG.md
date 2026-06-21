@@ -4,6 +4,16 @@
 
 ## 2026-06-21
 
+### 子女端语音输入权限修复
+
+- 文件：`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/README.md`、`childweb/sw.js`、`D:\Program\Project\anban-apk\android\app\src\main\AndroidManifest.xml`、`D:\Program\Project\anban-apk\android\app\src\main\java\com\anban\childweb\MainActivity.java`、`D:\Program\Project\anban-apk\android\app\src\main\java\com\anban\childweb\AnBanSpeechPlugin.java`。
+- 原因：线上网页运行在公网 HTTP 地址时，浏览器不会弹出可用的麦克风权限窗口；APK 里此前也只有 `INTERNET` 权限，且没有注册原生语音识别桥，WebView 点击 mic 后只能落到误导性的“请允许麦克风权限后再试”。
+- 内容：消息页语音输入优先检测 Capacitor `AnBanSpeech` 原生插件；App 内调用 Android 系统语音识别并把结果回填留言输入框。普通网页继续使用 `SpeechRecognition/webkitSpeechRecognition`，但非 localhost 的非 HTTPS 环境会直接提示“当前网页地址不是 HTTPS，浏览器不能打开语音输入”，不再伪装成用户未授权。
+- APK：新增 `RECORD_AUDIO` 权限和 `AnBanSpeechPlugin`，插件请求麦克风运行时权限、启动 `RecognizerIntent.ACTION_RECOGNIZE_SPEECH`，返回第一条中文识别文本给 childweb。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v13`，确保已安装 PWA 获取修复后的 `app.js`。
+- 验证：先新增 childweb RED smoke，确认旧实现缺少 `window.Capacitor/AnBanSpeech`、HTTPS 降级和 v13 cache 时失败；实现后 `npm test --prefix childweb`（60/60）、`node --check childweb\app.js`、`npm test --prefix web`（80/80）均通过。APK 工程 `npx cap sync android` 与 `gradlew assembleDebug` 通过；本地 APK 校验包含 `android.permission.RECORD_AUDIO`、assets/public `sw.js` v13、`app.js` 的 `AnBanSpeech` 调用和 HTTPS 提示。
+- 发布：线上静态文件备份在 `/home/ubuntu/anban/deploy-backups/message-voice-permission-20260621-160200`，旧 APK 备份在 `/home/ubuntu/anban/deploy-backups/anban-apk-voice-permission-20260621-160300/anban.apk`。已覆盖 `101.34.214.149:/home/ubuntu/anban/childweb/app.js`、`sw.js`、`README.md` 和 `anban.apk`；公网 `http://101.34.214.149:8091/sw.js` 返回 `anban-childweb-v13` 与 `message-voice-permission-20260621`，`app.js` 返回 `AnBanSpeech` 与 HTTPS 降级提示。新 APK SHA-256 为 `4669a51a8624dc6b6a5cf2009b7e80508bc748d99378905df54201c9bc397343`，大小 `7600756` 字节，`http://101.34.214.149:8091/anban.apk` 返回 200，后端 `/health` 返回 `{"status":"ok"}`。
+
 ### 子女端消息页语音输入转文字
 
 - 文件：`childweb/index.html`、`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/README.md`、`childweb/sw.js`。
