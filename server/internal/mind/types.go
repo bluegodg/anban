@@ -129,8 +129,10 @@ const (
 )
 
 const (
-	ConstraintMindProactiveCooldownActive = "mind_proactive_cooldown_active"
-	ConstraintMindProactiveDaytimeOnly    = "mind_proactive_daytime_only"
+	ConstraintMindProactiveCooldownActive        = "mind_proactive_cooldown_active"
+	ConstraintMindProactiveDaytimeOnly           = "mind_proactive_daytime_only"
+	ConstraintMindAutonomousVisionDisabled       = "mind_autonomous_vision_disabled"
+	ConstraintMindAutonomousVisionCooldownActive = "mind_autonomous_vision_cooldown_active"
 )
 
 type ThoughtStatus string

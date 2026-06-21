@@ -3,10 +3,13 @@ package thoughts
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
 )
+
+const criticalConcernThreshold = 0.95
 
 func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, events []mind.Event) []mind.Thought {
 	out := []mind.Thought{}
@@ -16,7 +19,7 @@ func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, event
 		case mind.EventLongSilence:
 			thoughtBaseID, sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "long-silence", usedThoughtBaseIDs)
 			driveName := mind.DriveCare
-			if driveStrength(drives, mind.DriveQuietPresence) >= driveStrength(drives, mind.DriveCare) {
+			if (state.Concern < criticalConcernThreshold || s.TimeOfDay == "night") && driveStrength(drives, mind.DriveQuietPresence) >= driveStrength(drives, mind.DriveCare) {
 				driveName = mind.DriveQuietPresence
 			}
 			out = append(out, clampThought(mind.Thought{
@@ -82,6 +85,27 @@ func Generate(s mind.Situation, state mind.SelfState, drives []mind.Drive, event
 				CareValue:        0.45,
 				Novelty:          0.35,
 				InterruptionCost: 0.40,
+				Intimacy:         0.55,
+				Status:           mind.ThoughtPending,
+			}))
+		case mind.EventVisionObservation:
+			thoughtBaseID, sourceID, deviceID, at := normalizedEventIdentity(s, event, i, "vision-observation", usedThoughtBaseIDs)
+			content := strings.TrimSpace(event.Summary)
+			if content == "" {
+				content = "视觉观察已完成，先安静消化看到的情况。"
+			}
+			out = append(out, clampThought(mind.Thought{
+				ID:               fmt.Sprintf("thought-%s-vision-observation", thoughtBaseID),
+				DeviceID:         deviceID,
+				At:               at,
+				Content:          content,
+				SourceEventIDs:   []string{sourceID},
+				DriveName:        mind.DriveQuietPresence,
+				EmotionalTone:    "attentive",
+				Urgency:          0.30,
+				CareValue:        0.65,
+				Novelty:          0.45,
+				InterruptionCost: 0.85,
 				Intimacy:         0.55,
 				Status:           mind.ThoughtPending,
 			}))

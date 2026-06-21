@@ -28,6 +28,44 @@ func TestGenerateLongSilenceThoughtPrefersWaitWhenInterruptionCostHigh(t *testin
 	}
 }
 
+func TestGenerateLongSilenceEscalatesToCareWhenConcernIsCritical(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	got := Generate(
+		mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "morning"},
+		mind.SelfState{Concern: 1, Quietness: 1},
+		[]mind.Drive{{Name: mind.DriveCare, Strength: 0.75}, {Name: mind.DriveQuietPresence, Strength: 1}},
+		[]mind.Event{{ID: "evt-critical-silence", DeviceID: "dev-001", Type: mind.EventLongSilence, At: at}},
+	)
+	if len(got) != 1 || got[0].DriveName != mind.DriveCare {
+		t.Fatalf("thoughts = %+v, want critical concern to escalate to care", got)
+	}
+}
+
+func TestGenerateVisionObservationCreatesQuietFollowUpThought(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 5, 0, 0, time.UTC)
+	got := Generate(
+		mind.Situation{DeviceID: "dev-001", At: at},
+		mind.SelfState{Concern: 0.75, Quietness: 0.55},
+		nil,
+		[]mind.Event{{
+			ID:       "evt-vision-1",
+			DeviceID: "dev-001",
+			Type:     mind.EventVisionObservation,
+			At:       at,
+			Summary:  "老人正在沙发上休息",
+		}},
+	)
+	if len(got) != 1 {
+		t.Fatalf("thoughts = %+v, want 1", got)
+	}
+	if got[0].DriveName != mind.DriveQuietPresence || got[0].Content != "老人正在沙发上休息" {
+		t.Fatalf("thought = %+v, want quiet follow-up using vision summary", got[0])
+	}
+	if got[0].InterruptionCost < 0.75 {
+		t.Fatalf("InterruptionCost = %.2f, want no immediate follow-up interruption", got[0].InterruptionCost)
+	}
+}
+
 func TestGenerateChildMessageThoughtUsesFamilyBridge(t *testing.T) {
 	at := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
 	got := Generate(

@@ -11,6 +11,7 @@ import (
 )
 
 const proactiveConcernThreshold = 0.70
+const autonomousVisionConcernThreshold = 0.70
 
 func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []mind.Action {
 	out := make([]mind.Action, 0, len(thoughts))
@@ -137,6 +138,10 @@ func actionFor(thought mind.Thought, s mind.Situation, state mind.SelfState) (mi
 		}
 		return mind.ActionWait, "mind"
 	}
+	if (thought.DriveName == mind.DriveCare || thought.DriveName == mind.DriveCuriosity) &&
+		thought.InterruptionCost <= 0.85 && shouldObserve(thought, s, state) {
+		return mind.ActionCallMCPTool, "vision"
+	}
 	if thought.InterruptionCost >= 0.75 {
 		return mind.ActionWait, "mind"
 	}
@@ -151,14 +156,28 @@ func actionFor(thought mind.Thought, s mind.Situation, state mind.SelfState) (mi
 		return mind.ActionSpeak, "message"
 	case mind.DriveCompanionship:
 		return mind.ActionSpeak, "greeting"
-	case mind.DriveCare:
+	case mind.DriveCare, mind.DriveCuriosity:
 		return mind.ActionScheduleRecheck, "mind"
 	default:
 		return mind.ActionSilentStateUpdate, "mind"
 	}
 }
 
+func shouldObserve(thought mind.Thought, s mind.Situation, state mind.SelfState) bool {
+	if hasConstraint(s, mind.ConstraintMindAutonomousVisionDisabled) ||
+		hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly) ||
+		hasConstraint(s, mind.ConstraintMindAutonomousVisionCooldownActive) {
+		return false
+	}
+	return state.Concern >= autonomousVisionConcernThreshold ||
+		thought.CareValue >= 0.75 ||
+		state.Curiosity >= 0.75
+}
+
 func shouldSpeakQuietPresence(thought mind.Thought, s mind.Situation, state mind.SelfState) bool {
+	if thought.InterruptionCost >= 0.75 {
+		return false
+	}
 	if hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly) {
 		return false
 	}
@@ -187,6 +206,10 @@ func score(thought mind.Thought, s mind.Situation, state mind.SelfState, actionT
 	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak {
 		value += state.Concern * 0.18
 		cost *= 0.65
+	}
+	if actionType == mind.ActionCallMCPTool {
+		value += state.Concern * 0.18
+		cost *= 0.75
 	}
 
 	if s.InteractionMode == "conversation" && actionType == mind.ActionSpeak {
@@ -226,11 +249,45 @@ func argsFor(thought mind.Thought, actionType mind.ActionType, executor string) 
 	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak && executor == "greeting" {
 		return map[string]any{"mindProactive": true}
 	}
+	if actionType == mind.ActionCallMCPTool && executor == "vision" {
+		return map[string]any{
+			"mindAutonomousVision": true,
+			"tool":                 "self.camera.take_photo",
+		}
+	}
 	return nil
 }
 
 func reasonFor(thought mind.Thought, actionType mind.ActionType, s mind.Situation, state mind.SelfState) string {
+	if (thought.DriveName == mind.DriveCare || thought.DriveName == mind.DriveCuriosity) && actionType == mind.ActionScheduleRecheck {
+		switch {
+		case hasConstraint(s, mind.ConstraintMindAutonomousVisionDisabled):
+			return "自主视觉已关闭，稍后再确认状态"
+		case hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly):
+			return "自主观察仅在白天启用，稍后再确认状态"
+		case hasConstraint(s, mind.ConstraintMindAutonomousVisionCooldownActive):
+			return "仍在自主视觉冷却期内，稍后再确认状态"
+		default:
+			return "关心或好奇强度不足，稍后再确认状态"
+		}
+	}
+	if actionType == mind.ActionCallMCPTool && thought.DriveName == mind.DriveCare {
+		return "长时间安静且关心强度较高，先通过摄像头确认老人状态"
+	}
+	if actionType == mind.ActionCallMCPTool && thought.DriveName == mind.DriveCuriosity {
+		return "出现值得确认的新情况，先通过摄像头安静观察"
+	}
 	if actionType == mind.ActionWait {
+		if thought.DriveName == mind.DriveCare || thought.DriveName == mind.DriveCuriosity {
+			switch {
+			case hasConstraint(s, mind.ConstraintMindAutonomousVisionDisabled):
+				return "自主视觉已关闭，选择等待"
+			case hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly):
+				return "自主观察仅在白天启用，夜间选择等待"
+			case hasConstraint(s, mind.ConstraintMindAutonomousVisionCooldownActive):
+				return "仍在自主视觉冷却期内，选择等待"
+			}
+		}
 		if thought.DriveName == mind.DriveQuietPresence && hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly) {
 			return "自主开口仅白天启用，夜间选择等待"
 		}

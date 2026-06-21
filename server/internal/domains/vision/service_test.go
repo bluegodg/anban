@@ -92,6 +92,7 @@ func TestServiceLookMapsXiaozhiErrorsToCaptureFailureCode(t *testing.T) {
 			visionStore := newVisionTestStore(t)
 			svc := NewService(&visionClient{err: tt.err})
 			svc.UseStore(visionStore)
+			svc.UseCaptureTimeout(100 * time.Millisecond)
 
 			result, err := svc.Look(context.Background(), LookRequest{DeviceID: "dev-001"})
 			if !errors.Is(err, tt.err) {
@@ -173,6 +174,8 @@ func TestServiceDeviceVisionUploadCompletesMarkedLookCapture(t *testing.T) {
 	svc.UseStore(visionStore)
 	svc.UseMediaRoot(t.TempDir())
 	svc.UseVisionForwarder(forwarder)
+	sink := &fakeVisionMindSink{}
+	svc.UseMindSink(sink)
 
 	look, err := svc.Look(context.Background(), LookRequest{DeviceID: "dev-001"})
 	if err != nil {
@@ -227,6 +230,16 @@ func TestServiceDeviceVisionUploadCompletesMarkedLookCapture(t *testing.T) {
 	sum := sha256.Sum256(image)
 	if storedImage.SHA256 != hex.EncodeToString(sum[:]) {
 		t.Fatalf("stored image sha = %q, want original bytes hash", storedImage.SHA256)
+	}
+	if len(sink.events) != 1 {
+		t.Fatalf("mind events = %+v, want one vision observation", sink.events)
+	}
+	event := sink.events[0]
+	if event.Type != "vision_observation" || event.Summary != "老人正在沙发上休息" {
+		t.Fatalf("mind event = %+v, want vision observation summary", event)
+	}
+	if event.Payload["captureId"] != look.CaptureID || event.Payload["presence"] != string(PresenceSomeone) {
+		t.Fatalf("mind event payload = %+v, want capture and presence", event.Payload)
 	}
 }
 
@@ -370,6 +383,47 @@ func TestServiceLookKeepsCompletedUploadWhenMCPReturnsErrorAfterDeviceUpload(t *
 	}
 	if saved.Status != CaptureStatusSucceeded || saved.Analysis.Summary != "老人正在沙发上休息" {
 		t.Fatalf("saved = %+v, want completed upload preserved", saved)
+	}
+}
+
+func TestServiceLookWaitsForLateSuccessfulUploadAfterMCPTimeout(t *testing.T) {
+	visionStore := newVisionTestStore(t)
+	forwarder := &fakeVisionForwarder{resp: xiaozhiclient.VisionForwardResponse{
+		StatusCode:  http.StatusOK,
+		ContentType: "application/json",
+		Body:        []byte(`{"summary":"老人正在沙发上休息","presence":"someone","concerns":[]}`),
+	}}
+	xc := &visionClient{err: xiaozhiclient.ErrUpstreamTimeout}
+	svc := NewService(xc)
+	svc.UseStore(visionStore)
+	svc.UseMediaRoot(t.TempDir())
+	svc.UseVisionForwarder(forwarder)
+	svc.UseCaptureTimeout(500 * time.Millisecond)
+	uploadDone := make(chan error, 1)
+	xc.onMCP = func(ctx context.Context, deviceID, tool string, args map[string]any) {
+		question, _ := args["question"].(string)
+		go func() {
+			time.Sleep(25 * time.Millisecond)
+			_, err := svc.HandleDeviceVisionUpload(context.Background(), DeviceVisionUpload{
+				DeviceID:    deviceID,
+				Question:    question,
+				FileName:    "camera.jpg",
+				ContentType: "image/jpeg",
+				Image:       []byte{0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00, 0xff, 0xd9},
+			})
+			uploadDone <- err
+		}()
+	}
+
+	result, err := svc.Look(context.Background(), LookRequest{DeviceID: "dev-001"})
+	if uploadErr := <-uploadDone; uploadErr != nil {
+		t.Fatalf("HandleDeviceVisionUpload: %v", uploadErr)
+	}
+	if err != nil {
+		t.Fatalf("Look error = %v, want late successful upload to win over MCP timeout", err)
+	}
+	if result.Status != CaptureStatusSucceeded || result.Analysis.Summary != "老人正在沙发上休息" {
+		t.Fatalf("result = %+v, want late succeeded capture", result)
 	}
 }
 

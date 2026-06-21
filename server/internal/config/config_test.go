@@ -69,6 +69,12 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	if !c.MindProactiveDaytimeOnly {
 		t.Fatal("MindProactiveDaytimeOnly default = false, want true")
 	}
+	if !c.MindAutonomousVisionEnabled {
+		t.Fatal("MindAutonomousVisionEnabled default = false, want true")
+	}
+	if c.MindAutonomousVisionCooldown != 10*time.Minute {
+		t.Fatalf("MindAutonomousVisionCooldown default = %s, want 10m", c.MindAutonomousVisionCooldown)
+	}
 	if c.TimezoneName != "Asia/Shanghai" || c.TimezoneLocation == nil {
 		t.Fatalf("timezone = %q/%v, want Asia/Shanghai location", c.TimezoneName, c.TimezoneLocation)
 	}
@@ -226,6 +232,25 @@ func TestLoadRejectsInvalidMindProactiveDaytimeOnly(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("expected invalid ANBAN_MIND_PROACTIVE_DAYTIME_ONLY to be rejected")
+	}
+}
+
+func TestLoadParsesAutonomousVisionConfig(t *testing.T) {
+	t.Setenv("ANBAN_MANAGER_BASE_URL", "http://localhost:8080")
+	t.Setenv("ANBAN_MANAGER_API_TOKEN", "tok_123")
+	t.Setenv("ANBAN_ACCESS_CODE", "demo")
+	t.Setenv("ANBAN_MIND_AUTONOMOUS_VISION_ENABLED", "false")
+	t.Setenv("ANBAN_MIND_AUTONOMOUS_VISION_COOLDOWN", "25m")
+
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.MindAutonomousVisionEnabled {
+		t.Fatal("MindAutonomousVisionEnabled = true, want false")
+	}
+	if c.MindAutonomousVisionCooldown != 25*time.Minute {
+		t.Fatalf("MindAutonomousVisionCooldown = %s, want 25m", c.MindAutonomousVisionCooldown)
 	}
 }
 

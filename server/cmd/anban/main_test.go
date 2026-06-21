@@ -10,7 +10,9 @@ import (
 	"github.com/bluegodg/anban/server/internal/config"
 	"github.com/bluegodg/anban/server/internal/domains/greeting"
 	"github.com/bluegodg/anban/server/internal/domains/profile"
+	"github.com/bluegodg/anban/server/internal/domains/vision"
 	"github.com/bluegodg/anban/server/internal/mind"
+	mindengine "github.com/bluegodg/anban/server/internal/mind/engine"
 	"github.com/bluegodg/anban/server/internal/mind/executors"
 	"github.com/bluegodg/anban/server/internal/store"
 	"github.com/bluegodg/anban/server/internal/xiaozhiclient"
@@ -139,9 +141,11 @@ func TestConfigureMindEngineAppliesProactiveOutputSettings(t *testing.T) {
 	target := &fakeMindEngineConfigTarget{}
 
 	configureMindEngine(target, config.Config{
-		TimezoneLocation:         loc,
-		MindProactiveCooldown:    45 * time.Minute,
-		MindProactiveDaytimeOnly: true,
+		TimezoneLocation:             loc,
+		MindProactiveCooldown:        45 * time.Minute,
+		MindProactiveDaytimeOnly:     true,
+		MindAutonomousVisionEnabled:  true,
+		MindAutonomousVisionCooldown: 12 * time.Minute,
 	})
 
 	if target.location != loc {
@@ -153,12 +157,17 @@ func TestConfigureMindEngineAppliesProactiveOutputSettings(t *testing.T) {
 	if !target.daytimeOnly {
 		t.Fatal("daytimeOnly = false, want true")
 	}
+	if !target.autonomousVisionEnabled || target.autonomousVisionCooldown != 12*time.Minute {
+		t.Fatalf("autonomous vision = enabled:%v cooldown:%s, want true/12m", target.autonomousVisionEnabled, target.autonomousVisionCooldown)
+	}
 }
 
 type fakeMindEngineConfigTarget struct {
-	location    *time.Location
-	cooldown    time.Duration
-	daytimeOnly bool
+	location                 *time.Location
+	cooldown                 time.Duration
+	daytimeOnly              bool
+	autonomousVisionEnabled  bool
+	autonomousVisionCooldown time.Duration
 }
 
 func (f *fakeMindEngineConfigTarget) UseLocation(location *time.Location) {
@@ -171,6 +180,117 @@ func (f *fakeMindEngineConfigTarget) UseProactiveCooldown(cooldown time.Duration
 
 func (f *fakeMindEngineConfigTarget) UseProactiveDaytimeOnly(enabled bool) {
 	f.daytimeOnly = enabled
+}
+
+func (f *fakeMindEngineConfigTarget) UseAutonomousVisionEnabled(enabled bool) {
+	f.autonomousVisionEnabled = enabled
+}
+
+func (f *fakeMindEngineConfigTarget) UseAutonomousVisionCooldown(cooldown time.Duration) {
+	f.autonomousVisionCooldown = cooldown
+}
+
+func TestMindVisionExecutorTurnsLookFailuresIntoRecordedFailure(t *testing.T) {
+	looker := &fakeMindVisionLooker{
+		capture: vision.CaptureDTO{CaptureID: "capture-7", Status: vision.CaptureStatusFailed, FailureMessage: "设备离线"},
+		err:     errors.New("device offline"),
+	}
+	exec := newMindVisionExecutor(looker)
+	result, err := exec.Observe(context.Background(), mind.Action{
+		ID:       "action-look",
+		DeviceID: "dev-001",
+		Type:     mind.ActionCallMCPTool,
+		Executor: "vision",
+		Args:     map[string]any{"mindAutonomousVision": true},
+	})
+	if err != nil {
+		t.Fatalf("Observe error = %v, want graceful recorded failure", err)
+	}
+	if result.Status != mind.ActionFailed || result.ExecutorRef != "vision:capture-7" {
+		t.Fatalf("result = %+v, want failed capture ref", result)
+	}
+	if !strings.Contains(result.ErrorMessage, "设备离线") {
+		t.Fatalf("ErrorMessage = %q, want safe failure detail", result.ErrorMessage)
+	}
+}
+
+func TestMindVisionExecutorMarksSuccessfulLookExecuted(t *testing.T) {
+	looker := &fakeMindVisionLooker{
+		capture: vision.CaptureDTO{
+			CaptureID: "capture-success",
+			Status:    vision.CaptureStatusSucceeded,
+			Analysis:  vision.CaptureAnalysis{Summary: "老人正在沙发上休息", Presence: vision.PresenceSomeone},
+		},
+	}
+	exec := newMindVisionExecutor(looker)
+	result, err := exec.Observe(context.Background(), mind.Action{
+		ID:       "action-look-success",
+		DeviceID: "dev-001",
+		Type:     mind.ActionCallMCPTool,
+		Executor: "vision",
+	})
+	if err != nil {
+		t.Fatalf("Observe: %v", err)
+	}
+	if result.Status != mind.ActionExecuted || result.ExecutorRef != "vision:capture-success" || result.ErrorMessage != "" {
+		t.Fatalf("result = %+v, want executed successful capture", result)
+	}
+}
+
+func TestVisionMindSinkCreatesFollowUpThoughtAndWaitAction(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	mindStore := mind.NewStore(st.DB)
+	if err := mindStore.AutoMigrate(); err != nil {
+		t.Fatalf("mind AutoMigrate: %v", err)
+	}
+	sink := visionMindSink{engine: mindengine.New(mindStore)}
+
+	err = sink.IngestMindEvent(context.Background(), vision.MindEvent{
+		DeviceID: "dev-001",
+		Type:     string(mind.EventVisionObservation),
+		Summary:  "老人正在沙发上休息",
+		Payload: map[string]any{
+			"captureId": "capture-success",
+			"presence":  string(vision.PresenceSomeone),
+		},
+	})
+	if err != nil {
+		t.Fatalf("IngestMindEvent: %v", err)
+	}
+
+	var thoughtContent, driveName string
+	if err := st.DB.Raw(
+		"SELECT content, drive_name FROM mind_thoughts WHERE device_id = ? ORDER BY id DESC LIMIT 1",
+		"dev-001",
+	).Row().Scan(&thoughtContent, &driveName); err != nil {
+		t.Fatalf("query follow-up thought: %v", err)
+	}
+	if thoughtContent != "老人正在沙发上休息" || driveName != mind.DriveQuietPresence {
+		t.Fatalf("thought content=%q drive=%q, want quiet vision follow-up", thoughtContent, driveName)
+	}
+
+	var actionType, actionStatus string
+	if err := st.DB.Raw(
+		"SELECT type, status FROM mind_actions WHERE device_id = ? ORDER BY id DESC LIMIT 1",
+		"dev-001",
+	).Row().Scan(&actionType, &actionStatus); err != nil {
+		t.Fatalf("query follow-up action: %v", err)
+	}
+	if actionType != string(mind.ActionWait) || actionStatus != string(mind.ActionDeferred) {
+		t.Fatalf("action type=%q status=%q, want deferred wait without recursive capture", actionType, actionStatus)
+	}
+}
+
+type fakeMindVisionLooker struct {
+	capture vision.CaptureDTO
+	err     error
+}
+
+func (f *fakeMindVisionLooker) Look(context.Context, vision.LookRequest) (vision.CaptureDTO, error) {
+	return f.capture, f.err
 }
 
 type fakeMindGreetingSpeaker struct {

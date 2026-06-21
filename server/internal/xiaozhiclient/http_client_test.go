@@ -752,6 +752,37 @@ func TestCallDeviceMCPToolResolvesManagerDeviceIDAndSendsMCPContract(t *testing.
 	}
 }
 
+func TestCallDeviceMCPToolResolvesManagerSanitizedToolName(t *testing.T) {
+	var gotToolName string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices":
+			_, _ = w.Write([]byte(`{"data":[{"id":1,"device_name":"dev-001"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/open/v1/devices/1/mcp-tools":
+			_, _ = w.Write([]byte(`{"data":{"tools":[{"name":"self_camera_take_photo"}]}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/open/v1/devices/1/mcp-call":
+			var body mcpCallReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("decode mcp call: %v", err)
+			}
+			gotToolName = body.ToolName
+			_, _ = w.Write([]byte(`{"data":{"ok":true}}`))
+		default:
+			t.Fatalf("unexpected manager request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "tok_abc")
+	if _, err := c.CallDeviceMCPTool(context.Background(), "dev-001", "self.camera.take_photo", map[string]any{"question": "请看一眼"}); err != nil {
+		t.Fatalf("CallDeviceMCPTool: %v", err)
+	}
+	if gotToolName != "self_camera_take_photo" {
+		t.Fatalf("tool_name = %q, want manager-exposed sanitized name", gotToolName)
+	}
+}
+
 func TestCallDeviceMCPToolReturnsDirectPayload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -24,6 +24,7 @@ const visionMCPTimeout = 8 * time.Second
 const lookCaptureTimeout = 30 * time.Second
 const defaultCaptureRetention = 30 * 24 * time.Hour
 const maxVisionImageBytes = 10 << 20
+const captureCompletionPollInterval = 50 * time.Millisecond
 
 type Service struct {
 	xc                   xiaozhiclient.Client
@@ -139,6 +140,11 @@ func (s *Service) Look(ctx context.Context, req LookRequest) (CaptureDTO, error)
 		if latest, latestErr := s.store.GetCapture(ctx, deviceID, captureID); latestErr == nil && latest.Status != CaptureStatusPending {
 			return captureDTO(latest), nil
 		}
+		if errors.Is(err, xiaozhiclient.ErrUpstreamTimeout) {
+			if latest, waitErr := s.waitForCaptureCompletion(callCtx, deviceID, captureID); waitErr == nil && latest.Status != CaptureStatusPending {
+				return captureDTO(latest), nil
+			}
+		}
 		capture.Status = CaptureStatusFailed
 		capture.FailureCode = captureFailureCode(err)
 		capture.FailureMessage = captureFailureMessage(err)
@@ -152,6 +158,25 @@ func (s *Service) Look(ctx context.Context, req LookRequest) (CaptureDTO, error)
 		return captureDTO(capture), nil
 	}
 	return captureDTO(latest), nil
+}
+
+func (s *Service) waitForCaptureCompletion(ctx context.Context, deviceID, captureID string) (Capture, error) {
+	ticker := time.NewTicker(captureCompletionPollInterval)
+	defer ticker.Stop()
+	for {
+		latest, err := s.store.GetCapture(ctx, deviceID, captureID)
+		if err != nil {
+			return Capture{}, err
+		}
+		if latest.Status != CaptureStatusPending {
+			return latest, nil
+		}
+		select {
+		case <-ctx.Done():
+			return latest, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (s *Service) HandleDeviceVisionUpload(ctx context.Context, req DeviceVisionUpload) (xiaozhiclient.VisionForwardResponse, error) {
@@ -225,7 +250,40 @@ func (s *Service) HandleDeviceVisionUpload(ctx context.Context, req DeviceVision
 	if err := s.store.UpdateCapture(ctx, &capture); err != nil {
 		return resp, err
 	}
+	if capture.Status == CaptureStatusSucceeded {
+		s.emitVisionObservation(ctx, capture, analysis)
+	}
 	return resp, nil
+}
+
+func (s *Service) emitVisionObservation(ctx context.Context, capture Capture, analysis CaptureAnalysis) {
+	if s.mindSink == nil {
+		return
+	}
+	summary := strings.TrimSpace(analysis.Summary)
+	if summary == "" {
+		summary = "视觉观察已完成"
+	}
+	err := s.mindSink.IngestMindEvent(ctx, MindEvent{
+		DeviceID: capture.DeviceID,
+		Type:     "vision_observation",
+		Summary:  summary,
+		Payload: map[string]any{
+			"captureId": capture.CaptureID,
+			"status":    string(capture.Status),
+			"summary":   analysis.Summary,
+			"presence":  string(analysis.Presence),
+			"concerns":  analysis.Concerns,
+		},
+	})
+	if err != nil {
+		s.logger.Printf(
+			"vision mind observation failed captureId=%s device=%s: %v",
+			capture.CaptureID,
+			deviceHash(capture.DeviceID),
+			err,
+		)
+	}
 }
 
 func (s *Service) ReadCaptureImage(ctx context.Context, deviceID, captureID string) (CaptureImage, error) {

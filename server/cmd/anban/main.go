@@ -209,6 +209,7 @@ func main() {
 	mindDispatcher := executors.NewDispatcher(map[string]executors.SpeakExecutor{
 		"greeting": newMindGreetingSpeakExecutor(greetingService),
 	})
+	mindDispatcher.RegisterVision("vision", newMindVisionExecutor(visionService))
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
 	startMindLoops(sch, profileStore, mindEngine, profileService, cfg.MindLoopInterval)
 	startMindHistoryPoller(sch, cfg.MindHistoryInterval, profileStore, xc, mindEngine)
@@ -249,12 +250,16 @@ type mindEngineConfigTarget interface {
 	UseLocation(*time.Location)
 	UseProactiveCooldown(time.Duration)
 	UseProactiveDaytimeOnly(bool)
+	UseAutonomousVisionEnabled(bool)
+	UseAutonomousVisionCooldown(time.Duration)
 }
 
 func configureMindEngine(target mindEngineConfigTarget, cfg config.Config) {
 	target.UseLocation(cfg.TimezoneLocation)
 	target.UseProactiveCooldown(cfg.MindProactiveCooldown)
 	target.UseProactiveDaytimeOnly(cfg.MindProactiveDaytimeOnly)
+	target.UseAutonomousVisionEnabled(cfg.MindAutonomousVisionEnabled)
+	target.UseAutonomousVisionCooldown(cfg.MindAutonomousVisionCooldown)
 }
 
 type mindGreetingSpeaker interface {
@@ -310,6 +315,42 @@ func greetingSpeakResult(action mind.Action, spokenGreeting greeting.Greeting, e
 func isMindProactiveAction(action mind.Action) bool {
 	value, _ := action.Args["mindProactive"].(bool)
 	return value
+}
+
+type mindVisionLooker interface {
+	Look(ctx context.Context, req vision.LookRequest) (vision.CaptureDTO, error)
+}
+
+func newMindVisionExecutor(looker mindVisionLooker) executors.VisionExecutor {
+	return executors.VisionFunc(func(ctx context.Context, action mind.Action) (executors.Result, error) {
+		capture, err := looker.Look(ctx, vision.LookRequest{DeviceID: action.DeviceID})
+		result := executors.Result{ActionID: action.ID}
+		if capture.CaptureID != "" {
+			result.ExecutorRef = "vision:" + capture.CaptureID
+		}
+		if err != nil {
+			result.Status = mind.ActionFailed
+			result.ErrorMessage = strings.TrimSpace(capture.FailureMessage)
+			if result.ErrorMessage == "" {
+				result.ErrorMessage = "自主观察暂时失败"
+			}
+			return result, nil
+		}
+		switch capture.Status {
+		case vision.CaptureStatusSucceeded:
+			result.Status = mind.ActionExecuted
+		case vision.CaptureStatusPending:
+			result.Status = mind.ActionDeferred
+			result.ErrorMessage = "视觉结果仍在处理中"
+		default:
+			result.Status = mind.ActionFailed
+			result.ErrorMessage = strings.TrimSpace(capture.FailureMessage)
+			if result.ErrorMessage == "" {
+				result.ErrorMessage = "自主观察未完成"
+			}
+		}
+		return result, nil
+	})
 }
 
 func startVisionPresencePoller(sch *scheduler.Scheduler, interval time.Duration, profileStore *profile.Store, visionService *vision.Service) {

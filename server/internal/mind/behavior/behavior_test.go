@@ -180,6 +180,24 @@ func TestSelectTurnsHighConcernQuietPresenceIntoGreetingSpeak(t *testing.T) {
 	}
 }
 
+func TestSelectKeepsHighInterruptionVisionFollowUpQuietEvenWhenConcernHigh(t *testing.T) {
+	actions := Select(
+		mind.Situation{DeviceID: "dev-001", TimeOfDay: "morning", InteractionMode: "idle"},
+		mind.SelfState{Concern: 1, Quietness: 1},
+		[]mind.Thought{{
+			ID:               "thought-vision-observation",
+			DeviceID:         "dev-001",
+			DriveName:        mind.DriveQuietPresence,
+			Content:          "画面中没有出现老人",
+			CareValue:        0.65,
+			InterruptionCost: 0.85,
+		}},
+	)
+	if len(actions) != 1 || actions[0].Type != mind.ActionWait {
+		t.Fatalf("actions = %+v, want quiet wait after high-cost vision observation", actions)
+	}
+}
+
 func TestSelectKeepsQuietPresenceWaitingWhenConcernLowOrCoolingDown(t *testing.T) {
 	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
 	thought := mind.Thought{
@@ -408,5 +426,102 @@ func TestSelectClampsScoreEdges(t *testing.T) {
 				t.Fatalf("Score = %v, want %v", got[0].Score, tt.want)
 			}
 		})
+	}
+}
+
+func TestSelectTurnsHighCareThoughtIntoAutonomousVisionAction(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	actions := Select(
+		mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "morning", InteractionMode: "idle"},
+		mind.SelfState{Concern: 0.82, Curiosity: 0.62},
+		[]mind.Thought{{
+			ID:               "thought-care",
+			DeviceID:         "dev-001",
+			At:               at,
+			DriveName:        mind.DriveCare,
+			Content:          "老人安静了一段时间",
+			Urgency:          0.52,
+			CareValue:        0.78,
+			InterruptionCost: 0.45,
+		}},
+	)
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	action := actions[0]
+	if action.Type != mind.ActionCallMCPTool || action.Executor != "vision" {
+		t.Fatalf("action = %+v, want vision MCP action", action)
+	}
+	if action.Args["mindAutonomousVision"] != true || action.Args["tool"] != "self.camera.take_photo" {
+		t.Fatalf("Args = %+v, want autonomous vision marker and camera tool", action.Args)
+	}
+	if action.Score < 0.20 {
+		t.Fatalf("Score = %.2f, want expression gate to keep the action pending", action.Score)
+	}
+}
+
+func TestSelectDefersAutonomousVisionWhenGuarded(t *testing.T) {
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	thought := mind.Thought{
+		ID:               "thought-care",
+		DeviceID:         "dev-001",
+		At:               at,
+		DriveName:        mind.DriveCare,
+		CareValue:        0.78,
+		InterruptionCost: 0.45,
+	}
+	tests := []struct {
+		name        string
+		constraints []string
+		state       mind.SelfState
+		careValue   float64
+		wantReason  string
+	}{
+		{name: "disabled", constraints: []string{"mind_autonomous_vision_disabled"}, state: mind.SelfState{Concern: 0.82}, careValue: 0.78, wantReason: "关闭"},
+		{name: "night", constraints: []string{mind.ConstraintMindProactiveDaytimeOnly}, state: mind.SelfState{Concern: 0.82}, careValue: 0.78, wantReason: "白天"},
+		{name: "cooldown", constraints: []string{"mind_autonomous_vision_cooldown_active"}, state: mind.SelfState{Concern: 0.82}, careValue: 0.78, wantReason: "冷却"},
+		{name: "low concern", state: mind.SelfState{Concern: 0.30}, careValue: 0.60, wantReason: "关心"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guardedThought := thought
+			guardedThought.CareValue = tt.careValue
+			actions := Select(
+				mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "morning", InteractionMode: "idle", Constraints: tt.constraints},
+				tt.state,
+				[]mind.Thought{guardedThought},
+			)
+			if len(actions) != 1 || actions[0].Type != mind.ActionScheduleRecheck {
+				t.Fatalf("actions = %+v, want schedule recheck", actions)
+			}
+			if !strings.Contains(actions[0].Reason, tt.wantReason) {
+				t.Fatalf("Reason = %q, want contain %q", actions[0].Reason, tt.wantReason)
+			}
+		})
+	}
+}
+
+func TestSelectExplainsVisionCooldownWhenHighInterruptionCareWaits(t *testing.T) {
+	actions := Select(
+		mind.Situation{
+			DeviceID:        "dev-001",
+			TimeOfDay:       "morning",
+			InteractionMode: "idle",
+			Constraints:     []string{"mind_autonomous_vision_cooldown_active"},
+		},
+		mind.SelfState{Concern: 1, Quietness: 1},
+		[]mind.Thought{{
+			ID:               "thought-care",
+			DeviceID:         "dev-001",
+			DriveName:        mind.DriveCare,
+			CareValue:        0.8,
+			InterruptionCost: 0.8,
+		}},
+	)
+	if len(actions) != 1 || actions[0].Type != mind.ActionWait {
+		t.Fatalf("actions = %+v, want wait", actions)
+	}
+	if !strings.Contains(actions[0].Reason, "冷却") {
+		t.Fatalf("Reason = %q, want explicit cooldown", actions[0].Reason)
 	}
 }

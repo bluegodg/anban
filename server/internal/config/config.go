@@ -11,33 +11,35 @@ import (
 )
 
 type Config struct {
-	ManagerBaseURL             string // xiaozhi manager 根地址，如 http://localhost:8080
-	ManagerAPIToken            string // manager 签发的 API Token（X-API-Token）
-	DBDSN                      string // sqlite 文件路径
-	AccessCode                 string // 子女端访问码（简化登录）
-	DevVerificationCode        string // 开发模式验证码
-	DemoDeviceID               string // 默认可绑定设备的真实 deviceId
-	DemoBindingCode            string // 默认可绑定设备的设备码
-	DemoDeviceDisplayName      string
-	DemoElderDisplayName       string
-	ListenAddr                 string   // 安伴 HTTP 监听地址
-	AllowedOrigins             []string // 子女端 Web 允许跨域访问的来源
-	LLM                        LLMConfig
-	MemoryDistillCron          string
-	MemoryProviderToken        string
-	VisionPresenceInterval     time.Duration
-	VisionMediaRoot            string
-	DeviceVisionToken          string
-	XiaozhiVisionURL           string
-	VisionCaptureTimeout       time.Duration
-	VisionRetentionDays        int
-	VisionMaxCapturesPerDevice int
-	MindLoopInterval           time.Duration
-	MindHistoryInterval        time.Duration
-	MindProactiveCooldown      time.Duration
-	MindProactiveDaytimeOnly   bool
-	TimezoneName               string
-	TimezoneLocation           *time.Location
+	ManagerBaseURL               string // xiaozhi manager 根地址，如 http://localhost:8080
+	ManagerAPIToken              string // manager 签发的 API Token（X-API-Token）
+	DBDSN                        string // sqlite 文件路径
+	AccessCode                   string // 子女端访问码（简化登录）
+	DevVerificationCode          string // 开发模式验证码
+	DemoDeviceID                 string // 默认可绑定设备的真实 deviceId
+	DemoBindingCode              string // 默认可绑定设备的设备码
+	DemoDeviceDisplayName        string
+	DemoElderDisplayName         string
+	ListenAddr                   string   // 安伴 HTTP 监听地址
+	AllowedOrigins               []string // 子女端 Web 允许跨域访问的来源
+	LLM                          LLMConfig
+	MemoryDistillCron            string
+	MemoryProviderToken          string
+	VisionPresenceInterval       time.Duration
+	VisionMediaRoot              string
+	DeviceVisionToken            string
+	XiaozhiVisionURL             string
+	VisionCaptureTimeout         time.Duration
+	VisionRetentionDays          int
+	VisionMaxCapturesPerDevice   int
+	MindLoopInterval             time.Duration
+	MindHistoryInterval          time.Duration
+	MindProactiveCooldown        time.Duration
+	MindProactiveDaytimeOnly     bool
+	MindAutonomousVisionEnabled  bool
+	MindAutonomousVisionCooldown time.Duration
+	TimezoneName                 string
+	TimezoneLocation             *time.Location
 }
 
 type LLMConfig struct {
@@ -83,6 +85,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	mindAutonomousVisionEnabled, err := boolEnv("ANBAN_MIND_AUTONOMOUS_VISION_ENABLED", true)
+	if err != nil {
+		return Config{}, err
+	}
+	mindAutonomousVisionCooldown, err := durationEnv("ANBAN_MIND_AUTONOMOUS_VISION_COOLDOWN", 10*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
 	timezoneName := envOr("ANBAN_TIMEZONE", "Asia/Shanghai")
 	timezoneLocation, err := time.LoadLocation(timezoneName)
 	if err != nil {
@@ -92,32 +102,34 @@ func Load() (Config, error) {
 	}
 
 	c := Config{
-		ManagerBaseURL:             trimEnv("ANBAN_MANAGER_BASE_URL"),
-		ManagerAPIToken:            trimEnv("ANBAN_MANAGER_API_TOKEN"),
-		AccessCode:                 trimEnv("ANBAN_ACCESS_CODE"),
-		DevVerificationCode:        envOr("ANBAN_DEV_VERIFICATION_CODE", "123456"),
-		DemoDeviceID:               envOr("ANBAN_DEMO_DEVICE_ID", "9c:13:9e:8b:af:28"),
-		DemoBindingCode:            envOr("ANBAN_DEMO_BINDING_CODE", "ANBAN-482913"),
-		DemoDeviceDisplayName:      envOr("ANBAN_DEMO_DEVICE_DISPLAY_NAME", "客厅安伴"),
-		DemoElderDisplayName:       envOr("ANBAN_DEMO_ELDER_DISPLAY_NAME", "老人"),
-		DBDSN:                      envOr("ANBAN_DB_DSN", "anban.db"),
-		ListenAddr:                 envOr("ANBAN_LISTEN_ADDR", ":8090"),
-		AllowedOrigins:             splitCSV(envOr("ANBAN_ALLOWED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")),
-		MemoryDistillCron:          envOr("ANBAN_MEMORY_DISTILL_CRON", "*/30 * * * *"),
-		MemoryProviderToken:        trimEnv("ANBAN_MEMORY_PROVIDER_TOKEN"),
-		VisionPresenceInterval:     visionPresenceInterval,
-		VisionMediaRoot:            envOr("ANBAN_VISION_MEDIA_ROOT", "/home/ubuntu/anban/media"),
-		DeviceVisionToken:          trimEnv("ANBAN_DEVICE_VISION_TOKEN"),
-		XiaozhiVisionURL:           trimEnv("ANBAN_XIAOZHI_VISION_URL"),
-		VisionCaptureTimeout:       visionCaptureTimeout,
-		VisionRetentionDays:        visionRetentionDays,
-		VisionMaxCapturesPerDevice: visionMaxCapturesPerDevice,
-		MindLoopInterval:           mindLoopInterval,
-		MindHistoryInterval:        mindHistoryInterval,
-		MindProactiveCooldown:      mindProactiveCooldown,
-		MindProactiveDaytimeOnly:   mindProactiveDaytimeOnly,
-		TimezoneName:               timezoneName,
-		TimezoneLocation:           timezoneLocation,
+		ManagerBaseURL:               trimEnv("ANBAN_MANAGER_BASE_URL"),
+		ManagerAPIToken:              trimEnv("ANBAN_MANAGER_API_TOKEN"),
+		AccessCode:                   trimEnv("ANBAN_ACCESS_CODE"),
+		DevVerificationCode:          envOr("ANBAN_DEV_VERIFICATION_CODE", "123456"),
+		DemoDeviceID:                 envOr("ANBAN_DEMO_DEVICE_ID", "9c:13:9e:8b:af:28"),
+		DemoBindingCode:              envOr("ANBAN_DEMO_BINDING_CODE", "ANBAN-482913"),
+		DemoDeviceDisplayName:        envOr("ANBAN_DEMO_DEVICE_DISPLAY_NAME", "客厅安伴"),
+		DemoElderDisplayName:         envOr("ANBAN_DEMO_ELDER_DISPLAY_NAME", "老人"),
+		DBDSN:                        envOr("ANBAN_DB_DSN", "anban.db"),
+		ListenAddr:                   envOr("ANBAN_LISTEN_ADDR", ":8090"),
+		AllowedOrigins:               splitCSV(envOr("ANBAN_ALLOWED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173")),
+		MemoryDistillCron:            envOr("ANBAN_MEMORY_DISTILL_CRON", "*/30 * * * *"),
+		MemoryProviderToken:          trimEnv("ANBAN_MEMORY_PROVIDER_TOKEN"),
+		VisionPresenceInterval:       visionPresenceInterval,
+		VisionMediaRoot:              envOr("ANBAN_VISION_MEDIA_ROOT", "/home/ubuntu/anban/media"),
+		DeviceVisionToken:            trimEnv("ANBAN_DEVICE_VISION_TOKEN"),
+		XiaozhiVisionURL:             trimEnv("ANBAN_XIAOZHI_VISION_URL"),
+		VisionCaptureTimeout:         visionCaptureTimeout,
+		VisionRetentionDays:          visionRetentionDays,
+		VisionMaxCapturesPerDevice:   visionMaxCapturesPerDevice,
+		MindLoopInterval:             mindLoopInterval,
+		MindHistoryInterval:          mindHistoryInterval,
+		MindProactiveCooldown:        mindProactiveCooldown,
+		MindProactiveDaytimeOnly:     mindProactiveDaytimeOnly,
+		MindAutonomousVisionEnabled:  mindAutonomousVisionEnabled,
+		MindAutonomousVisionCooldown: mindAutonomousVisionCooldown,
+		TimezoneName:                 timezoneName,
+		TimezoneLocation:             timezoneLocation,
 		LLM: LLMConfig{
 			BaseURL: trimEnv("ANBAN_LLM_BASE_URL"),
 			APIKey:  trimEnv("ANBAN_LLM_API_KEY"),

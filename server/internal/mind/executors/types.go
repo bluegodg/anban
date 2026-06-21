@@ -30,6 +30,7 @@ type PromptExecutor interface {
 
 type Dispatcher struct {
 	speakers map[string]SpeakExecutor
+	visions  map[string]VisionExecutor
 }
 
 func NewDispatcher(speakers map[string]SpeakExecutor) *Dispatcher {
@@ -37,7 +38,14 @@ func NewDispatcher(speakers map[string]SpeakExecutor) *Dispatcher {
 	for name, speaker := range speakers {
 		copied[name] = speaker
 	}
-	return &Dispatcher{speakers: copied}
+	return &Dispatcher{speakers: copied, visions: make(map[string]VisionExecutor)}
+}
+
+func (d *Dispatcher) RegisterVision(name string, executor VisionExecutor) {
+	if d == nil || executor == nil {
+		return
+	}
+	d.visions[name] = executor
 }
 
 func (d *Dispatcher) Execute(ctx context.Context, action mind.Action) (Result, error) {
@@ -52,6 +60,12 @@ func (d *Dispatcher) Execute(ctx context.Context, action mind.Action) (Result, e
 			return missingExecutorResult(action), ErrExecutorNotFound
 		}
 		return exec.Speak(ctx, action)
+	case mind.ActionCallMCPTool:
+		exec, ok := d.visions[action.Executor]
+		if !ok || exec == nil {
+			return missingExecutorResult(action), ErrExecutorNotFound
+		}
+		return exec.Observe(ctx, action)
 	default:
 		return missingExecutorResult(action), ErrExecutorNotFound
 	}

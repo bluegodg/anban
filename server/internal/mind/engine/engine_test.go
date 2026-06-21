@@ -581,6 +581,55 @@ func TestTickIdleHighConcernSilenceProducesAutonomousGreetingSpeak(t *testing.T)
 	}
 }
 
+func TestTickIdleHighCareSilenceRecordsAutonomousVisionFailureWithoutCrashing(t *testing.T) {
+	svc, st := newEngineForTest(t)
+	ctx := context.Background()
+	deviceID := "dev-001"
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	ms := mind.NewStore(st.DB)
+	if err := ms.SaveSelfState(ctx, mind.SelfState{
+		DeviceID:      deviceID,
+		At:            at.Add(-time.Hour),
+		Concern:       0.95,
+		Warmth:        0.55,
+		Quietness:     1,
+		FamilyWeight:  0.60,
+		PetWeight:     0.25,
+		StewardWeight: 0.15,
+	}); err != nil {
+		t.Fatalf("SaveSelfState: %v", err)
+	}
+	exec := &fakeActionExecutor{result: ExecutionResult{
+		Status:       mind.ActionFailed,
+		ExecutorRef:  "vision:capture-failed",
+		ErrorMessage: "设备离线",
+	}}
+	svc.UseExecutor(exec)
+
+	actions, err := svc.TickIdle(ctx, deviceID, at)
+	if err != nil {
+		t.Fatalf("TickIdle error = %v, want graceful vision failure", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	action := actions[0]
+	if action.Type != mind.ActionCallMCPTool || action.Executor != "vision" || action.Status != mind.ActionFailed {
+		t.Fatalf("action = %+v, want failed autonomous vision action", action)
+	}
+	if exec.calls != 1 || exec.lastAction.Args["mindAutonomousVision"] != true {
+		t.Fatalf("executor calls=%d action=%+v, want one marked vision call", exec.calls, exec.lastAction)
+	}
+	events, err := ms.ListRecentEvents(ctx, deviceID, 10)
+	if err != nil {
+		t.Fatalf("ListRecentEvents: %v", err)
+	}
+	execution := findEvent(events, mind.EventActionExecuted)
+	if execution == nil || execution.Payload["status"] != string(mind.ActionFailed) || execution.Payload["mindAutonomousVision"] != true {
+		t.Fatalf("execution event = %+v, want recorded failed autonomous vision attempt", execution)
+	}
+}
+
 func TestTickIdleAutonomousGreetingWaitsDuringCooldown(t *testing.T) {
 	svc, st := newEngineForTest(t)
 	ctx := context.Background()
@@ -662,6 +711,52 @@ func TestTickIdleAutonomousGreetingWaitsWhenDaytimeOnlyAtNight(t *testing.T) {
 	}
 	if !strings.Contains(actions[0].Reason, "仅白天") {
 		t.Fatalf("Reason = %q, want daytime-only reason", actions[0].Reason)
+	}
+}
+
+func TestApplyProactiveConstraintsKeepsAutonomousVisionGuardsIndependent(t *testing.T) {
+	svc := New(nil)
+	svc.UseAutonomousVisionEnabled(false)
+	svc.UseAutonomousVisionCooldown(10 * time.Minute)
+	at := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	recent := []mind.Event{{
+		ID:       "evt-last-autonomous-look",
+		DeviceID: "dev-001",
+		Type:     mind.EventActionExecuted,
+		Source:   mind.SourceMind,
+		At:       at.Add(-5 * time.Minute),
+		Payload: map[string]any{
+			"actionType":           string(mind.ActionCallMCPTool),
+			"executor":             "vision",
+			"status":               string(mind.ActionFailed),
+			"mindAutonomousVision": true,
+		},
+	}}
+
+	got := svc.applyProactiveConstraints(mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "morning"}, recent, at)
+	if !containsString(got.Constraints, mind.ConstraintMindAutonomousVisionDisabled) {
+		t.Fatalf("constraints = %+v, want autonomous vision disabled", got.Constraints)
+	}
+	if !containsString(got.Constraints, mind.ConstraintMindAutonomousVisionCooldownActive) {
+		t.Fatalf("constraints = %+v, want autonomous vision cooldown after failed attempt", got.Constraints)
+	}
+	if containsString(got.Constraints, mind.ConstraintMindProactiveCooldownActive) {
+		t.Fatalf("constraints = %+v, autonomous vision must not consume speech cooldown", got.Constraints)
+	}
+}
+
+func TestActionExecutionEventPreservesAutonomousVisionMarker(t *testing.T) {
+	event := actionExecutionEvent(mind.Action{
+		ID:       "action-look",
+		DeviceID: "dev-001",
+		Type:     mind.ActionCallMCPTool,
+		Executor: "vision",
+		Status:   mind.ActionFailed,
+		Args:     map[string]any{"mindAutonomousVision": true},
+		Reason:   "device offline",
+	})
+	if event.Payload["mindAutonomousVision"] != true {
+		t.Fatalf("payload = %+v, want autonomous vision marker", event.Payload)
 	}
 }
 

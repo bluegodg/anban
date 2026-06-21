@@ -2,6 +2,23 @@
 
 > 目的：记录本轮代码编写中每一批改动的文件、内容、目的、功能和验证方式。后续每次代码改动都要同步更新本文件。
 
+## 2026-06-21
+
+### Mind 自主“看一眼”最小闭环
+
+- 文件：`server/internal/mind/`、`server/internal/domains/vision/`、`server/internal/config/`、`server/cmd/anban/`、`.env.example`。
+- 决策：长时间安静形成的高 Care thought（或后续高 Curiosity thought）在关心值、Care 值或好奇值达到阈值且打扰成本可接受时，生成 `call_mcp_tool/vision` 动作；普通高关心但更偏“安静陪伴”的既有主动问候路径保持不变。
+- 约束：新增独立自主视觉开关和 10 分钟冷却，默认 `ANBAN_MIND_AUTONOMOUS_VISION_ENABLED=true`、`ANBAN_MIND_AUTONOMOUS_VISION_COOLDOWN=10m`；沿用 Mind 主动行为仅白天约束。成功、失败和延后尝试都会形成动作执行记录，失败尝试也进入冷却，避免设备离线时连续拍摄。
+- 执行：Mind dispatcher 新增 vision executor 路由；装配层适配器只调用现有 `vision.Service.Look`，继续由 vision 域生成 capture marker、调用 `self.camera.take_photo`、接收图片并转发既有 VLM，不从 Mind 直接调用 xiaozhi。
+- 回流：标记拍摄在 VLM 成功后写入 `vision_observation` Mind event，包含 capture、presence、summary 和 concerns；该事件生成高打扰成本的安静后续 thought，不会再次触发摄像头形成递归拍摄。
+- 失败降级：摄像头离线、MCP 不可用、超时或分析未完成均落为 `failed/deferred` action 和 `action_executed` event；executor 返回可记录结果但不把错误抛出 Mind 主循环。Mind sink 写入失败仅脱敏记录日志，不影响设备图片/VLM 响应。
+- 边界：不修改 xiaozhi、固件、设备协议或子女端；不新增进程和数据库迁移，继续保持安伴可拔插架构。
+- TDD：行为、thought、dispatcher、配置、冷却、vision 回流、装配适配器和引擎失败路径均先出现预期 RED；反向检查发现线上 `Concern/Curiosity/Quietness` 已饱和为 `1.0` 时 QuietPresence 会永久压过 Care，又补“临界 Concern 在非夜间升级 Care”和“高打扰成本视觉冷却原因”红灯测试后修复。普通高关心主动问候与夜间等待回归保持通过。另补装配级成功路径：succeeded capture 明确映射为 `executed`，`visionMindSink -> engine` 会把“老人正在沙发上休息”落成 QuietPresence thought 和 `wait/deferred` action，不会递归拍摄。
+- 本地验证：`go test -count=1 ./...`、`go vet ./...`、`go build ./...`、`git diff --check` 全部通过；Linux/amd64 二进制已部署到 `101.34.214.149`，本地/远端 SHA-256 一致且 `/health=200`。
+- 线上首次失败验收：设备 `9c:13:9e:8b:af:28` 的 manager 最近活跃时间停留在 `2026-06-21 03:38:51 +08:00`，表面状态看似离线（后续证明 MQTT+UDP 实际存活）。短时把 Mind loop 从 15 分钟调为 10 秒后，第一轮真实生成 `call_mcp_tool/vision`，落库 capture `cap_90198aa1d040ae5c9f8679a3613ea1a6` 和 `camera_tool_unavailable` 失败动作；第二轮只生成 `wait/deferred`，没有第二条 capture，证明失败不崩主循环且独立冷却生效。验收结束已恢复原 `anban.env`、15 分钟循环和 `/health=200`。真实照片、VLM summary、`vision_observation` 和后续 thought 成功链路仍待修复工具名适配后补验。
+- MCP 真机适配修复：进一步核对 xiaozhi core 日志发现设备实际上通过 MQTT+UDP 持续发送 `tools/list` 心跳，manager 的 `last_active_at` 只是没有随该通道更新；首次失败并非设备离线，而是 manager 将设备原始工具名 `self.camera.take_photo` 暴露为 OpenAI 规范名 `self_camera_take_photo`，旧 `xiaozhiclient` 严格比较后在 POST 前误判不可用。新增线上响应形状回归测试后，`xiaozhiclient` 现在仅在南向适配层解析规范化别名，并用 manager 实际暴露名调用 `/mcp-call`；vision/Mind 继续使用稳定原始工具名，不泄漏上游细节。
+- 真机异步竞态修复：工具名修复后，Mind 于 `13:15:13` 自主触发真实拍照，capture `cap_bfb0c69957b40e1df46b26b231ac8a31` 保存原图并完成 VLM，识别到室内一名戴黑框眼镜的年轻人、未见老人；`vision_observation` 和同文后续 thought 均成功落库，后续循环也只等待、没有重复 capture。但 manager 约 10 秒先返回超时，VLM 在约 2 秒后完成，导致 action 先被错误记为 `failed`，尚未满足 `executed` 验收。新增“超时后晚到成功 upload”红灯测试并修复：`Look` 仅在 MCP 超时时于既有 30 秒 capture 预算内轮询终态，明确离线/工具缺失仍立即失败；同时高打扰成本的视觉 QuietPresence thought 固定等待，不再因饱和 Concern 泛化触发主动问候。待冷却自然结束后再次真机验收。
+
 ## 2026-06-20
 
 ### 子女端“安伴此刻”第一批：Mind 只读投影 API

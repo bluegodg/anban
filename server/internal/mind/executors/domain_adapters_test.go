@@ -92,9 +92,53 @@ func TestSpeakFuncReturnsDomainReference(t *testing.T) {
 	}
 }
 
+func TestDispatcherRoutesVisionActionToNamedExecutor(t *testing.T) {
+	vision := &fakeVisionExecutor{}
+	dispatcher := NewDispatcher(nil)
+	dispatcher.RegisterVision("vision", vision)
+
+	result, err := dispatcher.Execute(context.Background(), mind.Action{
+		ID:       "action-look",
+		Type:     mind.ActionCallMCPTool,
+		Executor: "vision",
+		DeviceID: "dev-001",
+	})
+	if err != nil {
+		t.Fatalf("Execute vision: %v", err)
+	}
+	if result.Status != mind.ActionExecuted || result.ExecutorRef != "vision:capture-1" {
+		t.Fatalf("result = %+v, want executed vision capture", result)
+	}
+	if vision.calls != 1 {
+		t.Fatalf("vision calls = %d, want 1", vision.calls)
+	}
+}
+
+func TestVisionFuncAdaptsFunction(t *testing.T) {
+	called := false
+	adapter := VisionFunc(func(ctx context.Context, action mind.Action) (Result, error) {
+		called = true
+		return Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: "vision:capture-2"}, nil
+	})
+	result, err := adapter.Observe(context.Background(), mind.Action{ID: "action-look"})
+	if err != nil {
+		t.Fatalf("Observe: %v", err)
+	}
+	if !called || result.ExecutorRef != "vision:capture-2" {
+		t.Fatalf("called=%v result=%+v", called, result)
+	}
+}
+
 type fakeSpeakExecutor struct{ calls int }
 
 func (f *fakeSpeakExecutor) Speak(ctx context.Context, action mind.Action) (Result, error) {
 	f.calls++
 	return Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: "fake-ref"}, nil
+}
+
+type fakeVisionExecutor struct{ calls int }
+
+func (f *fakeVisionExecutor) Observe(ctx context.Context, action mind.Action) (Result, error) {
+	f.calls++
+	return Result{ActionID: action.ID, Status: mind.ActionExecuted, ExecutorRef: "vision:capture-1"}, nil
 }

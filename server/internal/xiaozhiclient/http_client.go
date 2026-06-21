@@ -530,10 +530,11 @@ func (c *HTTPClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool strin
 	if err != nil {
 		return nil, err
 	}
-	if err := c.ensureMCPToolAvailable(ctx, managerID, tool); err != nil {
+	managerToolName, err := c.resolveMCPToolName(ctx, managerID, tool)
+	if err != nil {
 		return nil, err
 	}
-	body, err := json.Marshal(mcpCallReq{ToolName: tool, Arguments: args})
+	body, err := json.Marshal(mcpCallReq{ToolName: managerToolName, Arguments: args})
 	if err != nil {
 		return nil, err
 	}
@@ -544,26 +545,52 @@ func (c *HTTPClient) CallDeviceMCPTool(ctx context.Context, deviceID, tool strin
 	return unwrapData(resp), nil
 }
 
-func (c *HTTPClient) ensureMCPToolAvailable(ctx context.Context, managerID, tool string) error {
+func (c *HTTPClient) resolveMCPToolName(ctx context.Context, managerID, tool string) (string, error) {
 	body, err := c.do(ctx, http.MethodGet, "/api/open/v1/devices/"+url.PathEscape(managerID)+"/mcp-tools", nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	tools, err := decodeMCPTools(body)
 	if err != nil {
-		return err
+		return "", err
 	}
 	target := strings.TrimSpace(tool)
 	for _, item := range tools {
-		if item.matches(target) {
-			return nil
+		if resolved, ok := item.resolve(target); ok {
+			return resolved, nil
 		}
 	}
-	return fmt.Errorf("%w: %s", ErrMCPToolUnavailable, tool)
+	return "", fmt.Errorf("%w: %s", ErrMCPToolUnavailable, tool)
 }
 
-func (t mcpToolPayload) matches(tool string) bool {
-	return strings.TrimSpace(t.Name) == tool || strings.TrimSpace(t.ToolName) == tool
+func (t mcpToolPayload) resolve(tool string) (string, bool) {
+	target := strings.TrimSpace(tool)
+	normalizedTarget := normalizeMCPToolName(target)
+	for _, candidate := range []string{t.Name, t.ToolName} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if candidate == target || normalizeMCPToolName(candidate) == normalizedTarget {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
+func normalizeMCPToolName(name string) string {
+	var normalized strings.Builder
+	for _, char := range strings.TrimSpace(name) {
+		if char >= 'a' && char <= 'z' ||
+			char >= 'A' && char <= 'Z' ||
+			char >= '0' && char <= '9' ||
+			char == '_' || char == '-' {
+			normalized.WriteRune(char)
+			continue
+		}
+		normalized.WriteByte('_')
+	}
+	return normalized.String()
 }
 
 func decodeMCPTools(body []byte) ([]mcpToolPayload, error) {

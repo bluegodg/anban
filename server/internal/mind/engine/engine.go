@@ -24,15 +24,18 @@ import (
 )
 
 type Service struct {
-	store                *mind.Store
-	executor             ActionExecutor
-	location             *time.Location
-	proactiveCooldown    time.Duration
-	proactiveDaytimeOnly bool
-	companionContext     CompanionContextReader
+	store                    *mind.Store
+	executor                 ActionExecutor
+	location                 *time.Location
+	proactiveCooldown        time.Duration
+	proactiveDaytimeOnly     bool
+	autonomousVisionEnabled  bool
+	autonomousVisionCooldown time.Duration
+	companionContext         CompanionContextReader
 }
 
 const defaultProactiveCooldown = 30 * time.Minute
+const defaultAutonomousVisionCooldown = 10 * time.Minute
 
 type ExecutionResult struct {
 	Status       mind.ActionStatus
@@ -49,7 +52,13 @@ type CompanionContextReader interface {
 }
 
 func New(store *mind.Store) *Service {
-	return &Service{store: store, proactiveCooldown: defaultProactiveCooldown, proactiveDaytimeOnly: true}
+	return &Service{
+		store:                    store,
+		proactiveCooldown:        defaultProactiveCooldown,
+		proactiveDaytimeOnly:     true,
+		autonomousVisionEnabled:  true,
+		autonomousVisionCooldown: defaultAutonomousVisionCooldown,
+	}
 }
 
 func (s *Service) UseExecutor(executor ActionExecutor) {
@@ -66,6 +75,14 @@ func (s *Service) UseProactiveCooldown(cooldown time.Duration) {
 
 func (s *Service) UseProactiveDaytimeOnly(enabled bool) {
 	s.proactiveDaytimeOnly = enabled
+}
+
+func (s *Service) UseAutonomousVisionEnabled(enabled bool) {
+	s.autonomousVisionEnabled = enabled
+}
+
+func (s *Service) UseAutonomousVisionCooldown(cooldown time.Duration) {
+	s.autonomousVisionCooldown = cooldown
 }
 
 func (s *Service) UseCompanionContextReader(reader CompanionContextReader) {
@@ -296,13 +313,23 @@ func (s *Service) applyProactiveConstraints(sit mind.Situation, recent []mind.Ev
 	if s.proactiveDaytimeOnly && sit.TimeOfDay == "night" {
 		sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindProactiveDaytimeOnly)
 	}
-	if s.proactiveCooldown <= 0 || at.IsZero() {
-		return sit
+	if !s.autonomousVisionEnabled {
+		sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindAutonomousVisionDisabled)
 	}
-	for _, event := range recent {
-		if isAutonomousGreetingExecution(event) && !event.At.IsZero() && at.Sub(event.At) < s.proactiveCooldown {
-			sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindProactiveCooldownActive)
-			return sit
+	if !at.IsZero() && s.proactiveCooldown > 0 {
+		for _, event := range recent {
+			if isAutonomousGreetingExecution(event) && !event.At.IsZero() && at.Sub(event.At) < s.proactiveCooldown {
+				sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindProactiveCooldownActive)
+				break
+			}
+		}
+	}
+	if !at.IsZero() && s.autonomousVisionCooldown > 0 {
+		for _, event := range recent {
+			if isAutonomousVisionAttempt(event) && !event.At.IsZero() && at.Sub(event.At) < s.autonomousVisionCooldown {
+				sit.Constraints = addConstraint(sit.Constraints, mind.ConstraintMindAutonomousVisionCooldownActive)
+				break
+			}
 		}
 	}
 	return sit
@@ -316,6 +343,15 @@ func isAutonomousGreetingExecution(event mind.Event) bool {
 		payloadString(event.Payload, "executor") == "greeting" &&
 		payloadString(event.Payload, "status") == string(mind.ActionExecuted) &&
 		payloadBool(event.Payload, "mindProactive")
+}
+
+func isAutonomousVisionAttempt(event mind.Event) bool {
+	if event.Type != mind.EventActionExecuted {
+		return false
+	}
+	return payloadString(event.Payload, "actionType") == string(mind.ActionCallMCPTool) &&
+		payloadString(event.Payload, "executor") == "vision" &&
+		payloadBool(event.Payload, "mindAutonomousVision")
 }
 
 func addConstraint(values []string, next string) []string {
@@ -393,6 +429,9 @@ func actionExecutionEvent(action mind.Action) mind.Event {
 	}
 	if payloadBool(action.Args, "mindProactive") {
 		payload["mindProactive"] = true
+	}
+	if payloadBool(action.Args, "mindAutonomousVision") {
+		payload["mindAutonomousVision"] = true
 	}
 	return mind.Event{
 		ID:         fmt.Sprintf("evt-action-%s-result", action.ID),
