@@ -53,7 +53,24 @@
 - **看一眼** — 子女想知道"人在不在",可让设备拍一张、由 AI 描述当前画面(轻量视觉,不做监控)。
 - **读得懂氛围(阅读心智)** — 它内部有"心境",会产生当下在意的事;子女端能"阅读"它此刻在想什么,陪伴不再是黑盒。
 
-<!-- TODO: 此处插入子女端 childweb 四屏截图(首页/消息/提醒/家人) -->
+<br>
+
+## 看看它长什么样
+
+> 子女端(手机网页),实拍截图。
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="pics/home.png" width="240" alt="首页"><br><sub><b>首页</b> · 一眼看到老人状态、设备在线情况、安伴此刻在想什么</sub></td>
+    <td align="center" width="33%"><img src="pics/mind.png" width="240" alt="阅读心智"><br><sub><b>阅读心智</b> · 它此刻的"心境"和在意的事,陪伴不再是黑盒</sub></td>
+    <td align="center" width="33%"><img src="pics/chat.png" width="240" alt="消息"><br><sub><b>消息</b> · 子女留言,安伴用温和语音念给老人听</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="pics/family.png" width="240" alt="家庭画像"><br><sub><b>家庭画像</b> · 记得老人的作息、爱好、忌口与沟通偏好</sub></td>
+    <td align="center"><img src="pics/reminder.png" width="240" alt="关怀提醒"><br><sub><b>关怀提醒</b> · 吃药 / 喝水 / 添衣,到点主动开口</sub></td>
+    <td align="center"><img src="pics/vision.png" width="240" alt="看一眼"><br><sub><b>看一眼</b> · 子女触发,AI 描述当前画面("人在不在")</sub></td>
+  </tr>
+</table>
 
 <br>
 
