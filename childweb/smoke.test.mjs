@@ -152,7 +152,16 @@ test('P4 loads a unified timeline and does not trust account-mode fromName', () 
 
 test('P4 unsupported message attachments use the unified notice', () => {
   assert.match(indexHTML, /onclick="notImplemented\('图片留言'\)"/);
-  assert.match(indexHTML, /onclick="notImplemented\('语音留言'\)"/);
+  assert.doesNotMatch(indexHTML, /notImplemented\('语音留言'\)/);
+});
+
+test('P4 message mic button uses browser speech input', () => {
+  assert.match(indexHTML, /id="messageVoiceButton"[^>]*onclick="toggleMessageVoiceInput\(\)"/);
+  assert.match(appJS, /toggleMessageVoiceInput/);
+  assert.match(appJS, /window\.SpeechRecognition \|\| window\.webkitSpeechRecognition/);
+  assert.match(appJS, /recognition\.lang = 'zh-CN'/);
+  assert.match(appJS, /recognition\.onresult = function/);
+  assert.match(appJS, /messageInput\.value = appendVoiceTranscript\(messageInput\.value, transcript\)/);
 });
 
 test('P5 computes the next one-time reminder in UTC', async () => {
@@ -359,7 +368,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v11/);
+  assert.match(sw, /anban-childweb-v12/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);
@@ -932,7 +941,7 @@ test('childweb exposes AnBan moment entry, detail page, history page, and pollin
   assert.match(appJS, /listMindTimeline/);
 });
 
-test('PWA cache bumps after adding mind pages', async () => {
+test('PWA cache bumps after the latest childweb shell change', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v11/);
+  assert.match(sw, /anban-childweb-v12/);
 });

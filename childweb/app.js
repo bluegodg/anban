@@ -40,6 +40,10 @@ var mindSnapshotError = '';
 var mindPollingTimer = null;
 var mindTimelineState = { kind: 'all', cursor: '', hasMore: false, loading: false, items: [] };
 var MIND_REFRESH_MS = 15000;
+var messageVoiceRecognition = null;
+var messageVoiceListening = false;
+var messageVoiceHadResult = false;
+var messageVoiceErrorShown = false;
 
 window.anbanRuntime = {
   ApiError,
@@ -362,6 +366,7 @@ Object.assign(window, {
   navigateTo,
   notImplemented,
   showToast,
+  toggleMessageVoiceInput,
   closeVisionResult,
   closeVisionHistory,
   openReminderCreateModal,
@@ -1782,6 +1787,105 @@ window.toggleImportant = function(el) {
   el.classList.toggle('off');
 };
 
+function appendVoiceTranscript(value, transcript) {
+  var current = String(value || '').replace(/\s+$/, '');
+  var text = String(transcript || '').trim();
+  if (!text) return current;
+  if (!current) return text;
+  return current + text;
+}
+
+function setMessageVoiceListening(listening) {
+  var button = document.getElementById('messageVoiceButton');
+  if (!button) return;
+  var icon = button.querySelector('.material-symbols-outlined');
+  button.dataset.listening = listening ? '1' : '0';
+  button.setAttribute('aria-pressed', listening ? 'true' : 'false');
+  button.setAttribute('aria-label', listening ? '停止语音输入' : '语音输入');
+  button.title = listening ? '停止语音输入' : '语音输入';
+  button.style.background = listening ? 'var(--ab-primary)' : '#ECECF0';
+  button.style.color = listening ? '#fff' : 'var(--ab-primary)';
+  if (icon) icon.textContent = listening ? 'stop' : 'mic';
+}
+
+function resetMessageVoiceInput() {
+  messageVoiceRecognition = null;
+  messageVoiceListening = false;
+  setMessageVoiceListening(false);
+}
+
+function toggleMessageVoiceInput() {
+  if (messageVoiceListening) {
+    if (messageVoiceRecognition) {
+      try {
+        messageVoiceRecognition.stop();
+      } catch (error) {
+        resetMessageVoiceInput();
+      }
+    }
+    return;
+  }
+
+  var messageInput = document.getElementById('messageInput');
+  if (!messageInput) return;
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('当前浏览器不支持语音输入');
+    return;
+  }
+
+  var recognition = new SpeechRecognition();
+  messageVoiceRecognition = recognition;
+  messageVoiceHadResult = false;
+  messageVoiceErrorShown = false;
+  recognition.lang = 'zh-CN';
+  recognition.interimResults = false;
+  recognition.continuous = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = function(event) {
+    var transcript = '';
+    for (var i = event.resultIndex || 0; i < event.results.length; i++) {
+      if (event.results[i] && event.results[i][0]) transcript += event.results[i][0].transcript;
+    }
+    transcript = transcript.trim();
+    if (!transcript) return;
+    messageVoiceHadResult = true;
+    messageInput.value = appendVoiceTranscript(messageInput.value, transcript);
+    messageInput.focus();
+    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    showToast('已填入文字');
+  };
+
+  recognition.onerror = function(event) {
+    messageVoiceErrorShown = true;
+    if (event && (event.error === 'not-allowed' || event.error === 'service-not-allowed')) {
+      showToast('请允许麦克风权限后再试');
+      return;
+    }
+    if (event && event.error === 'no-speech') {
+      showToast('未识别到内容');
+      return;
+    }
+    showToast('语音输入失败，请再试一次');
+  };
+
+  recognition.onend = function() {
+    var shouldReportEmpty = !messageVoiceHadResult && !messageVoiceErrorShown;
+    resetMessageVoiceInput();
+    if (shouldReportEmpty) showToast('未识别到内容');
+  };
+
+  try {
+    messageVoiceListening = true;
+    setMessageVoiceListening(true);
+    recognition.start();
+    showToast('正在听…');
+  } catch (error) {
+    resetMessageVoiceInput();
+    showToast('语音输入启动失败');
+  }
+}
 
 // ============================
 // initMessage

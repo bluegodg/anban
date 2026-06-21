@@ -1,5 +1,5 @@
-const CACHE_NAME = 'anban-childweb-v11';
-const SHELL_REVISION = 'mind-view-20260620-2';
+const CACHE_NAME = 'anban-childweb-v12';
+const SHELL_REVISION = 'message-voice-input-20260621';
 const APP_SHELL = [
   './',
   './index.html',

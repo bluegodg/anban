@@ -4,6 +4,15 @@
 
 ## 2026-06-21
 
+### 子女端消息页语音输入转文字
+
+- 文件：`childweb/index.html`、`childweb/app.js`、`childweb/smoke.test.mjs`、`childweb/README.md`、`childweb/sw.js`。
+- 内容：消息页输入栏左侧麦克风按钮从“语音留言未实现”改为浏览器原生 `SpeechRecognition/webkitSpeechRecognition` 语音输入；点击开始识别，再点停止，识别结果追加进既有留言输入框，随后仍走原发送按钮和留言 API。
+- 交互：识别中按钮切换为高亮停止态；不支持、无权限、未识别和启动失败均用 toast 降级提示，不影响手动输入和发送。
+- 边界：不新增后端接口、不上传或保存音频文件、不改变子女留言下发和 xiaozhi 播报链路；语音文件留言仍保持未实现范围。
+- 缓存：Service Worker 缓存版本升级到 `anban-childweb-v12`，确保已安装 PWA 获取新消息页静态资源。
+- 验证：先新增 childweb RED smoke，确认旧 mic 仍走 `notImplemented('语音留言')` 时失败；实现后 `npm test --prefix childweb`（60/60）和 `npm test --prefix web`（80/80）均通过。
+
 ### Mind 自主“看一眼”最小闭环
 
 - 文件：`server/internal/mind/`、`server/internal/domains/vision/`、`server/internal/config/`、`server/cmd/anban/`、`.env.example`。
