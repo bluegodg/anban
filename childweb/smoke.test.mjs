@@ -359,7 +359,7 @@ test('P7 removes the fixed phone shell and exposes PWA metadata', async () => {
 
 test('P7 service worker caches the shell but never caches API responses', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v8/);
+  assert.match(sw, /anban-childweb-v11/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /pathname\.startsWith\('\/api\/'\)[\s\S]*event\.respondWith\(fetch\(request\)\)/);
   assert.match(sw, /caches\.open/);
@@ -934,5 +934,5 @@ test('childweb exposes AnBan moment entry, detail page, history page, and pollin
 
 test('PWA cache bumps after adding mind pages', async () => {
   const sw = await readFile(new URL('./sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /anban-childweb-v8/);
+  assert.match(sw, /anban-childweb-v11/);
 });

@@ -16,14 +16,14 @@
 <link href="fonts/icons.css" rel="stylesheet"/>
 <style>
   html,body {width:100%;height:100%;overflow:hidden}
-  body {-webkit-tap-highlight-color:transparent;font-family:'Be Vietnam Pro',sans-serif;margin:0;background:#FAF6F0}
+  body {-webkit-tap-highlight-color:transparent;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','Be Vietnam Pro',system-ui,sans-serif;margin:0;background:#F2F2F7}
   .material-symbols-outlined {font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
   .primary-gradient {background:linear-gradient(135deg,#F78C6B 0%,#FF9B7A 100%)}
   .soft-shadow {box-shadow:0 4px 20px rgba(0,0,0,0.04)}
 
   /* Full-screen app shell */
-  .phone-frame {width:100vw;height:100dvh;background:#FAF6F0}
-  .phone-screen {overflow:hidden;width:100%;height:100%;background:#FAF6F0;position:relative}
+  .phone-frame {width:100vw;height:100dvh;background:#F2F2F7}
+  .phone-screen {overflow:hidden;width:100%;height:100%;background:#F2F2F7;position:relative}
   .spa-section > header {top:0;position:sticky}
   .phone-screen-inner {width:100%;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   /* WeChat-style thin scrollbar */
@@ -52,35 +52,35 @@
   .bottom-sheet.open {transform:translateY(0)}
   .sheet-handle {width:36px;height:5px;background:#dcc1b9;border-radius:3px;margin:14px auto 10px;flex-shrink:0}
   .sheet-body {flex:1;overflow-y:auto;padding:0 20px 20px}
-  .quick-template {background:#FAF6F0;border:1px solid #EFE8E1;border-radius:16px;padding:12px 16px;cursor:pointer;transition:all 0.2s}
-  .quick-template:active {background:#f6decf;border-color:#F78C6B}
+  .quick-template {background:#F2F2F7;border:1px solid #EFE8E1;border-radius:16px;padding:12px 16px;cursor:pointer;transition:all 0.2s}
+  .quick-template:active {background:#FCEAE0;border-color:#F78C6B}
 
   /* Dropdown / time picker */
   .dropdown-panel {position:absolute;top:100%;right:0;margin-top:4px;background:#FFF;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:50;display:none;min-width:180px;overflow:hidden}
   .dropdown-panel.show {display:block}
-  .freq-dropdown-item {padding:12px 16px;cursor:pointer;font-size:14px;color:#55423d;transition:background 0.15s}
-  .freq-dropdown-item:hover {background:#FAF6F0}
-  .freq-dropdown-item.selected {background:#f6decf;color:#9a4429;font-weight:600}
+  .freq-dropdown-item {padding:12px 16px;cursor:pointer;font-size:14px;color:#1C1C1E;transition:background 0.15s}
+  .freq-dropdown-item:hover {background:#F2F2F7}
+  .freq-dropdown-item.selected {background:#FCEAE0;color:#C2410C;font-weight:600}
 
   /* Time Picker Modal */
   .time-picker-overlay {position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:85;opacity:0;pointer-events:none;transition:opacity 0.25s ease}
   .time-picker-overlay.open {opacity:1;pointer-events:auto}
   .time-picker-modal {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);background:#FFF;border-radius:24px;padding:28px 24px 20px;width:calc(100% - 40px);max-width:380px;z-index:86;opacity:0;pointer-events:none;transition:all 0.25s cubic-bezier(0.32,0.72,0,1);box-shadow:0 20px 60px rgba(0,0,0,0.18)}
   .time-picker-modal.open {opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
-  .time-picker-display {text-align:center;font-size:40px;font-weight:600;color:#55423d;letter-spacing:0.04em;margin-bottom:20px}
+  .time-picker-display {text-align:center;font-size:40px;font-weight:600;color:#1C1C1E;letter-spacing:0.04em;margin-bottom:20px}
   .time-picker-display .tp-colon {color:#dcc1b9;margin:0 2px}
-  .time-picker-body {display:flex;align-items:stretch;justify-content:center;gap:0;position:relative;height:220px;overflow:hidden;border-radius:16px;background:#FAF6F0;margin-bottom:20px}
+  .time-picker-body {display:flex;align-items:stretch;justify-content:center;gap:0;position:relative;height:220px;overflow:hidden;border-radius:16px;background:#F2F2F7;margin-bottom:20px}
   .time-picker-highlight {position:absolute;top:50%;left:12px;right:12px;height:44px;transform:translateY(-50%);background:rgba(247,140,107,0.15);border-radius:12px;pointer-events:none;z-index:1;border:1px solid rgba(247,140,107,0.2)}
   .tp-col {flex:1;height:100%;overflow-y:auto;text-align:center;-webkit-overflow-scrolling:touch;scroll-snap-type:y mandatory;padding:88px 0}
   .tp-col::-webkit-scrollbar {display:none}
-  .tp-col-label {font-size:11px;color:#88726c;letter-spacing:0.08em;padding:10px 0 6px;font-weight:500}
-  .tp-col-item {height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#88726c;cursor:pointer;transition:all 0.15s;scroll-snap-align:center;flex-shrink:0}
-  .tp-col-item.selected {color:#9a4429;font-weight:600;font-size:22px}
+  .tp-col-label {font-size:11px;color:#8E8E93;letter-spacing:0.08em;padding:10px 0 6px;font-weight:500}
+  .tp-col-item {height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#8E8E93;cursor:pointer;transition:all 0.15s;scroll-snap-align:center;flex-shrink:0}
+  .tp-col-item.selected {color:#C2410C;font-weight:600;font-size:22px}
   .tp-col-divider {width:1px;height:60%;background:#EFE8E1;flex-shrink:0}
   .time-picker-actions {display:flex;gap:12px;flex-direction:row}
   .time-picker-actions button {flex:1;height:48px;border-radius:14px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.15s}
   .time-picker-actions button:active {transform:scale(0.97)}
-  .tp-btn-cancel {background:#FAF6F0;border:1px solid #EFE8E1;color:#55423d}
+  .tp-btn-cancel {background:#F2F2F7;border:1px solid #EFE8E1;color:#1C1C1E}
   .tp-btn-confirm {background:linear-gradient(135deg,#F78C6B 0%,#FF9B7A 100%);border:none;color:#fff;box-shadow:0 4px 16px rgba(247,140,107,0.3)}
 
   /* Freq Picker Modal */
@@ -89,19 +89,19 @@
   .freq-picker-modal {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.92);background:#FFF;border-radius:24px;padding:28px 24px 20px;width:calc(100% - 40px);max-width:340px;max-height:calc(100% - 80px);overflow-y:auto;z-index:86;opacity:0;pointer-events:none;transition:all 0.25s cubic-bezier(0.32,0.72,0,1);box-shadow:0 20px 60px rgba(0,0,0,0.18)}
 .freq-picker-modal::-webkit-scrollbar {display:none}
   .freq-picker-modal.open {opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
-  .freq-picker-title {text-align:center;font-size:18px;font-weight:500;color:#55423d;margin-bottom:16px}
+  .freq-picker-title {text-align:center;font-size:18px;font-weight:500;color:#1C1C1E;margin-bottom:16px}
   .freq-picker-options {display:flex;flex-direction:column;gap:4px;margin-bottom:20px}
-  .freq-option {display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;cursor:pointer;transition:all 0.15s;background:#FAF6F0;border:1.5px solid transparent}
-  .freq-option:hover {background:#f6decf}
+  .freq-option {display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;cursor:pointer;transition:all 0.15s;background:#F2F2F7;border:1.5px solid transparent}
+  .freq-option:hover {background:#FCEAE0}
   .freq-option:active {transform:scale(0.98)}
   .freq-option.selected {background:rgba(247,140,107,0.12);border-color:rgba(247,140,107,0.4)}
   .freq-option .freq-check {width:22px;height:22px;border-radius:50%;border:2px solid #dcc1b9;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s}
   .freq-option.selected .freq-check {background:#F78C6B;border-color:#F78C6B}
   .freq-option .freq-check .material-symbols-outlined {font-size:16px;color:#fff;opacity:0;transition:opacity 0.15s}
   .freq-option.selected .freq-check .material-symbols-outlined {opacity:1}
-  .freq-option .freq-text {font-size:16px;color:#55423d;font-weight:500}
-  .freq-option.selected .freq-text {color:#9a4429;font-weight:600}
-  .freq-option .freq-desc {font-size:12px;color:#88726c;margin-top:2px}
+  .freq-option .freq-text {font-size:16px;color:#1C1C1E;font-weight:500}
+  .freq-option.selected .freq-text {color:#C2410C;font-weight:600}
+  .freq-option .freq-desc {font-size:12px;color:#8E8E93;margin-top:2px}
   .freq-picker-actions {display:flex;gap:12px;flex-direction:row}
   .freq-picker-actions button {flex:1;height:48px;border-radius:14px;font-size:16px;font-weight:500;cursor:pointer;transition:all 0.15s}
   .freq-picker-actions button:active {transform:scale(0.97)}
@@ -110,22 +110,22 @@
   .freq-calendar-wrap {max-height:0;overflow:hidden;transition:max-height 0.3s ease,margin 0.3s ease;margin-top:0}
   .freq-calendar-wrap.show {max-height:300px;margin-top:12px}
   .freq-cal-nav {display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-  .freq-cal-nav button {width:32px;height:32px;border-radius:50%;border:none;background:#FAF6F0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s}
-  .freq-cal-nav button:hover {background:#f6decf}
+  .freq-cal-nav button {width:32px;height:32px;border-radius:50%;border:none;background:#F2F2F7;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s}
+  .freq-cal-nav button:hover {background:#FCEAE0}
   .freq-cal-nav button:active {transform:scale(0.92)}
-  .freq-cal-nav button .material-symbols-outlined {font-size:18px;color:#55423d}
-  .freq-cal-month {font-size:15px;font-weight:600;color:#55423d}
+  .freq-cal-nav button .material-symbols-outlined {font-size:18px;color:#1C1C1E}
+  .freq-cal-month {font-size:15px;font-weight:600;color:#1C1C1E}
   .freq-cal-weekdays {display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:4px}
-  .freq-cal-weekdays span {font-size:11px;color:#88726c;font-weight:500;padding:4px 0}
+  .freq-cal-weekdays span {font-size:11px;color:#8E8E93;font-weight:500;padding:4px 0}
   .freq-cal-grid {display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
-  .freq-cal-day {width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#55423d;cursor:pointer;transition:all 0.15s;margin:0 auto}
-  .freq-cal-day:hover {background:#FAF6F0}
+  .freq-cal-day {width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#1C1C1E;cursor:pointer;transition:all 0.15s;margin:0 auto}
+  .freq-cal-day:hover {background:#F2F2F7}
   .freq-cal-day:active {transform:scale(0.92)}
   .freq-cal-day.selected {background:#F78C6B;color:#fff;font-weight:600;box-shadow:0 2px 8px rgba(247,140,107,0.3)}
   .freq-cal-day.today {border:1.5px solid #F78C6B}
-  .freq-cal-day.past {color:#d4c8c0;background:#FAFAFA;cursor:not-allowed;pointer-events:none;text-decoration:line-through}
+  .freq-cal-day.past {color:#C7C7CC;background:#F2F2F7;cursor:not-allowed;pointer-events:none;text-decoration:line-through}
   .freq-cal-day.empty {cursor:default;pointer-events:none}
-  .freq-cal-day.other-month {color:#d4c8c0}
+  .freq-cal-day.other-month {color:#C7C7CC}
   .freq-cal-hint {text-align:center;font-size:12px;color:#F78C6B;margin-top:8px;min-height:18px}
 
   /* Warn - toggle */
@@ -144,13 +144,13 @@
 
   /* Settings */
   .settings-row {transition:background 0.15s}
-  .settings-row:active {background:#FAF6F0}
+  .settings-row:active {background:#F2F2F7}
 
   /* Family edit */
   .hobby-chip {transition:all 0.2s ease}
   .hobby-chip:active {transform:scale(0.95)}
   .habit-row {transition:background 0.15s}
-  .habit-row:focus-within {background:#FAF6F0}
+  .habit-row:focus-within {background:#F2F2F7}
   .do-dont-item {transition:all 0.2s}
   .icon-picker {animation:fadeIn 0.15s ease}
 
@@ -168,8 +168,8 @@
 
   /* ===== AnBan · 暖色玻璃设计系统 (B，去模板化) ===== */
   :root{
-    --ab-bg:#FAF6F0;--ab-ink:#2a1410;--ab-ink2:#8a6f63;--ab-ink3:#a89488;
-    --ab-primary:#9a4429;--ab-line:#ece2d9;--ab-line2:#e8ddd4;
+    --ab-bg:#F2F2F7;--ab-ink:#2a1410;--ab-ink2:#8a6f63;--ab-ink3:#a89488;
+    --ab-primary:#C2410C;--ab-line:#E5E5EA;--ab-line2:#E5E5EA;
     --ab-ok:#1a8c5a;--ab-okbg:#eafaf0;
     --ab-rlg:16px;--ab-rmd:10px;--ab-rsm:8px;--ab-rtag:5px;
     --ab-shadow:0 12px 30px rgba(247,140,107,.16);
@@ -178,12 +178,12 @@
   .ab-glass{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.9);border-radius:var(--ab-rlg);box-shadow:var(--ab-shadow)}
   .ab-card{background:#fff;border:1px solid var(--ab-line);border-radius:var(--ab-rmd)}
   .ab-btn-primary{background:var(--ab-primary);color:#fff;border:none;border-radius:var(--ab-rmd);font-weight:700;cursor:pointer}
-  .ab-btn-ghost{background:#fff;border:1px solid var(--ab-line2);color:#5a3526;border-radius:var(--ab-rmd);font-weight:700;cursor:pointer}
+  .ab-btn-ghost{background:#fff;border:1px solid var(--ab-line2);color:#1C1C1E;border-radius:var(--ab-rmd);font-weight:700;cursor:pointer}
   .ab-tag{display:inline-flex;align-items:center;gap:4px;border-radius:var(--ab-rtag);font-weight:700;padding:2px 7px;font-size:10px;line-height:1.5}
   .ab-tag-ok{color:var(--ab-ok);background:var(--ab-okbg)}
-  .ab-tag-cat{color:var(--ab-primary);background:#f5e3da}
+  .ab-tag-cat{color:var(--ab-primary);background:#FCEAE0}
   .ab-tag-imp{color:#9a6a13;background:#fbe7c4}
-  .ab-tag-off{color:#9c8378;background:#f0e9e2}
+  .ab-tag-off{color:#8E8E93;background:#EFEFF4}
   .ab-dot-pulse{animation:ab-pulse 1.6s ease-in-out infinite}
   @keyframes ab-pulse{0%,100%{opacity:1}50%{opacity:.35}}
   .ab-label{font-size:12px;font-weight:800;color:var(--ab-primary);letter-spacing:.14em}
@@ -191,9 +191,9 @@
   .ab-navbar{background:var(--ab-bg);border-top:1px solid var(--ab-line);display:flex;justify-content:space-around;padding:11px 0 16px}
   .ab-navbar .nav-link{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ab-ink3);font-size:10px;text-decoration:none}
   .ab-dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
-  .ab-dash{border:1px dashed #d8c8bc;border-radius:var(--ab-rmd);cursor:pointer}
+  .ab-dash{border:1px dashed #D1D1D6;border-radius:var(--ab-rmd);cursor:pointer}
   .ab-input{width:100%;height:50px;padding:0 14px;background:#fff;border:1px solid var(--ab-line2);border-radius:var(--ab-rmd);font-size:14px;color:var(--ab-ink);outline:none;box-sizing:border-box}
-  .ab-input:focus{border-color:var(--ab-primary);box-shadow:0 0 0 3px rgba(154,68,41,.12)}
+  .ab-input:focus{border-color:var(--ab-primary);box-shadow:0 0 0 3px rgba(60,60,67,.12)}
   .auth-mode{flex:1;height:38px;border:none;background:transparent;border-radius:var(--ab-rsm);font-size:13px;font-weight:600;color:var(--ab-ink2);cursor:pointer}
   .auth-mode.active{background:#fff;color:var(--ab-primary);box-shadow:0 1px 4px rgba(0,0,0,.06)}
   .auth-mode{flex:1;height:36px;border-radius:8px;color:var(--ab-ink2);font-size:12px;font-weight:700}
@@ -252,6 +252,45 @@
   .reminder-create-sheet.open{transform:translateY(0)}
   .reminder-create-header{height:68px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--ab-line)}
   .reminder-create-body{flex:1;overflow-y:auto;padding:18px 18px 28px;-webkit-overflow-scrolling:touch}
+  /* ===== iOS 清爽浅色统一层 (2026-06-21, 后定义覆盖) ===== */
+  .phone-frame,.phone-screen,.spa-section,.phone-screen-inner{background:#F2F2F7}
+  body{color:#1C1C1E}
+  .ab-card{background:#fff;border:0.5px solid rgba(60,60,67,.13);border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .ab-glass{background:rgba(255,255,255,.8);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border:0.5px solid rgba(255,255,255,.7);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .ab-btn-primary{background:#F2742B;border-radius:12px;font-weight:600;box-shadow:none}
+  .ab-btn-ghost{background:#fff;border:0.5px solid rgba(60,60,67,.16);border-radius:12px;color:#F2742B;font-weight:600}
+  .ab-input{border:0.5px solid rgba(60,60,67,.16);border-radius:12px;background:#fff}
+  .ab-input:focus{border-color:#F2742B;box-shadow:0 0 0 3px rgba(242,116,43,.14)}
+  .ab-tag{border-radius:6px}
+  .ab-navbar{background:rgba(249,249,251,.82)!important;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:0.5px solid rgba(60,60,67,.16)!important}
+  .ab-navbar .nav-link{color:#8E8E93}
+  .ab-navbar .nav-link.active,.ab-navbar a.active,.ab-navbar a[aria-current=page]{color:#F2742B}
+  /* ===== 统一所有底部导航 → 同一个 iOS 毛玻璃 Tab Bar (覆盖旧 stitch M3 nav) ===== */
+  nav.bg-surface-white{background:rgba(249,249,251,.82)!important;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:0.5px solid rgba(60,60,67,.16)!important;box-shadow:none!important;padding:8px 0 16px!important}
+  .ab-navbar .nav-link,nav.bg-surface-white .nav-link{color:#8E8E93!important;width:auto!important}
+  nav.bg-surface-white>div.relative{width:auto!important;height:auto!important}
+  nav.bg-surface-white .relative .absolute{display:none!important}
+  .ab-navbar .nav-link .material-symbols-outlined,nav.bg-surface-white .nav-link .material-symbols-outlined{font-size:23px!important;margin-bottom:2px!important}
+  .ab-navbar .nav-link .font-label-sm,nav.bg-surface-white .nav-link .font-label-sm{font-size:10px!important;font-weight:500;line-height:1.2}
+  .bg-background-cream{background:#F2F2F7!important}
+  .text-on-surface{color:#1C1C1E!important}
+  .text-on-surface-variant{color:#8E8E93!important}
+  [class*="text-on-secondary-fixed-variant"]{color:#8E8E93!important}
+  .text-primary{color:#F2742B!important}
+  .bg-primary{background:#F2742B!important}
+  [class*="bg-primary-container"]{background:#FCEAE0!important}
+  [class*="text-on-primary-container"]{color:#C2410C!important}
+  .bg-surface,.bg-surface-container,.bg-surface-container-low,.bg-surface-container-lowest,.bg-surface-container-high,.bg-surface-container-highest,.bg-surface-white{background:#fff!important}
+  [class*="border-divider-warm"]{border-color:rgba(60,60,67,.10)!important}
+  [class*="bg-divider-warm"]{background-color:rgba(60,60,67,.10)!important}
+  .text-text-secondary{color:#8E8E93!important}.text-outline{color:#C7C7CC!important}
+  .rounded-2xl{border-radius:14px!important}.rounded-3xl{border-radius:18px!important}
+  .ios-large-title{font-size:30px;font-weight:700;letter-spacing:-.02em;color:#1C1C1E;line-height:1.15}
+  .ios-group{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04);border:0.5px solid rgba(60,60,67,.08)}
+  .ios-row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:0.5px solid rgba(60,60,67,.10);min-height:44px;box-sizing:border-box}
+  .ios-row:first-child{border-top:0}
+  /* 子页(pushed view)居中标题 → 统一 iOS 内联标题 17px/600,与 tab 屏的 20px/800 左标题形成层级 */
+  header h1{font-size:17px!important;font-weight:600!important;letter-spacing:-.01em;color:var(--ab-ink)}
 </style>
 </head>
 <body>
@@ -259,8 +298,8 @@
 <div class="phone-frame">
   <div class="phone-screen">
     <button class="unbound-notice" id="unboundNotice" type="button" onclick="openBindDevice()">
-      <span style="display:flex;align-items:center;gap:9px;text-align:left"><span class="material-symbols-outlined" style="color:#a45b28">link_off</span><span><strong style="display:block;color:#5f3524;font-size:13px">请先绑定安伴设备</strong><span style="font-size:11px;color:#9a735f">绑定后解锁状态、留言和提醒</span></span></span>
-      <span class="material-symbols-outlined" style="color:#a45b28">chevron_right</span>
+      <span style="display:flex;align-items:center;gap:9px;text-align:left"><span class="material-symbols-outlined" style="color:#C2410C">link_off</span><span><strong style="display:block;color:#1C1C1E;font-size:13px">请先绑定安伴设备</strong><span style="font-size:11px;color:#8E8E93">绑定后解锁状态、留言和提醒</span></span></span>
+      <span class="material-symbols-outlined" style="color:#C2410C">chevron_right</span>
     </button>
 <div class="time-picker-overlay" id="timePickerOverlay" onclick="closeTimePickerModal()"></div>
     <div class="time-picker-modal" id="timePickerModal">
@@ -329,7 +368,7 @@
       <!-- ============ LOGIN ============ -->
       <section class="spa-section" id="s-login" data-statusbar="light">
         <div style="position:relative;height:210px;flex-shrink:0;overflow:hidden;background:linear-gradient(160deg,#EE9670,#F4B48F)">
-          <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,#FAF6F0)"></div>
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,#F2F2F7)"></div>
           <div style="position:relative;text-align:center;padding-top:44px;color:#fff">
             <div class="ab-iconbox" style="display:inline-flex;width:54px;height:54px;border-radius:15px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4)"><span class="material-symbols-outlined" style="font-size:26px">nest_eco_leaf</span></div>
             <div style="font-size:25px;font-weight:800;margin-top:12px;letter-spacing:.01em">安伴</div>
@@ -338,7 +377,7 @@
         </div>
         <div style="position:relative;z-index:10;padding:0 20px;margin-top:-30px;display:flex;flex-direction:column;flex:1">
           <div class="ab-glass" style="padding:18px">
-            <div style="display:flex;gap:4px;padding:4px;background:#f3ebe4;border-radius:12px;margin-bottom:16px">
+            <div style="display:flex;gap:4px;padding:4px;background:#ECECF0;border-radius:12px;margin-bottom:16px">
               <button class="auth-mode active" id="passwordLoginMode" type="button">密码</button>
               <button class="auth-mode" id="codeLoginMode" type="button">验证码</button>
               <button class="auth-mode" id="demoLoginMode" type="button">演示</button>
@@ -384,10 +423,10 @@
         <header class="sticky z-40 w-full flex justify-between items-center flex-shrink-0" style="background:var(--ab-bg);padding:16px 20px 12px">
           <div class="flex items-center" style="gap:9px">
             <div class="ab-iconbox" style="width:28px;height:28px;background:var(--ab-primary)"><span class="material-symbols-outlined" style="color:#fff;font-size:18px;font-variation-settings:'FILL' 1,'wght' 400">spa</span></div>
-            <span style="font-size:18px;font-weight:800;color:var(--ab-ink);letter-spacing:.01em">安伴</span>
+            <span style="font-size:20px;font-weight:800;color:var(--ab-ink);letter-spacing:-.01em">安伴</span>
           </div>
           <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')">
-            <span class="material-symbols-outlined" style="color:#9c8378;font-variation-settings:'wght' 300">settings</span>
+            <span class="material-symbols-outlined" style="color:#8E8E93;font-variation-settings:'wght' 300">settings</span>
           </button>
         </header>
         <main class="flex-1" style="position:relative;padding:6px 18px 8px">
@@ -399,7 +438,7 @@
             </div>
             <h2 id="statusTitle" style="font-size:24px;font-weight:800;color:var(--ab-ink);line-height:1.26;letter-spacing:0">家人今天状态很好</h2>
             <p id="statusDesc" style="font-size:13px;color:var(--ab-ink2);margin-top:10px;line-height:1.55">正在加载中...</p>
-            <button type="button" onclick="navigateTo('message')" style="margin-top:13px;padding-top:11px;border:0;border-top:1px solid rgba(154,68,41,.12);background:transparent;width:100%;display:flex;align-items:center;justify-content:space-between;color:var(--ab-ink2);font-size:12px">
+            <button type="button" onclick="navigateTo('message')" style="margin-top:13px;padding-top:11px;border:0;border-top:1px solid rgba(60,60,67,.12);background:transparent;width:100%;display:flex;align-items:center;justify-content:space-between;color:var(--ab-ink2);font-size:12px">
               <span id="latestMessageStatus">正在读取留言状态</span><span class="material-symbols-outlined" style="font-size:17px">chevron_right</span>
             </button>
           </section>
@@ -415,23 +454,27 @@
               <span id="mindEntryTime" style="font-size:11px;color:var(--ab-ink3);white-space:nowrap">暂无心智记录</span>
             </div>
           </button>
-          <div style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px">
-            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:8px;text-align:left">
-              <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:700">问候妈妈</span><span id="greetingStatusText" style="display:block;font-size:11px;color:rgba(255,255,255,.82);margin-top:2px">让安伴主动开口</span></span>
-              <span class="material-symbols-outlined" style="font-size:20px;flex-shrink:0">record_voice_over</span>
+          <div style="position:relative;display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+            <button id="greetingTriggerBtn" type="button" class="ab-btn-primary active:scale-[0.99] transition-all" style="min-height:64px;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left">
+              <span style="display:flex;align-items:center;gap:13px;min-width:0">
+                <span class="material-symbols-outlined" style="font-size:25px;flex-shrink:0">record_voice_over</span>
+                <span style="min-width:0"><span style="display:block;font-size:15px;font-weight:800">问候妈妈</span><span id="greetingStatusText" style="display:block;font-size:11px;color:rgba(255,255,255,.85);margin-top:1px">让安伴主动开口</span></span>
+              </span>
+              <span class="material-symbols-outlined" style="font-size:20px;flex-shrink:0;opacity:.85">chevron_right</span>
             </button>
-            <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:92px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:5px;text-align:left">
-              <span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">visibility</span>
-              <span id="visionLookButtonLabel" style="font-size:14px;font-weight:700;color:#5a3526">看一眼</span>
-              <span id="visionStatusText" style="font-size:11px;color:var(--ab-ink2);font-weight:400">看看老人在不在</span>
-            </button>
-            <button id="visionHistoryButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:82px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left">
-              <span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">photo_library</span><span style="display:block;font-size:14px;font-weight:700;color:#5a3526;margin-top:7px">原图记录</span></span>
-              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-ink3)">chevron_right</span>
-            </button>
-            <button type="button" class="ab-btn-ghost active:scale-95 transition-all" onclick="navigateTo('message')" style="min-height:82px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left">
-              <span><span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-primary)">chat_bubble</span><span style="display:block;font-size:14px;font-weight:700;color:#5a3526;margin-top:7px">给妈妈留言</span></span>
-              <span class="material-symbols-outlined" style="font-size:18px;color:var(--ab-ink3)">chevron_right</span>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+              <button id="visionLookButton" type="button" class="ab-btn-ghost active:scale-95 transition-all" style="min-height:90px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:5px;text-align:left">
+                <span class="material-symbols-outlined" style="font-size:22px;color:var(--ab-primary)">visibility</span>
+                <span style="min-width:0"><span id="visionLookButtonLabel" style="display:block;font-size:14px;font-weight:700;color:#1C1C1E">看一眼</span><span id="visionStatusText" style="display:block;font-size:11px;color:var(--ab-ink2);font-weight:400;margin-top:2px">看看老人在不在</span></span>
+              </button>
+              <button type="button" class="ab-btn-ghost active:scale-95 transition-all" onclick="navigateTo('message')" style="min-height:90px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:5px;text-align:left">
+                <span class="material-symbols-outlined" style="font-size:22px;color:var(--ab-primary)">chat_bubble</span>
+                <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:700;color:#1C1C1E">给妈妈留言</span><span style="display:block;font-size:11px;color:var(--ab-ink2);font-weight:400;margin-top:2px">安伴念给她听</span></span>
+              </button>
+            </div>
+            <button id="visionHistoryButton" type="button" class="ios-group active:scale-[0.99] transition-all" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;cursor:pointer;text-align:left">
+              <span style="display:flex;align-items:center;gap:12px;color:var(--ab-ink);font-size:14px;font-weight:600"><span class="material-symbols-outlined" style="font-size:21px;color:var(--ab-primary)">photo_library</span>原图记录</span>
+              <span class="material-symbols-outlined" style="font-size:20px;color:var(--ab-ink3)">chevron_right</span>
             </button>
           </div>
         </main>
@@ -523,8 +566,8 @@
       <!-- ============ MESSAGE ============ -->
       <section class="spa-section" id="s-message" data-statusbar="dark">
         <header class="sticky z-40 w-full flex-shrink-0" style="background:var(--ab-bg);padding:18px 20px 12px;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:19px;font-weight:800;color:var(--ab-ink)">消息</span>
-          <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')"><span class="material-symbols-outlined" style="color:#9c8378;font-variation-settings:'wght' 300">settings</span></button>
+          <span style="font-size:20px;font-weight:800;color:var(--ab-ink);letter-spacing:-.01em">消息</span>
+          <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')"><span class="material-symbols-outlined" style="color:#8E8E93;font-variation-settings:'wght' 300">settings</span></button>
         </header>
         <main class="flex-1 overflow-y-auto" id="messagesContainer" style="position:relative;padding:2px 18px 8px">
           <div style="font-size:12px;color:var(--ab-ink2);padding:4px 2px 12px">安伴会用柔和的语音把你的话念给妈妈听</div>
@@ -532,10 +575,10 @@
             <div style="text-align:center;color:var(--ab-ink3);font-size:13px;padding:24px 0">正在加载对话…</div>
           </section>
         </main>
-        <div class="flex-shrink-0" style="background:rgba(255,250,246,.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--ab-line);padding:10px 16px 12px">
+        <div class="flex-shrink-0" style="background:rgba(249,249,251,.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--ab-line);padding:10px 16px 12px">
           <div style="display:flex;align-items:flex-end;gap:8px">
-            <button class="active:scale-90 transition-transform" style="width:42px;height:42px;border-radius:var(--ab-rmd);background:#f3ebe4;color:var(--ab-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none" onclick="notImplemented('图片留言')"><span class="material-symbols-outlined" style="font-size:20px">image</span></button>
-            <button class="active:scale-90 transition-transform" style="width:42px;height:42px;border-radius:var(--ab-rmd);background:#f3ebe4;color:var(--ab-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none" onclick="notImplemented('语音留言')"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>
+            <button class="active:scale-90 transition-transform" style="width:42px;height:42px;border-radius:var(--ab-rmd);background:#ECECF0;color:var(--ab-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none" onclick="notImplemented('图片留言')"><span class="material-symbols-outlined" style="font-size:20px">image</span></button>
+            <button class="active:scale-90 transition-transform" style="width:42px;height:42px;border-radius:var(--ab-rmd);background:#ECECF0;color:var(--ab-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none" onclick="notImplemented('语音留言')"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>
             <textarea class="ab-input" id="messageInput" placeholder="给妈妈说点什么…" rows="1" style="flex:1;min-width:0;height:44px;padding:11px 14px;resize:none;line-height:20px"></textarea>
             <button class="ab-btn-primary active:scale-95 transition-all" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex-shrink:0" onclick="handleSend()"><span class="material-symbols-outlined" style="font-size:20px">send</span></button>
           </div>
@@ -551,12 +594,9 @@
 
       <!-- ============ WARN (Reminders) ============ -->
       <section class="spa-section" id="s-warn" data-statusbar="dark">
-        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
-          <div class="w-10"></div>
-          <h1 class="font-title-lg text-title-lg text-on-surface font-medium tracking-tight absolute left-1/2 -translate-x-1/2">提醒</h1>
-          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')">
-            <span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings:'wght' 300">settings</span>
-          </button>
+        <header class="sticky z-40 w-full flex-shrink-0" style="background:var(--ab-bg);padding:18px 20px 12px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:20px;font-weight:800;color:var(--ab-ink);letter-spacing:-.01em">提醒</span>
+          <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')"><span class="material-symbols-outlined" style="color:#8E8E93;font-variation-settings:'wght' 300">settings</span></button>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
           <section id="nextReminderSummary" class="ab-glass" style="padding:20px;margin-bottom:16px">
@@ -564,10 +604,16 @@
             <h2 id="nextReminderTitle" style="font-size:21px;font-weight:800;color:var(--ab-ink);margin-top:16px">正在读取提醒</h2>
             <p id="nextReminderMeta" style="font-size:13px;color:var(--ab-ink2);margin-top:7px">请稍候</p>
           </section>
-          <section style="display:flex;flex-direction:column;gap:10px">
-            <button id="openReminderCreateButton" type="button" class="ab-btn-primary" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">add_alarm</span>新建提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
-            <button id="openReminderListButton" type="button" class="ab-btn-ghost" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">list_alt</span>全部提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
-            <button id="openReminderHistoryButton" type="button" class="ab-btn-ghost" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><span class="material-symbols-outlined">history</span>历史提醒</span><span class="material-symbols-outlined">chevron_right</span></button>
+          <section id="warnUpcomingSection" style="margin-bottom:16px;display:none">
+            <div class="ab-label" style="margin:0 2px 9px">接下来</div>
+            <div id="warnUpcomingList" class="ios-group"></div>
+          </section>
+          <section style="display:flex;flex-direction:column;gap:14px">
+            <button id="openReminderCreateButton" type="button" class="ab-btn-primary active:scale-[0.99] transition-all" style="height:54px;padding:0 16px;display:flex;align-items:center;justify-content:center;gap:10px"><span class="material-symbols-outlined">add_alarm</span>新建提醒</button>
+            <div class="ios-group">
+              <button id="openReminderListButton" type="button" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:#fff;border:0;cursor:pointer;min-height:52px"><span style="display:flex;align-items:center;gap:12px;color:var(--ab-ink);font-size:15px;font-weight:600"><span class="material-symbols-outlined" style="color:var(--ab-primary);font-size:21px">list_alt</span>全部提醒</span><span class="material-symbols-outlined" style="color:var(--ab-ink3);font-size:20px">chevron_right</span></button>
+              <button id="openReminderHistoryButton" type="button" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:#fff;border:0;border-top:0.5px solid rgba(60,60,67,.10);cursor:pointer;min-height:52px"><span style="display:flex;align-items:center;gap:12px;color:var(--ab-ink);font-size:15px;font-weight:600"><span class="material-symbols-outlined" style="color:var(--ab-primary);font-size:21px">history</span>历史提醒</span><span class="material-symbols-outlined" style="color:var(--ab-ink3);font-size:20px">chevron_right</span></button>
+            </div>
           </section>
         </main>
         <!-- Warn Bottom Nav -->
@@ -719,12 +765,9 @@
 
       <!-- ============ FAMILY ============ -->
       <section class="spa-section" id="s-family" data-statusbar="dark">
-        <header class="sticky z-40 w-full flex justify-between items-center bg-background-cream flex-shrink-0 border-b border-divider-warm/30" style="padding:16px 24px 10px 24px">
-          <div class="w-10"></div>
-          <h1 class="font-title-lg text-title-lg text-on-surface font-medium absolute left-1/2 -translate-x-1/2">家人</h1>
-          <button class="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 transition-transform" onclick="navigateTo('mine')" title="设置">
-            <span class="material-symbols-outlined text-on-surface-variant">settings</span>
-          </button>
+        <header class="sticky z-40 w-full flex-shrink-0" style="background:var(--ab-bg);padding:18px 20px 12px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:20px;font-weight:800;color:var(--ab-ink);letter-spacing:-.01em">家人</span>
+          <button class="flex items-center justify-center active:scale-95 transition-transform" style="width:34px;height:34px" onclick="navigateTo('mine')" title="设置"><span class="material-symbols-outlined" style="color:#8E8E93;font-variation-settings:'wght' 300">settings</span></button>
         </header>
         <main class="flex-1 px-page-margin pt-3 pb-4">
           <div class="bg-surface-white rounded-2xl p-5 soft-shadow mb-4">

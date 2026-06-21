@@ -1,4 +1,4 @@
-const CACHE_NAME = 'anban-childweb-v8';
+const CACHE_NAME = 'anban-childweb-v11';
 const SHELL_REVISION = 'mind-view-20260620-2';
 const APP_SHELL = [
   './',

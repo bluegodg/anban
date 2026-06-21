@@ -336,7 +336,8 @@ function updateNavActive(name) {
     var isActive = (nav === name) || (name === 'mine' && nav === 'mine');
 
     if (isActive) {
-      link.style.color = '#9a4429';
+      link.style.setProperty('color', '#F2742B', 'important');
+      link.classList.add('active');
       var icon = link.querySelector('.material-symbols-outlined');
       if (icon) icon.style.fontVariationSettings = "'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24";
       var label = link.querySelector('.font-label-sm');
@@ -347,7 +348,8 @@ function updateNavActive(name) {
         parent.querySelector('.absolute').classList.remove('hidden');
       }
     } else {
-      link.style.color = '';
+      link.style.removeProperty('color');
+      link.classList.remove('active');
       var icon = link.querySelector('.material-symbols-outlined');
       if (icon) icon.style.fontVariationSettings = '';
       var label = link.querySelector('.font-label-sm');
@@ -2234,6 +2236,44 @@ function initWarn() {
     return '仅一次';
   }
 
+  function renderUpcomingInline(reminders) {
+    var section = document.getElementById('warnUpcomingSection');
+    var box = document.getElementById('warnUpcomingList');
+    if (!section || !box) return;
+    var items = Array.isArray(reminders) ? reminders.slice() : [];
+    items.sort(function(left, right) {
+      return new Date(left.scheduledAt || 0).getTime() - new Date(right.scheduledAt || 0).getTime();
+    });
+    var rest = items.slice(1, 4);
+    box.innerHTML = '';
+    if (!rest.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    for (var i = 0; i < rest.length; i++) {
+      var r = rest[i];
+      var when = new Date(r.scheduledAt);
+      var whenLabel = Number.isNaN(when.getTime()) ? '时间待确认' : when.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;' + (i > 0 ? 'border-top:0.5px solid rgba(60,60,67,.10);' : '');
+      var left = document.createElement('div');
+      left.style.cssText = 'min-width:0';
+      var t = document.createElement('div');
+      t.style.cssText = 'font-size:14px;font-weight:600;color:var(--ab-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      t.textContent = r.content || r.text || '提醒';
+      var m = document.createElement('div');
+      m.style.cssText = 'font-size:12px;color:var(--ab-ink2);margin-top:2px';
+      m.textContent = whenLabel + ' · ' + reminderFrequencyLabel(r);
+      left.appendChild(t);
+      left.appendChild(m);
+      var icon = document.createElement('span');
+      icon.className = 'material-symbols-outlined';
+      icon.style.cssText = 'font-size:19px;color:var(--ab-ink3);flex-shrink:0';
+      icon.textContent = 'schedule';
+      row.appendChild(left);
+      row.appendChild(icon);
+      box.appendChild(row);
+    }
+  }
+
   function renderNextReminder(reminders) {
     var title = document.getElementById('nextReminderTitle');
     var meta = document.getElementById('nextReminderMeta');
@@ -2260,6 +2300,7 @@ function initWarn() {
       var payload = await anbanClient.listReminders({ deviceId: anbanConfig.deviceId, status: 'scheduled' });
       var reminders = payload.reminders || [];
       renderNextReminder(reminders);
+      renderUpcomingInline(reminders);
       list.innerHTML = '';
       if (!reminders.length) {
         var empty = document.createElement('div');
@@ -2272,6 +2313,7 @@ function initWarn() {
       }
     } catch (error) {
       renderNextReminder([]);
+      renderUpcomingInline([]);
       list.innerHTML = '<div class="bg-surface-white rounded-2xl p-6 text-center text-text-secondary">提醒加载失败</div>';
     }
   }
