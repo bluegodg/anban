@@ -12,6 +12,8 @@
 - 边界：不新增后端接口、不上传或保存音频文件、不改变子女留言下发和 xiaozhi 播报链路；语音文件留言仍保持未实现范围。
 - 缓存：Service Worker 缓存版本升级到 `anban-childweb-v12`，确保已安装 PWA 获取新消息页静态资源。
 - 验证：先新增 childweb RED smoke，确认旧 mic 仍走 `notImplemented('语音留言')` 时失败；实现后 `npm test --prefix childweb`（60/60）和 `npm test --prefix web`（80/80）均通过。
+- 发布：提交 `665db73` 已推送到 `origin/main`。线上 `101.34.214.149:/home/ubuntu/anban/childweb/` 已覆盖 `index.html/app.js/sw.js`，旧静态文件备份在 `/home/ubuntu/anban/deploy-backups/message-voice-input-20260621-154346`；公网 `http://101.34.214.149:8091/sw.js` 返回 `anban-childweb-v12` 和 `message-voice-input-20260621`。
+- APK：使用本地 JDK17 `C:\Users\12520\.jdks\corretto-17.0.4.1` 重新 `cap sync android` + `assembleDebug`，保留 APK fallback 的线上 `config.js`；新包上传到 `http://101.34.214.149:8091/anban.apk`，服务器旧包备份在 `/home/ubuntu/anban/deploy-backups/anban-apk-20260621-154626`，SHA-256 为 `83102bf598114b7467975248d4bc8aca85ad088276e245d313f92cd1a0a6ab0a`。远端解包验证 APK 内置 `sw.js` 为 v12、`index.html/app.js` 包含语音输入入口，Capacitor `server.url` 仍指向 `http://101.34.214.149:8091`。
 
 ### Mind 自主“看一眼”最小闭环
 
