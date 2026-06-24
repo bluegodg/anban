@@ -48,6 +48,7 @@ type mcpCallReq struct {
 type managerDevicePayload struct {
 	ID                json.RawMessage `json:"id"`
 	DeviceID          string          `json:"device_id"`
+	DeviceCode        string          `json:"device_code"`
 	DeviceName        string          `json:"device_name"`
 	AgentID           json.RawMessage `json:"agent_id"`
 	Online            *bool           `json:"online"`
@@ -304,6 +305,7 @@ func (d managerDevicePayload) toDeviceStatus(fallbackDeviceID string) (DeviceSta
 	deviceID := firstNonEmpty(d.DeviceID, d.DeviceName, rawJSONIDString(d.ID), fallbackDeviceID)
 	return DeviceStatus{
 		DeviceID:     deviceID,
+		DeviceCode:   strings.TrimSpace(d.DeviceCode),
 		Online:       online,
 		LastActiveAt: lastActive,
 	}, nil

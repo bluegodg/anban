@@ -1,4 +1,4 @@
-const CACHE_NAME = 'anban-childweb-v13';
+const CACHE_NAME = 'anban-childweb-v14';
 const SHELL_REVISION = 'message-voice-permission-20260621';
 const APP_SHELL = [
   './',

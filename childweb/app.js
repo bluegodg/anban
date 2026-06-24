@@ -316,7 +316,7 @@ function showSection(name) {
 
   // Lazy init
   var initFn = 'init' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-./g, function(x){return x[1].toUpperCase()});
-  var alwaysRefresh = ['history', 'reminder-list', 'mind-history', 'detail'];
+  var alwaysRefresh = ['history', 'reminder-list', 'mind-history', 'detail', 'settings-device'];
   if ((!SPA.initialized[name] || alwaysRefresh.indexOf(name) >= 0) && typeof window[initFn] === 'function') {
     SPA.initialized[name] = true;
     window[initFn]();
@@ -2876,9 +2876,87 @@ function ensureMineInitialized() {
 }
 
 function initSettingsAccount() { ensureMineInitialized(); }
-function initSettingsDevice() { ensureMineInitialized(); }
+function initSettingsDevice() { ensureMineInitialized(); wireDeviceVolumeSlider(); loadDevicePanel(); }
 function initSettingsConnection() { ensureMineInitialized(); }
 function initSettingsGreeting() { ensureMineInitialized(); }
+
+function translateSignal(signal) {
+  switch (String(signal || '').toLowerCase()) {
+    case 'strong': return '强';
+    case 'medium': case 'moderate': return '中';
+    case 'weak': return '弱';
+    default: return signal || '';
+  }
+}
+
+async function loadDevicePanel() {
+  var card = document.getElementById('devicePanelCard');
+  if (!card) return;
+  var codeEl = document.getElementById('dpDeviceCode');
+  var onlineEl = document.getElementById('dpOnline');
+  var netEl = document.getElementById('dpNetwork');
+  var batEl = document.getElementById('dpBattery');
+  var slider = document.getElementById('dpVolumeSlider');
+  var volVal = document.getElementById('dpVolumeValue');
+  var hint = document.getElementById('dpVolumeHint');
+  if (onlineEl) { onlineEl.textContent = '读取中…'; onlineEl.className = 'ab-tag'; }
+  try {
+    var panel = await anbanClient.getDevicePanel({ deviceId: anbanConfig.deviceId });
+    if (codeEl) codeEl.textContent = panel.deviceCode || '—';
+    if (onlineEl) {
+      onlineEl.textContent = panel.online ? '在线' : '离线';
+      onlineEl.className = panel.online ? 'ab-tag ab-tag-ok' : 'ab-tag ab-tag-off';
+    }
+    if (netEl) {
+      if (panel.network && (panel.network.ssid || panel.network.type)) {
+        var sig = panel.network.signal ? '（信号' + translateSignal(panel.network.signal) + '）' : '';
+        netEl.textContent = (panel.network.ssid || panel.network.type) + sig;
+      } else { netEl.textContent = panel.online ? '—' : '设备离线'; }
+    }
+    if (batEl) batEl.textContent = (panel.battery === undefined || panel.battery === null) ? '—' : (panel.battery + '%');
+    if (slider && volVal) {
+      if (panel.online && typeof panel.volume === 'number') {
+        slider.value = String(panel.volume);
+        slider.dataset.prev = String(panel.volume);
+        slider.disabled = false;
+        volVal.textContent = panel.volume + '%';
+        if (hint) hint.textContent = '拖动调节设备音量';
+      } else {
+        slider.disabled = true;
+        volVal.textContent = panel.online ? '—' : '离线';
+        if (hint) hint.textContent = panel.online ? '该设备未上报音量' : '设备离线，无法读取或控制';
+      }
+    }
+  } catch (err) {
+    if (onlineEl) { onlineEl.textContent = '读取失败'; onlineEl.className = 'ab-tag ab-tag-off'; }
+    if (slider) slider.disabled = true;
+    if (hint) hint.textContent = (err && err.message) ? err.message : '设备状态读取失败';
+  }
+}
+
+function wireDeviceVolumeSlider() {
+  var slider = document.getElementById('dpVolumeSlider');
+  var volVal = document.getElementById('dpVolumeValue');
+  if (!slider || slider.dataset.wired) return;
+  slider.dataset.wired = '1';
+  slider.addEventListener('input', function() { if (volVal) volVal.textContent = slider.value + '%'; });
+  slider.addEventListener('change', async function() {
+    var target = parseInt(slider.value, 10) || 0;
+    var prev = slider.dataset.prev ? (parseInt(slider.dataset.prev, 10) || 0) : target;
+    slider.disabled = true;
+    try {
+      await anbanClient.setDeviceVolume({ deviceId: anbanConfig.deviceId, volume: target });
+      slider.dataset.prev = String(target);
+      showToast('音量已设为 ' + target + '%');
+    } catch (err) {
+      slider.value = String(prev);
+      if (volVal) volVal.textContent = prev + '%';
+      showToast((err && err.message) ? err.message : '设置音量失败，请确认设备在线');
+    } finally {
+      slider.disabled = false;
+    }
+  });
+}
 
 // ============================
 // initFamilyEdit

@@ -981,6 +981,33 @@
                 </div>
               </div>
             </div>
+            <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 mt-6 px-1">设备状态</h3>
+            <div class="bg-surface-white rounded-2xl p-5 soft-shadow space-y-4" id="devicePanelCard">
+              <div class="flex items-center justify-between gap-3">
+                <span class="font-body-md text-on-surface">设备码</span>
+                <span class="font-body-md text-on-surface-variant" id="dpDeviceCode">—</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="font-body-md text-on-surface">状态</span>
+                <span class="ab-tag" id="dpOnline">读取中…</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="font-body-md text-on-surface">网络</span>
+                <span class="font-body-md text-on-surface-variant text-right" id="dpNetwork">—</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="font-body-md text-on-surface">电量</span>
+                <span class="font-body-md text-on-surface-variant" id="dpBattery">—</span>
+              </div>
+              <div class="border-t border-divider-warm pt-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-body-md text-on-surface">音量</span>
+                  <span class="font-body-md text-on-surface-variant" id="dpVolumeValue">—</span>
+                </div>
+                <input id="dpVolumeSlider" type="range" min="0" max="100" step="1" value="0" class="w-full" style="accent-color:var(--ab-primary)" disabled />
+                <p class="font-label-sm text-label-sm text-text-secondary mt-2" id="dpVolumeHint">设备在线时可拖动调节</p>
+              </div>
+            </div>
           </section>
           <section class="mb-section-gap" id="settingsConnectionContent" style="display:none">
             <h3 class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider mb-3 px-1">连接设置</h3>

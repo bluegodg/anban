@@ -22,6 +22,45 @@ func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.GET("/status", h.get)
 	r.GET("/device/status", h.get)
 	r.GET("/device/history", h.history)
+	r.GET("/device/panel", h.panel)
+	r.POST("/device/volume", h.setVolume)
+}
+
+func (h *Handler) panel(c *gin.Context) {
+	panel, err := h.service.GetDevicePanel(c.Request.Context(), deviceIDFromContext(c, c.Query("deviceId")))
+	if errors.Is(err, ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "deviceId 必填"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "设备状态读取失败"})
+		return
+	}
+	c.JSON(http.StatusOK, panel)
+}
+
+func (h *Handler) setVolume(c *gin.Context) {
+	var body struct {
+		DeviceID string `json:"deviceId"`
+		Volume   *int   `json:"volume"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || body.Volume == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "volume 必填（0-100 整数）"})
+		return
+	}
+	err := h.service.SetVolume(c.Request.Context(), SetVolumeRequest{
+		DeviceID: deviceIDFromContext(c, body.DeviceID),
+		Volume:   *body.Volume,
+	})
+	if errors.Is(err, ErrInvalidInput) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "volume 必须是 0-100 的整数"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "设置音量失败，请确认设备在线"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "volume": *body.Volume})
 }
 
 func (h *Handler) get(c *gin.Context) {

@@ -38,6 +38,7 @@ type InjectOptions struct {
 
 type DeviceStatus struct {
 	DeviceID     string
+	DeviceCode   string
 	Online       bool
 	LastActiveAt time.Time
 }

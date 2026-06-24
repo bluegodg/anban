@@ -190,6 +190,15 @@ export function createAnbanClient({ baseURL = '', accessCode = '', token = '', i
       const suffix = params.toString() ? `?${params}` : '';
       return request(`/api/device/history${suffix}`, { device: true });
     },
+    getDevicePanel({ deviceId } = {}) {
+      const params = new URLSearchParams();
+      setQueryParam(params, 'deviceId', deviceId);
+      const suffix = params.toString() ? `?${params}` : '';
+      return request(`/api/device/panel${suffix}`, { device: true });
+    },
+    setDeviceVolume(payload) {
+      return request('/api/device/volume', { method: 'POST', body: payload, device: true });
+    },
     getProfile({ deviceId } = {}) {
       const params = new URLSearchParams();
       setQueryParam(params, 'deviceId', deviceId);
