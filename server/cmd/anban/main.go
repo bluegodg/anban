@@ -208,6 +208,11 @@ func main() {
 
 	mindDispatcher := executors.NewDispatcher(map[string]executors.SpeakExecutor{
 		"greeting": newMindGreetingSpeakExecutor(greetingService),
+		// reminders & child messages are delivered by their own domains; the mind
+		// must not double-speak them, so it records the choice as a clean deferral
+		// instead of failing with "executor not found".
+		"reminder": executors.DelegatedSpeak("reminder"),
+		"message":  executors.DelegatedSpeak("message"),
 	})
 	mindDispatcher.RegisterVision("vision", newMindVisionExecutor(visionService))
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})

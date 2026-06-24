@@ -302,6 +302,12 @@ func reasonFor(thought mind.Thought, actionType mind.ActionType, s mind.Situatio
 	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak {
 		return "长时间沉默且关心强度较高，轻声确认老人状态"
 	}
+	if actionType == mind.ActionSpeak && thought.DriveName == mind.DriveStewardship {
+		return "到点的关怀提醒，交给提醒按时送达。"
+	}
+	if actionType == mind.ActionSpeak && thought.DriveName == mind.DriveFamilyBridge {
+		return "把家人的话带到，交给留言通道送达。"
+	}
 	return fmt.Sprintf("由 %s 动机和 thought %s 选择", strings.TrimSpace(thought.DriveName), thought.ID)
 }
 

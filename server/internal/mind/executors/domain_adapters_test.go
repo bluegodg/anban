@@ -92,6 +92,33 @@ func TestSpeakFuncReturnsDomainReference(t *testing.T) {
 	}
 }
 
+func TestDelegatedSpeakDefersWithoutExecutorNotFound(t *testing.T) {
+	dispatcher := NewDispatcher(map[string]SpeakExecutor{
+		"reminder": DelegatedSpeak("reminder"),
+		"message":  DelegatedSpeak("message"),
+	})
+	for _, channel := range []string{"reminder", "message"} {
+		result, err := dispatcher.Execute(context.Background(), mind.Action{
+			ID:       "action-1",
+			Type:     mind.ActionSpeak,
+			Executor: channel,
+			DeviceID: "dev-001",
+		})
+		if err != nil {
+			t.Fatalf("%s: unexpected error %v", channel, err)
+		}
+		if result.Status != mind.ActionDeferred {
+			t.Fatalf("%s: status = %q, want deferred", channel, result.Status)
+		}
+		if result.ErrorMessage != "" {
+			t.Fatalf("%s: ErrorMessage = %q, want empty (no executor-not-found leak)", channel, result.ErrorMessage)
+		}
+		if result.ExecutorRef != channel {
+			t.Fatalf("%s: ExecutorRef = %q, want %q", channel, result.ExecutorRef, channel)
+		}
+	}
+}
+
 func TestDispatcherRoutesVisionActionToNamedExecutor(t *testing.T) {
 	vision := &fakeVisionExecutor{}
 	dispatcher := NewDispatcher(nil)
