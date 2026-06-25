@@ -69,7 +69,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	mindLoopInterval, err := durationEnv("ANBAN_MIND_LOOP_INTERVAL", 15*time.Minute)
+	mindLoopInterval, err := durationEnv("ANBAN_MIND_LOOP_INTERVAL", 3*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}
@@ -77,7 +77,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	mindProactiveCooldown, err := durationEnv("ANBAN_MIND_PROACTIVE_COOLDOWN", 30*time.Minute)
+	mindProactiveCooldown, err := durationEnv("ANBAN_MIND_PROACTIVE_COOLDOWN", 3*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}

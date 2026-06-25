@@ -57,14 +57,14 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	if c.VisionMaxCapturesPerDevice != 100 {
 		t.Fatalf("VisionMaxCapturesPerDevice default = %d, want 100", c.VisionMaxCapturesPerDevice)
 	}
-	if c.MindLoopInterval != 15*time.Minute {
-		t.Fatalf("MindLoopInterval default = %s, want 15m", c.MindLoopInterval)
+	if c.MindLoopInterval != 3*time.Minute {
+		t.Fatalf("MindLoopInterval default = %s, want 3m", c.MindLoopInterval)
 	}
 	if c.MindHistoryInterval != time.Minute {
 		t.Fatalf("MindHistoryInterval default = %s, want 1m", c.MindHistoryInterval)
 	}
-	if c.MindProactiveCooldown != 30*time.Minute {
-		t.Fatalf("MindProactiveCooldown default = %s, want 30m", c.MindProactiveCooldown)
+	if c.MindProactiveCooldown != 3*time.Minute {
+		t.Fatalf("MindProactiveCooldown default = %s, want 3m", c.MindProactiveCooldown)
 	}
 	if !c.MindProactiveDaytimeOnly {
 		t.Fatal("MindProactiveDaytimeOnly default = false, want true")
