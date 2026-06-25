@@ -1,21 +1,33 @@
 package life
 
 import (
+	"strings"
 	"time"
 
 	"github.com/bluegodg/anban/server/internal/mind"
 )
 
+const maxLingeringThoughts = 3
+
 func Update(deviceID string, at time.Time, state mind.SelfState, events []mind.Event) mind.LifeState {
 	careFocus := ""
 	lingering := []string{}
+	seen := map[string]bool{}
+	addLingering := func(text string) {
+		text = strings.TrimSpace(text)
+		if text == "" || seen[text] || len(lingering) >= maxLingeringThoughts {
+			return
+		}
+		seen[text] = true
+		lingering = append(lingering, text)
+	}
 	for _, event := range events {
 		switch event.Type {
 		case mind.EventLongSilence:
 			careFocus = "最近互动偏少，先轻轻留意"
-			lingering = append(lingering, event.Summary)
+			addLingering(event.Summary)
 		case mind.EventChildMessageReceived:
-			lingering = append(lingering, "子女消息等待合适时机带到")
+			addLingering("子女消息等待合适时机带到")
 		}
 	}
 
