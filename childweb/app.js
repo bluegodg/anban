@@ -1135,10 +1135,16 @@ function initHome() {
       entries.forEach(function(entry) {
         if (!entry.isIntersecting) return;
         visionHistoryObserver.unobserve(entry.target);
-        loadVisionHistoryThumbnail(entry.target);
+        // The <img> itself is display:none (a hidden element never intersects),
+        // so we observe the visible thumb container and resolve its image here.
+        var img = entry.target.querySelector ? entry.target.querySelector('img[data-capture-id]') : null;
+        loadVisionHistoryThumbnail(img || entry.target);
       });
     }, { root: content, rootMargin: '140px 0px' });
-    images.forEach(function(image) { visionHistoryObserver.observe(image); });
+    images.forEach(function(image) {
+      var target = image.closest('.vision-history-thumb') || image.parentElement || image;
+      visionHistoryObserver.observe(target);
+    });
   }
 
   async function loadVisionHistoryThumbnail(image) {
