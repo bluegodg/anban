@@ -653,7 +653,7 @@ func TestTickIdleAutonomousGreetingWaitsDuringCooldown(t *testing.T) {
 		DeviceID: deviceID,
 		Type:     mind.EventActionExecuted,
 		Source:   mind.SourceMind,
-		At:       at.Add(-20 * time.Minute),
+		At:       at.Add(-5 * time.Minute),
 		Summary:  "上一轮自主问候已执行",
 		Payload: map[string]any{
 			"actionType":    string(mind.ActionSpeak),

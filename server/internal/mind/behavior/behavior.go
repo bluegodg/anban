@@ -10,7 +10,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind"
 )
 
-const proactiveConcernThreshold = 0.70
+const proactiveConcernThreshold = 0.50
 const autonomousVisionConcernThreshold = 0.70
 
 func Select(s mind.Situation, state mind.SelfState, thoughts []mind.Thought) []mind.Action {
@@ -175,7 +175,7 @@ func shouldObserve(thought mind.Thought, s mind.Situation, state mind.SelfState)
 }
 
 func shouldSpeakQuietPresence(thought mind.Thought, s mind.Situation, state mind.SelfState) bool {
-	if thought.InterruptionCost >= 0.75 {
+	if thought.InterruptionCost >= 0.85 {
 		return false
 	}
 	if hasConstraint(s, mind.ConstraintMindProactiveDaytimeOnly) {
@@ -184,7 +184,7 @@ func shouldSpeakQuietPresence(thought mind.Thought, s mind.Situation, state mind
 	if hasConstraint(s, mind.ConstraintMindProactiveCooldownActive) {
 		return false
 	}
-	if state.Concern < proactiveConcernThreshold && thought.CareValue < 0.75 {
+	if state.Concern < proactiveConcernThreshold && thought.CareValue < 0.55 {
 		return false
 	}
 	return true

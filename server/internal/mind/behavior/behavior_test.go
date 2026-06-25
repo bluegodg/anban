@@ -122,7 +122,7 @@ func TestSelectUsesSituationDeviceIDWhenThoughtDeviceIDIsEmpty(t *testing.T) {
 func TestSelectTurnsNightSilenceIntoWait(t *testing.T) {
 	at := time.Date(2026, 6, 16, 22, 0, 0, 0, time.UTC)
 	got := Select(
-		mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "night", Constraints: []string{"prefer_observation"}},
+		mind.Situation{DeviceID: "dev-001", At: at, TimeOfDay: "night", Constraints: []string{"prefer_observation", mind.ConstraintMindProactiveDaytimeOnly}},
 		mind.SelfState{Quietness: 0.85, FamilyWeight: 0.6},
 		[]mind.Thought{{
 			ID:               "thought-1",
@@ -207,7 +207,7 @@ func TestSelectKeepsQuietPresenceWaitingWhenConcernLowOrCoolingDown(t *testing.T
 		DriveName:        mind.DriveQuietPresence,
 		Content:          "老人安静了一段时间",
 		Urgency:          0.40,
-		CareValue:        0.62,
+		CareValue:        0.50, // below the loosened 0.55 care bar, so low-concern still waits
 		InterruptionCost: 0.60,
 		Intimacy:         0.50,
 	}

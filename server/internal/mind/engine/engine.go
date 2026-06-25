@@ -34,7 +34,7 @@ type Service struct {
 	companionContext         CompanionContextReader
 }
 
-const defaultProactiveCooldown = 30 * time.Minute
+const defaultProactiveCooldown = 10 * time.Minute
 const defaultAutonomousVisionCooldown = 10 * time.Minute
 
 type ExecutionResult struct {
