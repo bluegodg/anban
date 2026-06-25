@@ -479,7 +479,6 @@ func TestSelectDefersAutonomousVisionWhenGuarded(t *testing.T) {
 	}{
 		{name: "disabled", constraints: []string{"mind_autonomous_vision_disabled"}, state: mind.SelfState{Concern: 0.82}, careValue: 0.78, wantReason: "关闭"},
 		{name: "night", constraints: []string{mind.ConstraintMindProactiveDaytimeOnly}, state: mind.SelfState{Concern: 0.82}, careValue: 0.78, wantReason: "白天"},
-		{name: "cooldown", constraints: []string{"mind_autonomous_vision_cooldown_active"}, state: mind.SelfState{Concern: 0.82}, careValue: 0.78, wantReason: "冷却"},
 		{name: "low concern", state: mind.SelfState{Concern: 0.30}, careValue: 0.60, wantReason: "关心"},
 	}
 	for _, tt := range tests {
@@ -501,6 +500,65 @@ func TestSelectDefersAutonomousVisionWhenGuarded(t *testing.T) {
 	}
 }
 
+func TestSelectFallsBackToGentleSpeakWhenVisionCoolingDownAndCareHigh(t *testing.T) {
+	actions := Select(
+		mind.Situation{
+			DeviceID:        "dev-001",
+			TimeOfDay:       "morning",
+			InteractionMode: "idle",
+			Constraints:     []string{mind.ConstraintMindAutonomousVisionCooldownActive},
+		},
+		mind.SelfState{Concern: 0.82, Quietness: 0.30},
+		[]mind.Thought{{
+			ID:               "thought-care",
+			DeviceID:         "dev-001",
+			DriveName:        mind.DriveCare,
+			Content:          "老人安静了一段时间",
+			CareValue:        0.78,
+			InterruptionCost: 0.45,
+		}},
+	)
+	if len(actions) != 1 {
+		t.Fatalf("actions = %+v, want 1", actions)
+	}
+	action := actions[0]
+	if action.Type != mind.ActionSpeak || action.Executor != "greeting" {
+		t.Fatalf("action = %+v, want gentle greeting speak when vision is cooling down", action)
+	}
+	if action.Args["mindProactive"] != true {
+		t.Fatalf("Args = %+v, want mindProactive marker", action.Args)
+	}
+	if action.Text == "" {
+		t.Fatalf("Text is empty, want a gentle check-in line")
+	}
+}
+
+func TestSelectSuppressesCareSpeakFallbackAtNight(t *testing.T) {
+	// Night/daytime-only must still suppress the proactive speak fallback.
+	actions := Select(
+		mind.Situation{
+			DeviceID:        "dev-001",
+			TimeOfDay:       "night",
+			InteractionMode: "idle",
+			Constraints: []string{
+				mind.ConstraintMindAutonomousVisionCooldownActive,
+				mind.ConstraintMindProactiveDaytimeOnly,
+			},
+		},
+		mind.SelfState{Concern: 0.90},
+		[]mind.Thought{{
+			ID:               "thought-care",
+			DeviceID:         "dev-001",
+			DriveName:        mind.DriveCare,
+			CareValue:        0.80,
+			InterruptionCost: 0.45,
+		}},
+	)
+	if len(actions) != 1 || actions[0].Type == mind.ActionSpeak {
+		t.Fatalf("actions = %+v, want non-speak at night even during vision cooldown", actions)
+	}
+}
+
 func TestSelectExplainsVisionCooldownWhenHighInterruptionCareWaits(t *testing.T) {
 	actions := Select(
 		mind.Situation{
@@ -515,7 +573,7 @@ func TestSelectExplainsVisionCooldownWhenHighInterruptionCareWaits(t *testing.T)
 			DeviceID:         "dev-001",
 			DriveName:        mind.DriveCare,
 			CareValue:        0.8,
-			InterruptionCost: 0.8,
+			InterruptionCost: 0.9,
 		}},
 	)
 	if len(actions) != 1 || actions[0].Type != mind.ActionWait {

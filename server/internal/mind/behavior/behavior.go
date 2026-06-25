@@ -142,6 +142,13 @@ func actionFor(thought mind.Thought, s mind.Situation, state mind.SelfState) (mi
 		thought.InterruptionCost <= 0.85 && shouldObserve(thought, s, state) {
 		return mind.ActionCallMCPTool, "vision"
 	}
+	// 关切想“看一眼”却被自主视觉冷却挡住（含上一次观察失败后进入冷却）时，
+	// 退化为轻声开口，而不是静默等待。仍受夜间/开口冷却/关心阈值约束。
+	if thought.DriveName == mind.DriveCare &&
+		hasConstraint(s, mind.ConstraintMindAutonomousVisionCooldownActive) &&
+		shouldSpeakQuietPresence(thought, s, state) {
+		return mind.ActionSpeak, "greeting"
+	}
 	if thought.InterruptionCost >= 0.75 {
 		return mind.ActionWait, "mind"
 	}
@@ -238,6 +245,8 @@ func defaultText(thought mind.Thought, actionType mind.ActionType) string {
 		return "孩子刚发来一句话，我轻轻说给你听。"
 	case mind.DriveQuietPresence:
 		return "我在这儿呢，刚想起你，今天还顺心吗？"
+	case mind.DriveCare:
+		return "我惦记着你呢，这会儿还好吗？"
 	case mind.DriveCompanionship:
 		return "我在这儿呢，慢慢来。"
 	default:
@@ -246,7 +255,7 @@ func defaultText(thought mind.Thought, actionType mind.ActionType) string {
 }
 
 func argsFor(thought mind.Thought, actionType mind.ActionType, executor string) map[string]any {
-	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak && executor == "greeting" {
+	if actionType == mind.ActionSpeak && executor == "greeting" {
 		return map[string]any{"mindProactive": true}
 	}
 	if actionType == mind.ActionCallMCPTool && executor == "vision" {
@@ -301,6 +310,9 @@ func reasonFor(thought mind.Thought, actionType mind.ActionType, s mind.Situatio
 	}
 	if thought.DriveName == mind.DriveQuietPresence && actionType == mind.ActionSpeak {
 		return "长时间沉默且关心强度较高，轻声确认老人状态"
+	}
+	if thought.DriveName == mind.DriveCare && actionType == mind.ActionSpeak {
+		return "惦记老人但此刻不便看一眼，改为轻声问候确认状态"
 	}
 	if actionType == mind.ActionSpeak && thought.DriveName == mind.DriveStewardship {
 		return "到点的关怀提醒，交给提醒按时送达。"

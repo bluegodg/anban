@@ -72,8 +72,8 @@ func TestLoadOKWithDefaults(t *testing.T) {
 	if !c.MindAutonomousVisionEnabled {
 		t.Fatal("MindAutonomousVisionEnabled default = false, want true")
 	}
-	if c.MindAutonomousVisionCooldown != 10*time.Minute {
-		t.Fatalf("MindAutonomousVisionCooldown default = %s, want 10m", c.MindAutonomousVisionCooldown)
+	if c.MindAutonomousVisionCooldown != 5*time.Minute {
+		t.Fatalf("MindAutonomousVisionCooldown default = %s, want 5m", c.MindAutonomousVisionCooldown)
 	}
 	if c.TimezoneName != "Asia/Shanghai" || c.TimezoneLocation == nil {
 		t.Fatalf("timezone = %q/%v, want Asia/Shanghai location", c.TimezoneName, c.TimezoneLocation)

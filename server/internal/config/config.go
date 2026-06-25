@@ -89,7 +89,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	mindAutonomousVisionCooldown, err := durationEnv("ANBAN_MIND_AUTONOMOUS_VISION_COOLDOWN", 10*time.Minute)
+	mindAutonomousVisionCooldown, err := durationEnv("ANBAN_MIND_AUTONOMOUS_VISION_COOLDOWN", 5*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}

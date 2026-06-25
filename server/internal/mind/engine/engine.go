@@ -35,7 +35,7 @@ type Service struct {
 }
 
 const defaultProactiveCooldown = 3 * time.Minute
-const defaultAutonomousVisionCooldown = 10 * time.Minute
+const defaultAutonomousVisionCooldown = 5 * time.Minute
 
 type ExecutionResult struct {
 	Status       mind.ActionStatus
