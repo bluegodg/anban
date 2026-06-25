@@ -17,6 +17,14 @@ func Open(dsn string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	// SQLite 只支持单写者；GORM 默认连接池不限连接数，并发读写会在文件锁上
+	// 严重排队（实测单条查询被拖到 1-2s），极端情况下还可能报 "database is locked"。
+	// 串行化到单连接是 Go+SQLite 的标准安全设置：所有访问经一个连接排队，每条都快。
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(1)
 	return &Store{DB: db}, nil
 }
 
