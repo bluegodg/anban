@@ -29,6 +29,7 @@ import (
 	"github.com/bluegodg/anban/server/internal/mind/promptctx"
 	"github.com/bluegodg/anban/server/internal/mindview"
 	"github.com/bluegodg/anban/server/internal/openmemory"
+	"github.com/bluegodg/anban/server/internal/outbox"
 	"github.com/bluegodg/anban/server/internal/proactive"
 	"github.com/bluegodg/anban/server/internal/scheduler"
 	"github.com/bluegodg/anban/server/internal/store"
@@ -47,6 +48,17 @@ func main() {
 	}
 
 	xc := xiaozhiclient.NewHTTPClient(cfg.ManagerBaseURL, cfg.ManagerAPIToken)
+
+	// 主动播报对"待命(UDP冷)设备"会被固件丢弃且 manager 仍返 success（探测不到失败）。
+	// outbox 把所有主动播报先入队，待设备活跃(speak_request 复用窗口内)再补播。
+	// deliverClient 是装饰器：三个域(message/greeting/reminder)的 InjectSpeak 自动入队，
+	// 其余调用透传；补播轮询用真实 xc 投递。
+	outboxStore := outbox.NewStore(st.DB)
+	if err := outboxStore.AutoMigrate(); err != nil {
+		log.Fatalf("outbox 表迁移失败: %v", err)
+	}
+	outboxService := outbox.NewService(xc, outboxStore)
+	deliverClient := outbox.NewClient(xc, outboxService)
 
 	sch := scheduler.New()
 	sch.Start()
@@ -81,14 +93,14 @@ func main() {
 		log.Fatalf("message 表迁移失败: %v", err)
 	}
 	// 留言是子女主动发的点对点消息，不走"主动语音10分钟配额"（配额只给问候/提醒/视觉等自主播报防聒噪），发了就直接播。
-	messageService := message.NewService(messageStore, xc)
+	messageService := message.NewService(messageStore, deliverClient)
 	messageHandler := message.NewHandler(messageService)
 
 	greetingStore := greeting.NewStore(st.DB)
 	if err := greetingStore.AutoMigrate(); err != nil {
 		log.Fatalf("greeting 表迁移失败: %v", err)
 	}
-	greetingService := greeting.NewService(greetingStore, xc, sch)
+	greetingService := greeting.NewService(greetingStore, deliverClient, sch)
 	greetingService.UseProactiveVoiceGate(voiceGate)
 	if restored, err := greetingService.RestoreSchedules(context.Background()); err != nil {
 		log.Fatalf("greeting 恢复调度失败: %v", err)
@@ -101,7 +113,7 @@ func main() {
 	if err := reminderStore.AutoMigrate(); err != nil {
 		log.Fatalf("reminder 表迁移失败: %v", err)
 	}
-	reminderService := reminder.NewService(reminderStore, xc, sch)
+	reminderService := reminder.NewService(reminderStore, deliverClient, sch)
 	reminderService.UseProactiveVoiceGate(voiceGate)
 	if restored, err := reminderService.RestoreScheduled(context.Background()); err != nil {
 		log.Fatalf("reminder 恢复调度失败: %v", err)
@@ -218,6 +230,7 @@ func main() {
 	mindEngine.UseExecutor(mindActionExecutor{dispatcher: mindDispatcher})
 	startMindLoops(sch, profileStore, mindEngine, profileService, cfg.MindLoopInterval)
 	startMindHistoryPoller(sch, cfg.MindHistoryInterval, profileStore, xc, mindEngine)
+	startOutboxFlushPoller(sch, outboxService, xc)
 	if portraitGenerator != nil {
 		startAIPortraitRefresh(sch, profileStore, profileService, mindEngine, profileService, 5*time.Second)
 	}
@@ -681,6 +694,65 @@ func startMindHistoryPoller(
 	}
 	scheduleNext()
 	log.Printf("mind history poller enabled: interval=%s", interval)
+}
+
+const (
+	outboxFlushInterval = 30 * time.Second
+	outboxWarmWindow    = 55 * time.Second
+)
+
+// startOutboxFlushPoller 周期检查有待播的设备：若设备最近有对话活动（仍在
+// speak_request 复用热窗口内），就把排队的主动播报补播出去；冷设备保持排队。
+func startOutboxFlushPoller(sch *scheduler.Scheduler, svc *outbox.Service, xc xiaozhiclient.Client) {
+	var scheduleNext func()
+	scheduleNext = func() {
+		if _, err := sch.ScheduleAt(time.Now().Add(outboxFlushInterval), func() {
+			runOutboxFlush(svc, xc)
+			scheduleNext()
+		}); err != nil {
+			log.Printf("outbox flush poller 调度失败: %v", err)
+		}
+	}
+	scheduleNext()
+	log.Printf("outbox flush poller enabled: interval=%s warm_window=%s", outboxFlushInterval, outboxWarmWindow)
+}
+
+func runOutboxFlush(svc *outbox.Service, xc xiaozhiclient.Client) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deviceIDs, err := svc.PendingDeviceIDs(ctx)
+	if err != nil {
+		log.Printf("outbox flush 取待播设备失败: %v", err)
+		return
+	}
+	now := time.Now().UTC()
+	for _, deviceID := range deviceIDs {
+		if !deviceIsWarm(ctx, xc, deviceID, now) {
+			continue
+		}
+		if _, err := svc.Flush(ctx, deviceID); err != nil {
+			log.Printf("outbox flush 失败 device=%s: %v", deviceID, err)
+		}
+	}
+}
+
+// deviceIsWarm：最近一条对话消息落在热窗口内 ⇒ UDP 音频链路大概率仍热，可直接补播。
+func deviceIsWarm(ctx context.Context, xc xiaozhiclient.Client, deviceID string, now time.Time) bool {
+	history, err := xc.GetHistory(ctx, deviceID, 3)
+	if err != nil || len(history) == 0 {
+		return false
+	}
+	var newest time.Time
+	for _, m := range history {
+		if m.At.After(newest) {
+			newest = m.At
+		}
+	}
+	if newest.IsZero() {
+		return false
+	}
+	return now.Sub(newest.UTC()) <= outboxWarmWindow
 }
 
 func runMindHistoryPoll(profileStore *profile.Store, xc xiaozhiclient.Client, mindEngine mind.Engine) {
